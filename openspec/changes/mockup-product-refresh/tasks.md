@@ -30,7 +30,7 @@
 - [ ] 15. Complete source/runtime audit and list prior skipped requirements separately from superseded decisions and hardware acceptance gaps.
 - [ ] 16. Consolidate redundant tests around observable contracts. Keep parser, network, remote and persistence regression coverage. Record before/after test scope and performance evidence.
 - [ ] 17. Verify complete flows and mockup fidelity at 1920×1080 and the annotated viewport in MCP Chromium. Run tests, package build and OpenSpec validation.
-- [ ] 18. Replace inherited release workflow/install links and deployment bindings. Publish the authorized fresh-root snapshot using a guarded push, delete old releases/tags, verify remote ancestry and independence.
+- [x] 18. Replace inherited release workflow/install links and deployment bindings. Publish the authorized fresh-root snapshot using a guarded push, delete old releases/tags, verify remote ancestry and independence.
 - [ ] 19. Sync verified requirements into main specs and archive only when the entire change is complete.
 
 ## Verified checkpoint
@@ -40,3 +40,4 @@ The first implementation slice is repository/documentation cleanup, Settings con
 - Unit suite: 270 passing after replacing the obsolete mini-player assertion, deleting its two obsolete focus tests and adding three listener acknowledgement tests. Parser/network coverage was retained. This is not a completed suite consolidation or a performance-improvement claim.
 - MCP Chromium: Back after seeking audio returns to `/removable1/Music` with decoder IDLE and native focus on the originating file. Video similarly returns to `/removable1/Films`. No mini-player element exists. Settings contains exactly three controls. Casting off rejects simulated sends. Enabling casting/logging toasts their URLs.
 - Package build and strict OpenSpec validation pass. Physical TV acceptance remains unverified.
+- Repository reset: `3bbbbbd` is a new parentless baseline. A guarded force push replaced the old main. GitHub reports `isFork=false` and no parent. Both releases and remote tags were deleted. The complete old history, release metadata and binaries were retained in an offline recovery backup. MIT attribution remains. Existing clones must re-clone or deliberately reset rather than merge old ancestry back into main.
