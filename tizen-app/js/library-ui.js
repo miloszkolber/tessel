@@ -7,6 +7,12 @@ var LibraryUI = (function () {
     function t() { return I18n.t.apply(I18n, arguments); }
     function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; }
     function icon(name) { var img = el('img', 'remix-icon'); img.src = 'assets/remix/' + name + '.svg'; img.alt = ''; return img; }
+    function streamInfo(url) {
+        var clean = String(url || '').split(/[?#]/)[0], kind = FileTypes.kind(clean);
+        var host = /^[a-z][\w+.-]*:\/\/([^/]+)/i.exec(clean);
+        return { icon: kind === 'audio' ? 'file-music-fill' : kind === 'video' ? 'file-video-fill' : kind === 'playlist' ? 'play-list-fill' : 'play-fill',
+            subtitle: host ? host[1].replace(/^.*@/, '') : clean.split(':')[0].toUpperCase() };
+    }
     function sourceKey(s) { return s.kind + ':' + String(s.srv !== undefined ? s.srv : s.id || ''); }
     function sources() {
         return SMB.servers().map(function (s) { return { kind: 'smb', srv: s.id, path: '/', name: s.name || SMB.serverLabel(s) }; })
@@ -87,7 +93,8 @@ var LibraryUI = (function () {
         var b = el('button', 'media-card'); b.type = 'button';
         b.dataset.cardKey = item.key || item.uri || (item.kind === 'url' ? item.path : sourceKey(item) + (item.path && item.path !== '/' && item.path !== '0' ? ':' + item.path : ''));
         var image = el('span', 'card-picture');
-        image.appendChild(icon(item.icon || (item.kind === 'url' ? 'play-list-fill' : item.kind === 'usb' ? 'hard-drive-2-fill' : 'folder-fill')));
+        var folder = item.kind === 'usb' && item.rootPath && item.path !== item.rootPath;
+        image.appendChild(icon(item.icon || (item.kind === 'url' ? 'play-fill' : folder ? 'folder-fill' : item.kind === 'usb' ? 'hard-drive-2-fill' : item.kind === 'dlna' ? 'file-video-fill' : item.kind === 'webdav' ? 'earth-line' : 'folder-fill')));
         if (item.art) {
             var art = el('img', 'card-art'); art.src = item.art; art.alt = ''; art.loading = 'lazy';
             art.onerror = function () { if (art.parentNode) art.parentNode.removeChild(art); };
@@ -97,6 +104,8 @@ var LibraryUI = (function () {
         if (item.dur && item.pos) { var bar = el('span', 'card-progress'), fill = el('span'); fill.style.width = Math.min(100, item.pos / item.dur * 100) + '%'; bar.appendChild(fill); image.appendChild(bar); }
         b.appendChild(image); b.appendChild(el('span', 'card-title', item.title || item.name));
         b.appendChild(el('span', 'card-description', item.subtitle || ''));
+        b.title = item.title || item.name;
+        b.setAttribute('aria-label', (item.title || item.name) + (item.subtitle ? ' — ' + item.subtitle : ''));
         b.addEventListener('click', run);
         if (context) bind(b, context);
         if (item.source || item.kind) decorateAvailability(b, item.source || item);
@@ -207,12 +216,17 @@ var LibraryUI = (function () {
         mod.editServer(id === undefined ? 'new' : id);
         var group = document.getElementById(kind === 'smb' ? 'grp-smb' : 'grp-dav');
         var parent = group.parentNode, next = group.nextSibling;
-        var d = Dialog.open(t(kind === 'smb' ? 'smb.section' : 'dav.section'), { back: addSource, dispose: function () { parent.insertBefore(group, next); } });
-        group.classList.remove('hidden'); d.body.appendChild(group); d.focus();
+        var save = document.getElementById(kind === 'smb' ? 'smb-save' : 'dav-save'), afterSave = save.nextSibling;
+        var d = Dialog.open(t(kind === 'smb' ? 'smb.section' : 'dav.section'), { back: addSource, dispose: function () {
+            group.insertBefore(save, afterSave); parent.insertBefore(group, next);
+        } });
+        d.root.classList.add('source-dialog');
+        group.classList.remove('hidden'); d.body.appendChild(group); d.footer.appendChild(save); d.focus();
     }
     function addDlna() {
         var seq = 0;
         var d = Dialog.open(t('network.addDlna'), { back: addSource, dispose: function () { seq++; } });
+        var again = el('button', 'btn ghost', t('dlna.searchAgain')); again.addEventListener('click', refresh); d.footer.appendChild(again);
         function refresh() {
             var request = ++seq; d.body.innerHTML = ''; d.body.appendChild(el('p', 'muted', t('dlna.searching')));
             DLNA.discover(function (err, devices) {
@@ -225,7 +239,7 @@ var LibraryUI = (function () {
                     b.addEventListener('click', function () { DLNA.addServer(s); Dialog.close(false); sourceSaved('dlna', s.id); });
                     d.body.appendChild(b);
                 });
-                var b = el('button', 'btn ghost', t('dlna.searchAgain')); b.addEventListener('click', refresh); d.body.appendChild(b); d.focus();
+                d.focus();
             });
         }
         refresh();
@@ -236,13 +250,15 @@ var LibraryUI = (function () {
         var focus = focusKey || (document.activeElement && document.activeElement.dataset.cardKey);
         host.innerHTML = '';
         SavedStreams.list().forEach(function (s) {
-            host.appendChild(card({ key: 'saved:' + s.id, title: s.name, kind: 'url', path: s.url },
+            var info = streamInfo(s.url);
+            host.appendChild(card({ key: 'saved:' + s.id, title: s.name, kind: 'url', path: s.url, icon: info.icon, subtitle: info.subtitle },
                 function () { VlcApp.openStream(s.url, s.name); }, function (node) { streamMenu(s, node, false); }));
         });
         document.getElementById('saved-streams').classList.toggle('hidden', !host.children.length);
         var recent = document.getElementById('recent-streams-list'); recent.innerHTML = '';
         Library.recents().forEach(function (s) {
-            recent.appendChild(card({ key: 'recent:' + s.url, title: s.name, kind: 'url', path: s.url }, function () { VlcApp.openStream(s.url, s.name); }, function (node) { streamMenu(s, node, true); }));
+            var info = streamInfo(s.url);
+            recent.appendChild(card({ key: 'recent:' + s.url, title: s.name, kind: 'url', path: s.url, icon: info.icon, subtitle: info.subtitle }, function () { VlcApp.openStream(s.url, s.name); }, function (node) { streamMenu(s, node, true); }));
         });
         document.getElementById('recent-streams').classList.toggle('hidden', !recent.children.length);
         UI.refreshFocusables(); if (focus) restore(focus);
@@ -296,5 +312,5 @@ var LibraryUI = (function () {
     function validUrl(url) { return /^(https?|rtsp|rtmp|mms|udp|rtp|file):\/\//i.test(String(url || '').trim()); }
     return { init: refreshConnections, home: home, network: network, stream: stream, receive: receive,
         bindFolder: bindFolder, bind: bind, sourceSaved: sourceSaved, editSource: editSource, addSource: addSource,
-        refreshConnections: refreshConnections, descriptor: descriptor, validUrl: validUrl, offline: offline, usbPath: usbPath };
+        refreshConnections: refreshConnections, descriptor: descriptor, validUrl: validUrl, offline: offline, usbPath: usbPath, streamInfo: streamInfo };
 })();

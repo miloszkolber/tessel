@@ -24,14 +24,15 @@ var Dialog = (function () {
         var heading = document.createElement('h2'); heading.id = 'dialog-title'; heading.textContent = title;
         card.setAttribute('aria-labelledby', heading.id);
         var body = document.createElement('div'); body.className = 'dialog-body';
-        card.appendChild(heading); card.appendChild(body); root.appendChild(card); document.body.appendChild(root);
-        var item = { root: root, body: body, returnTo: options.returnTo || document.activeElement, dispose: options.dispose };
+        var footer = document.createElement('div'); footer.className = 'dialog-footer';
+        card.appendChild(heading); card.appendChild(body); card.appendChild(footer); root.appendChild(card); document.body.appendChild(root);
+        var item = { root: root, body: body, footer: footer, returnTo: options.returnTo || document.activeElement, dispose: options.dispose };
         item.keys = Remote.push(function (code) {
             var K = Remote.KEY;
             if (code === K.BACK) { if (options.back) options.back(); else close(); return true; }
             if (code === K.ENTER) { if (document.activeElement.tagName !== 'INPUT') UI.activateFocused(); return document.activeElement.tagName !== 'INPUT'; }
             if (code === K.UP || code === K.DOWN) {
-                var rows = Array.prototype.slice.call(body.querySelectorAll('button,input,[tabindex]')).filter(function (el) { return !el.disabled && !el.closest('.hidden') && el.offsetParent !== null; });
+                var rows = Array.prototype.slice.call(card.querySelectorAll('button,input,[tabindex]')).filter(function (el) { return !el.disabled && !el.closest('.hidden') && el.offsetParent !== null; });
                 var at = rows.indexOf(document.activeElement);
                 UI.focusOn(rows[Math.max(0, Math.min(rows.length - 1, at + (code === K.DOWN ? 1 : -1)))]);
                 return true;
@@ -40,7 +41,7 @@ var Dialog = (function () {
             return false;
         });
         active = item;
-        item.focus = function () { UI.refreshFocusables(); UI.focusOn(body.querySelector('[data-focus],button,input,[tabindex]') || card); };
+        item.focus = function () { UI.refreshFocusables(); UI.focusOn(body.querySelector('[data-focus],button,input,[tabindex]') || footer.querySelector('button') || card); };
         card.tabIndex = -1;
         return item;
     }
@@ -60,7 +61,7 @@ var Dialog = (function () {
         function commit() { var name = input.value.trim(); if (!name) { input.focus(); return; } close(false); save(name); }
         b.addEventListener('click', commit);
         input.addEventListener('keydown', function (ev) { if (ev.keyCode === 13) { ev.preventDefault(); ev.stopPropagation(); commit(); } });
-        d.body.appendChild(input); d.body.appendChild(b); d.focus();
+        d.body.appendChild(input); d.footer.appendChild(b); d.focus();
     }
     return { open: open, close: close, menu: menu, rename: rename, isOpen: function () { return !!active; } };
 })();

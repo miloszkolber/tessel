@@ -29,17 +29,17 @@
     <h2 class="row-heading" data-i18n="library.sources">Sources</h2>
     <nav class="home-tiles">
         <button class="tile" data-action="browse-usb" data-focus>
-            <div class="tile-icon"><img class="remix-icon" src="assets/remix/hard-drive-2-fill.svg" alt=""></div>
+            <div class="tile-icon"><img class="remix-icon" src="assets/remix/usb-line.svg" alt=""></div>
             <div class="tile-label" data-i18n="home.usb">USB</div>
             <div class="tile-sub" data-i18n="home.usbSub">Local files on connected storage</div>
         </button>
         <button class="tile" data-action="browse-network">
-            <div class="tile-icon"><img class="remix-icon" src="assets/remix/hard-drive-2-fill.svg" alt=""></div>
+            <div class="tile-icon"><img class="remix-icon" src="assets/remix/server-line.svg" alt=""></div>
             <div class="tile-label" data-i18n="home.network">Network</div>
             <div class="tile-sub" data-i18n="home.networkSub">SMB, DLNA and WebDAV sources</div>
         </button>
         <button class="tile" data-action="open-url">
-            <div class="tile-icon"><img class="remix-icon" src="assets/remix/play-list-fill.svg" alt=""></div>
+            <div class="tile-icon"><img class="remix-icon" src="assets/remix/earth-line.svg" alt=""></div>
             <div class="tile-label" data-i18n="home.url">Stream</div>
         </button>
         <button class="tile" data-action="open-settings">
@@ -99,6 +99,7 @@
     </div>
 
     <footer class="hint">
+        <span class="key"><img class="remix-icon" src="assets/remix/arrow-up-line.svg" alt=""><img class="remix-icon" src="assets/remix/arrow-down-line.svg" alt=""><img class="remix-icon" src="assets/remix/arrow-left-line.svg" alt=""><img class="remix-icon" src="assets/remix/arrow-right-line.svg" alt=""></span> <span data-i18n="hint.navigate">navigate</span>
         <span class="key">OK</span> <span data-i18n="hint.open">open</span>
         <span class="key">RETURN</span> <span data-i18n="hint.back">back</span>
         <span class="key">OK</span> <span data-i18n="library.holdMenu">Menu (long press)</span>
@@ -141,8 +142,8 @@
     </div>
 
     <div class="actions">
-        <button class="btn primary" data-action="open-current-url" data-i18n="common.play">Play</button>
-        <button class="btn ghost"   data-action="save-current-url"><img class="remix-icon" src="assets/remix/star-fill.svg" alt=""> <span data-i18n="saved.save">Save</span></button>
+        <button class="btn primary" data-action="open-current-url"><img class="remix-icon" src="assets/remix/play-fill.svg" alt=""><span data-i18n="common.play">Play</span></button>
+        <button class="btn ghost"   data-action="save-current-url"><img class="remix-icon" src="assets/remix/bookmark-line.svg" alt=""> <span data-i18n="saved.save">Save</span></button>
         <button class="btn ghost"   data-action="fetch-remote-url"><img class="remix-icon" src="assets/remix/smartphone-line.svg" alt=""> <span data-i18n="url.fromDevice">Get from device</span></button>
         <!-- No Cancel: the remote's Back key does that (issue #126). -->
     </div>
@@ -155,7 +156,7 @@
         <div id="saved-streams-list" class="card-row"></div>
     </div>
     <div class="library-row hidden" id="recent-streams"><h2 data-i18n="stream.recent">Recent</h2><div class="card-row" id="recent-streams-list"></div></div>
-    <footer class="hint"><span class="key">OK</span> <span data-i18n="hint.open">open</span> <span class="key">OK</span> <span data-i18n="library.holdMenu">Menu (long press)</span> <span class="key">RETURN</span> <span data-i18n="hint.back">back</span></footer>
+    <footer class="hint"><span class="key"><img class="remix-icon" src="assets/remix/arrow-up-line.svg" alt=""><img class="remix-icon" src="assets/remix/arrow-down-line.svg" alt=""><img class="remix-icon" src="assets/remix/arrow-left-line.svg" alt=""><img class="remix-icon" src="assets/remix/arrow-right-line.svg" alt=""></span> <span data-i18n="hint.navigate">navigate</span> <span class="key">OK</span> <span data-i18n="hint.open">open</span> <span class="key">OK</span> <span data-i18n="library.holdMenu">Menu (long press)</span> <span class="key">RETURN</span> <span data-i18n="hint.back">back</span></footer>
 
     <!-- Name and URL of a stream being saved or edited.  While it's open the
          rest of the screen steps aside (#view-url.editing). -->
@@ -194,8 +195,9 @@
     <ul    class="browse-list" id="browse-list"></ul>
 
     <footer class="hint">
-        <span class="browse-actions"><span class="key">OK</span> <span data-i18n="library.holdMenu">Menu (long press)</span>
-        <span class="key">OK</span> <span data-i18n="hint.open">open</span></span>
+        <span class="browse-actions"><span class="key"><img class="remix-icon" src="assets/remix/arrow-up-line.svg" alt=""><img class="remix-icon" src="assets/remix/arrow-down-line.svg" alt=""><img class="remix-icon" src="assets/remix/arrow-left-line.svg" alt=""><img class="remix-icon" src="assets/remix/arrow-right-line.svg" alt=""></span> <span data-i18n="hint.navigate">navigate</span>
+        <span class="key">OK</span> <span data-i18n="hint.open">open</span>
+        <span class="key">OK</span> <span data-i18n="library.holdMenu">Menu (long press)</span></span>
         <span class="key">RETURN</span> <span data-i18n="hint.up">up</span>
         <span class="browse-actions browse-media-action"><span class="key">PLAY</span> <span data-i18n="hint.openAsMedia">open as media</span></span>
         <span class="hidden" id="hint-save"><span class="key">TOOLS</span> <span data-i18n="hint.saveChannel">save / unsave</span></span>
