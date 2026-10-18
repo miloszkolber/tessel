@@ -79,10 +79,45 @@ var Remote = (function () {
     }
 
     var listeners = [];
+    var hold = null;
+    var HOLD_MS = 650;
+    function cancelHold() {
+        if (hold) { clearTimeout(hold.timer); hold.cancelled = true; }
+    }
+    function consume(ev) {
+        ev.preventDefault(); ev.stopPropagation();
+        if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    }
+    function onDown(ev) {
+        if (ev.keyCode !== KEY.ENTER) { if (hold) cancelHold(); dispatch(ev); return; }
+        if (hold) { consume(ev); return; }
+        var target = document.activeElement;
+        if (!target || target.tagName === 'INPUT' || !target.__context) { dispatch(ev); return; }
+        consume(ev);
+        hold = { target: target, cancelled: false, long: false };
+        var pending = hold;
+        pending.timer = setTimeout(function () {
+            if (pending.cancelled || document.activeElement !== target || target.closest('.hidden')) return;
+            pending.long = true;
+            target.__context();
+        }, HOLD_MS);
+    }
+    function onUp(ev) {
+        if (ev.keyCode !== KEY.ENTER || !hold) return;
+        consume(ev);
+        var pending = hold; hold = null; clearTimeout(pending.timer);
+        if (!pending.cancelled && !pending.long && document.activeElement === pending.target) dispatch(ev);
+    }
 
     function init() {
         registerMediaKeys();
-        window.addEventListener('keydown', dispatch);
+        window.addEventListener('keydown', onDown);
+        window.addEventListener('keyup', onUp);
+        window.addEventListener('blur', function () { cancelHold(); hold = null; });
+        document.addEventListener('contextmenu', function (ev) {
+            var target = ev.target.closest('[data-context]');
+            if (target && target.__context) { consume(ev); target.__context(); }
+        });
     }
 
     function dispatch(ev) {
@@ -116,5 +151,5 @@ var Remote = (function () {
         if (i >= 0) listeners.splice(i, 1);
     }
 
-    return { KEY: KEY, init: init, push: push, pop: pop };
+    return { KEY: KEY, init: init, push: push, pop: pop, cancelHold: cancelHold };
 })();

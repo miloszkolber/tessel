@@ -75,8 +75,10 @@ var WebDAV = (function () {
         x.open('GET', url, true);
         x.timeout = 30000;
         x.onload = function () {
-            try { cb(null, JSON.parse(x.responseText)); }
-            catch (e) { cb(new Error('bad response')); }
+            var result;
+            try { result = JSON.parse(x.responseText); }
+            catch (e) { cb(new Error('bad response')); return; }
+            cb(null, result);
         };
         x.onerror = function () { cb(new Error('service unreachable')); };
         x.ontimeout = function () { cb(new Error('timeout')); };
@@ -88,8 +90,10 @@ var WebDAV = (function () {
         x.setRequestHeader('Content-Type', 'application/json');
         x.timeout = 30000;
         x.onload = function () {
-            try { cb(null, JSON.parse(x.responseText)); }
-            catch (e) { cb(new Error('bad response')); }
+            var result;
+            try { result = JSON.parse(x.responseText); }
+            catch (e) { cb(new Error('bad response')); return; }
+            cb(null, result);
         };
         x.onerror = function () { cb(new Error('service unreachable')); };
         x.ontimeout = function () { cb(new Error('timeout')); };
@@ -126,7 +130,16 @@ var WebDAV = (function () {
     /* Make /dav/stream usable without going through the browser first — a
      * file opened from Recents after a restart finds the service down, or
      * up but never told about this server. */
+    var connectionWaiters = {};
     function ensureConnected(id, cb) {
+        if (connectionWaiters[id]) { connectionWaiters[id].push(cb); return; }
+        connectionWaiters[id] = [cb];
+        checkConnection(id, function (err) {
+            var waiting = connectionWaiters[id]; delete connectionWaiters[id];
+            waiting.forEach(function (done) { done(err); });
+        });
+    }
+    function checkConnection(id, cb) {
         getJson(BASE + '/smb/ping', function (err, res) {
             if (!err && res && (res.dav || []).indexOf(id) >= 0) return cb(null);
             SMB.ensureService(function (e2) {
@@ -183,8 +196,6 @@ var WebDAV = (function () {
         UI.showView('view-browse');
         if (window.VlcApp && window.VlcApp.setBrowsePage) window.VlcApp.setBrowsePage('network');
         if (window.VlcApp && window.VlcApp.setBrowseGrid) window.VlcApp.setBrowseGrid(true);
-        if (window.VlcApp && window.VlcApp.renderStrips)
-            window.VlcApp.renderStrips(document.getElementById('browse-strips'));
         document.getElementById('browse-title').textContent = title;
         document.getElementById('browse-path').textContent = path;
     }
@@ -194,13 +205,15 @@ var WebDAV = (function () {
         UI.focusOn(ul().firstElementChild);
     }
 
+    var browseSequence = 0;
     function render(path, focusName) {
+        var seq = ++browseSequence;
         var srv = current, s = serverById(srv) || {};
         head(path ? path.split('/').pop() : serverLabel(s), serverLabel(s) + (path || '/'));
         message('<img class="remix-icon" src="assets/remix/loader-4-line.svg" alt="">', I18n.t('common.loading'));
         var stackHere = pathStack.slice();
         list(srv, path, function (err, entries) {
-            if (current !== srv) return;   // left meanwhile
+            if (current !== srv || seq !== browseSequence) return;
             if (err) {
                 dbg('list ' + JSON.stringify(path || '/') + ' failed: ' + err.message);
                 if (SMB.dumpServiceLogs) SMB.dumpServiceLogs('dav list');
@@ -212,7 +225,7 @@ var WebDAV = (function () {
             var art = artName ? streamUrl(join(path, artName), srv) : null;
             // Media-only browser: folders, video, audio and playlists.
             entries = entries.filter(function (e) {
-                return e.isDir || isPlayable(e.name) || FileTypes.kind(e.name) === 'playlist';
+                return e.isDir || FileTypes.isPlayable(e.name) || FileTypes.kind(e.name) === 'playlist';
             });
             dbg('list ' + JSON.stringify(path || '/') + ': ' + entries.length + ' shown');
             var playlist = entries
@@ -254,6 +267,7 @@ var WebDAV = (function () {
                              : subBadge + '<span class="meta">' + humanSize(e.size) + '</span>');
                 if (e.isDir) {
                     var fav = { kind: 'webdav', srv: srv, path: join(path, e.name), name: e.name };
+                    if (window.LibraryUI) LibraryUI.bindFolder(li, fav);
                     li.dataset.fav = JSON.stringify(fav);
                     if (typeof Favorites !== 'undefined' && Favorites.find(fav)) li.classList.add('is-fav');
                 }
@@ -310,7 +324,6 @@ var WebDAV = (function () {
     function goUp() {
         if (pickingServer) { exit(); return; }
         if (!pathStack.length) {
-            if (servers().length > 1) { showServers(); return; }
             exit();
             return;
         }
@@ -331,6 +344,7 @@ var WebDAV = (function () {
         });
     }
     function teardownBack() {
+        browseSequence++;
         if (backHandler) { Remote.pop(backHandler); backHandler = null; }
     }
 
@@ -371,6 +385,7 @@ var WebDAV = (function () {
     /* Connect to server `id` and list `path` on it ('' or absent: the
      * root), with the way up through the folders above it. */
     function openServer(id, path) {
+        var seq = ++browseSequence;
         pickingServer = false;
         current = id;
         path = path || '';
@@ -379,10 +394,10 @@ var WebDAV = (function () {
         message('<img class="remix-icon" src="assets/remix/loader-4-line.svg" alt="">', I18n.t('common.connecting'));
         dbg('openBrowser [' + id + ']' + (path ? ' ' + JSON.stringify(path) : ''));
         SMB.ensureService(function (err) {
-            if (current !== id) return;
+            if (current !== id || seq !== browseSequence) return;
             if (err) { dbg('ensureService failed: ' + err.message); message('<img class="remix-icon" src="assets/remix/error-warning-line.svg" alt="">', err.message); return; }
-            connect(id, function (err2) {
-                if (current !== id) return;
+            ensureConnected(id, function (err2) {
+                if (current !== id || seq !== browseSequence) return;
                 if (err2) {
                     message('<img class="remix-icon" src="assets/remix/error-warning-line.svg" alt="">', I18n.t('smb.connectFailed', err2.message));
                     if (SMB.dumpServiceLogs) SMB.dumpServiceLogs('dav connect failure');
@@ -509,8 +524,8 @@ var WebDAV = (function () {
             paintEditing();
             dbg('settings saved [' + id + ']: url=' + s.url + ' user=' + JSON.stringify(s.user || '') +
                 ' pass=' + (s.pass ? s.pass.length + ' chars' : 'none') + (s.insecure ? ' insecure' : ''));
-            UI.toast(I18n.t('dav.saved'));
-            if (window.VlcApp && window.VlcApp.setNetworkMethod) window.VlcApp.setNetworkMethod('webdav');
+            if (window.VlcApp && window.VlcApp.sourceSaved) window.VlcApp.sourceSaved('webdav', id);
+            else UI.toast(I18n.t('dav.saved'));
         });
     }
 
@@ -522,6 +537,8 @@ var WebDAV = (function () {
     return {
         openBrowser:     openBrowser,
         openFolder:      openFolder,
+        editServer:      editServer,
+        removeServer:    removeServer,
         detach:          teardownBack,     // the player is coming up: its BACK now
         servers:         servers,
         serverById:      serverById,

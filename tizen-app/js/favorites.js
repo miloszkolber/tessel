@@ -1,4 +1,4 @@
-/* favorites.js — folders the user pinned to the top of their folder (issue #140).
+/* favorites.js — Home pins for sources, device roots, folders and URLs.
  *
  * The next episode of a show sits in a folder several levels down a share;
  * pinning that folder (► on its row) floats it to the top of the listing it
@@ -6,8 +6,8 @@
  *   { id, kind: 'smb', name, srv, path }          a folder on a share
  *   { id, kind: 'webdav', name, srv, path }       a folder on a WebDAV server (#145)
  *   { id, kind: 'usb', name, path, root, rootPath } a folder on local storage
- * and lives in localStorage under vlctv_favorites_v1, which Settings → Backup
- * carries along with the settings.
+ * DLNA uses the device identity and object ID. URL pins use the complete URL
+ * as their path. Existing folder pins retain their identity during migration.
  *
  * `srv` is the saved SMB server's id ('' for the first one) or the WebDAV
  * server's, `path` the folder below the root ('/Shows/Foo').  On USB `path`
@@ -24,8 +24,8 @@ var Favorites = (function () {
 
     /* The same folder: on a server, the same server and path; on USB, the
      * same full path. */
-    function onServer(kind) { return kind === 'smb' || kind === 'webdav'; }
-    function isKind(kind) { return onServer(kind) || kind === 'usb'; }
+    function onServer(kind) { return kind === 'smb' || kind === 'webdav' || kind === 'dlna'; }
+    function isKind(kind) { return onServer(kind) || kind === 'usb' || kind === 'url'; }
     function same(a, b) {
         if (!a || !b || a.kind !== b.kind) return false;
         if (onServer(a.kind)) return String(a.srv || '') === String(b.srv || '') && a.path === b.path;
@@ -90,7 +90,13 @@ var Favorites = (function () {
             write(list().filter(function (f) { return f.id !== id; }));
         }
 
-        return { KEY: KEY, list: list, get: get, find: find, add: add, remove: remove, same: same };
+        function rename(id, name) {
+            var items = list();
+            items.forEach(function (f) { if (f.id === id) f.name = String(name).trim() || f.name; });
+            write(items);
+        }
+
+        return { KEY: KEY, list: list, get: get, find: find, add: add, remove: remove, rename: rename, same: same };
     }
 
     var api = create(typeof localStorage !== 'undefined' ? localStorage : null);

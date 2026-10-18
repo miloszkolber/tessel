@@ -1,6 +1,6 @@
 ## Purpose
 
-Describe the maintained playback contract independently of the proposed browsing redesign.
+Describe the maintained playback contract independently of the browsing library.
 
 ## Requirements
 

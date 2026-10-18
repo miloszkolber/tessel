@@ -24,14 +24,12 @@
 
 <!-- ── Home view ─────────────────────────────────────────────────────── -->
 <section id="view-home" class="view">
+    <header class="page-heading"><h1 data-i18n="library.homeTitle">Your media</h1><p data-i18n="library.homeDescription">Pick up where you left off, or open a source.</p></header>
+    <div id="home-library"></div>
+    <h2 class="row-heading" data-i18n="library.sources">Sources</h2>
     <nav class="home-tiles">
-        <button class="tile" data-action="open-url" data-focus>
-            <div class="tile-icon"><img class="remix-icon" src="assets/remix/play-list-fill.svg" alt=""></div>
-            <div class="tile-label" data-i18n="home.url">Stream</div>
-            <div class="tile-sub">HTTP · HLS · DASH · RTSP</div>
-        </button>
-        <button class="tile" data-action="browse-usb">
-            <div class="tile-icon">USB</div>
+        <button class="tile" data-action="browse-usb" data-focus>
+            <div class="tile-icon"><img class="remix-icon" src="assets/remix/hard-drive-2-fill.svg" alt=""></div>
             <div class="tile-label" data-i18n="home.usb">USB</div>
             <div class="tile-sub" data-i18n="home.usbSub">Local files on connected storage</div>
         </button>
@@ -39,6 +37,10 @@
             <div class="tile-icon"><img class="remix-icon" src="assets/remix/hard-drive-2-fill.svg" alt=""></div>
             <div class="tile-label" data-i18n="home.network">Network</div>
             <div class="tile-sub" data-i18n="home.networkSub">SMB, DLNA and WebDAV sources</div>
+        </button>
+        <button class="tile" data-action="open-url">
+            <div class="tile-icon"><img class="remix-icon" src="assets/remix/play-list-fill.svg" alt=""></div>
+            <div class="tile-label" data-i18n="home.url">Stream</div>
         </button>
         <button class="tile" data-action="open-settings">
             <div class="tile-icon"><img class="remix-icon" src="assets/remix/settings-3-fill.svg" alt=""></div>
@@ -50,35 +52,20 @@
     <footer class="hint">
         <span class="key"><img class="remix-icon" src="assets/remix/arrow-up-line.svg" alt=""><img class="remix-icon" src="assets/remix/arrow-down-line.svg" alt=""><img class="remix-icon" src="assets/remix/arrow-left-line.svg" alt=""><img class="remix-icon" src="assets/remix/arrow-right-line.svg" alt=""></span> <span data-i18n="hint.navigate">navigate</span>
         <span class="key">OK</span> <span data-i18n="hint.select">select</span>
+        <span class="key">OK</span> <span data-i18n="library.holdMenu">Menu (long press)</span>
         <span class="key">RETURN</span> <span data-i18n="hint.exit">exit app</span>
     </footer>
 </section>
 
 <!-- ── Network view: the services you can browse, with the two carousels ── -->
 <section id="view-network" class="view hidden">
-    <header class="brand small">
-        <h1 data-i18n="home.network">Network</h1>
+    <header class="page-heading">
+        <h1 data-i18n="network.title">Network sources</h1><p data-i18n="network.description">Connect your media servers and shared folders.</p>
     </header>
 
-    <div class="strip-wrap" id="network-strips"></div>
 
-    <nav class="home-tiles network-tiles">
-        <button class="tile" data-action="browse-smb" id="tile-smb" data-focus>
-            <div class="tile-icon">SMB</div>
-            <div class="tile-label" data-i18n="home.smb">SMB share</div>
-            <div class="tile-sub" id="tile-smb-sub" data-i18n="net.setUp">Set up</div>
-        </button>
-        <button class="tile" data-action="browse-dlna" id="tile-dlna">
-            <div class="tile-icon long">DLNA</div>
-            <div class="tile-label" data-i18n="home.dlna">Media servers</div>
-            <div class="tile-sub" id="tile-dlna-sub" data-i18n="net.setUp">Set up</div>
-        </button>
-        <button class="tile" data-action="browse-webdav" id="tile-dav">
-            <div class="tile-icon">DAV</div>
-            <div class="tile-label" data-i18n="home.webdav">WebDAV</div>
-            <div class="tile-sub" id="tile-dav-sub" data-i18n="net.setUp">Set up</div>
-        </button>
-    </nav>
+    <h2 class="row-heading" data-i18n="library.devices">Devices</h2>
+    <nav class="card-row" id="network-cards"></nav>
 
     <!-- The two configuration forms, as a modal over this page. -->
     <div class="modal-scrim hidden" id="net-scrim"></div>
@@ -114,6 +101,7 @@
     <footer class="hint">
         <span class="key">OK</span> <span data-i18n="hint.open">open</span>
         <span class="key">RETURN</span> <span data-i18n="hint.back">back</span>
+        <span class="key">OK</span> <span data-i18n="library.holdMenu">Menu (long press)</span>
     </footer>
 </section>
 
@@ -141,8 +129,8 @@
 
 <!-- ── URL input view ────────────────────────────────────────────────── -->
 <section id="view-url" class="view hidden">
-    <header class="brand small">
-        <h1 data-i18n="home.url">Stream</h1>
+    <header class="page-heading">
+        <h1 data-i18n="stream.title">Play a link</h1><p data-i18n="stream.description">Open a stream or send one from another device.</p>
     </header>
 
     <div class="url-input-wrap">
@@ -162,10 +150,12 @@
     <!-- The user's own saved streams (issue #119).  Each is a chip that plays
          it and a ⋯ chip beside it for rename / move / remove; hidden while
          the list is empty. -->
-    <div class="presets saved-streams hidden" id="saved-streams">
+    <div class="library-row hidden" id="saved-streams">
         <div class="presets-label" data-i18n="saved.title">Saved streams</div>
-        <div id="saved-streams-list" class="saved-streams-list"></div>
+        <div id="saved-streams-list" class="card-row"></div>
     </div>
+    <div class="library-row hidden" id="recent-streams"><h2 data-i18n="stream.recent">Recent</h2><div class="card-row" id="recent-streams-list"></div></div>
+    <footer class="hint"><span class="key">OK</span> <span data-i18n="hint.open">open</span> <span class="key">OK</span> <span data-i18n="library.holdMenu">Menu (long press)</span> <span class="key">RETURN</span> <span data-i18n="hint.back">back</span></footer>
 
     <!-- Name and URL of a stream being saved or edited.  While it's open the
          rest of the screen steps aside (#view-url.editing). -->
@@ -184,30 +174,18 @@
         </div>
     </div>
 
-    <!-- Sample inputs sit below the primary actions so the remote lands on
-         Play first; the chips are a secondary, try-it convenience. -->
-    <div class="presets">
-        <div class="presets-label" data-i18n="url.samples">Or try a sample stream</div>
-        <button class="preset" data-url="http://vjs.zencdn.net/v/oceans.mp4">Oceans (MP4, short)</button>
-        <button class="preset" data-url="https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8">HLS test (Mux)</button>
-        <button class="preset" data-url="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4">Big Buck Bunny (MP4)</button>
-        <button class="preset" data-url="https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8">Apple BipBop (HLS, 16:9)</button>
-        <button class="preset" data-url="https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps.mpd">DASH test (Akamai)</button>
-        <button class="preset" data-url="rtsp://9627b0bf2a7b.entrypoint.cloud.wowza.com:1935/app-p5260J38/66abe4b9_stream1">My Wowza RTSP</button>
-        <button class="preset" data-url="rtsp://170.93.143.139:554/rtplive/470011e600ef003a004ee33696235daa">FAA RTSP (public)</button>
-    </div>
 </section>
 
 <!-- ── File browser view ─────────────────────────────────────────────── -->
 <section id="view-browse" class="view hidden">
-    <header class="brand small">
+    <header class="page-heading">
         <h1 id="browse-title" data-i18n="browse.usbTitle">USB drive</h1>
+        <p id="browse-description" data-i18n="usb.description">Browse media on a connected drive.</p>
     </header>
 
     <!-- Kept for the browsers that still set it, but no longer shown: the
          title is enough context. -->
     <div class="browse-path hidden" id="browse-path"></div>
-    <div class="strip-wrap hidden" id="browse-strips"></div>
     <!-- Only while a playlist is listed (issue #122). -->
     <div class="playlist-filter hidden" id="playlist-filter-wrap">
         <input id="playlist-filter" type="text" data-i18n-placeholder="playlist.filter" placeholder="Filter channels…">
@@ -215,9 +193,10 @@
     <ul    class="browse-list" id="browse-list"></ul>
 
     <footer class="hint">
-        <span class="key">OK</span> <span data-i18n="hint.open">open</span>
+        <span class="browse-actions"><span class="key">OK</span> <span data-i18n="library.holdMenu">Menu (long press)</span>
+        <span class="key">OK</span> <span data-i18n="hint.open">open</span></span>
         <span class="key">RETURN</span> <span data-i18n="hint.up">up</span>
-        <span class="key">PLAY</span> <span data-i18n="hint.openAsMedia">open as media</span>
+        <span class="browse-actions"><span class="key">PLAY</span> <span data-i18n="hint.openAsMedia">open as media</span></span>
         <span class="hidden" id="hint-save"><span class="key">TOOLS</span> <span data-i18n="hint.saveChannel">save / unsave</span></span>
         <span class="hidden" id="hint-fav"><span class="key">TOOLS</span> <span data-i18n="hint.favorite">pin / unpin folder</span></span>
     </footer>
@@ -370,6 +349,7 @@
 
         <div class="tvinfo" id="tvinfo" data-i18n="common.loading">Loading…</div>
     </div>
+    <footer class="hint"><span class="key"><img class="remix-icon" src="assets/remix/arrow-up-line.svg" alt=""><img class="remix-icon" src="assets/remix/arrow-down-line.svg" alt=""></span> <span data-i18n="hint.navigate">navigate</span> <span class="key">OK</span> <span data-i18n="hint.select">select</span> <span class="key">RETURN</span> <span data-i18n="hint.back">back</span></footer>
 </section>
 
 <!-- ── Generic picker overlay (used by Settings + future menus) ──────── -->
@@ -404,6 +384,9 @@
 <script src="js/keepawake.js"></script>
 <script src="js/saved-streams.js"></script>
 <script src="js/favorites.js"></script>
+<script src="js/library.js"></script>
+<script src="js/dialog.js"></script>
+<script src="js/library-ui.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

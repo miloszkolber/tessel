@@ -88,14 +88,34 @@ var DLNA = (function () {
      * after launch does not search twice, short enough that a server that
      * just appeared is still found by pressing Search again. */
     var SEARCH_TTL_MS = 90000;
+    var discoveryWaiters = null;
+    var browseSequence = 0;
+    var SAVED_KEY = 'tessel_dlna_v1';
+    function servers() {
+        var list;
+        try { list = JSON.parse(localStorage.getItem(SAVED_KEY) || 'null'); } catch (e) {}
+        if (!Array.isArray(list)) {
+            var old = pinnedId();
+            list = old ? [{ id: old, name: I18n.t('home.dlna') }] : [];
+            saveServers(list);
+        }
+        return list.filter(function (s) { return s && s.id; });
+    }
+    function saveServers(list) { try { localStorage.setItem(SAVED_KEY, JSON.stringify(list)); } catch (e) {} }
+    function saveServer(s) {
+        var list = servers(), old = list.filter(function (x) { return x.id === s.id; })[0];
+        if (!old) list.push({ id: s.id, name: s.name, control: s.control });
+        else { old.control = s.control; if (!old.renamed) old.name = s.name; }
+        saveServers(list);
+    }
+    function removeServer(id) { saveServers(servers().filter(function (s) { return s.id !== id; })); }
+    function renameServer(id, name) { var list = servers(); list.forEach(function (s) { if (s.id === id) { s.name = name; s.renamed = true; } }); saveServers(list); }
 
     function list() { return document.getElementById('browse-list'); }
     function head(title, path) {
         UI.showView('view-browse');
         if (window.VlcApp && window.VlcApp.setBrowsePage) window.VlcApp.setBrowsePage('network');
         if (window.VlcApp && window.VlcApp.setBrowseGrid) window.VlcApp.setBrowseGrid(true);
-        if (window.VlcApp && window.VlcApp.renderStrips)
-            window.VlcApp.renderStrips(document.getElementById('browse-strips'));
         document.getElementById('browse-title').textContent = title;
         document.getElementById('browse-path').textContent = path;
     }
@@ -113,8 +133,10 @@ var DLNA = (function () {
     }
 
     /* ── searching ─────────────────────────────────────────────────────── */
-    function openBrowser() {
+    function openBrowser(id) {
         setupBack();
+        var saved = servers();
+        if (id || saved.length) { openFolder(id || saved[0].id, '0'); return; }
         search();
     }
     function search() {
@@ -133,15 +155,21 @@ var DLNA = (function () {
     /* Ask the service for the servers on the LAN; found/searchedAt are the
      * cache the page and the launch-time preparation share. */
     function discover(cb) {
+        if (discoveryWaiters) { discoveryWaiters.push(cb); return; }
+        discoveryWaiters = [cb];
+        function finish(err) {
+            var waiting = discoveryWaiters; discoveryWaiters = null;
+            waiting.forEach(function (done) { done(err, found.slice()); });
+        }
         SMB.ensureService(function (err) {
-            if (err) { dbg('service did not start: ' + err.message); cb(err.message); return; }
+            if (err) { dbg('service did not start: ' + err.message); finish(err.message); return; }
             request('GET', BASE + '/dlna/discover', null, 20000, function (err2, res) {
                 if (err2 || !res || !res.ok) {
                     var why = err2 ? err2.message : (res && res.error) || 'search failed';
                     dbg('search failed: ' + why);
                     if (SMB.dumpServiceLogs) SMB.dumpServiceLogs('dlna search');
                     found = [];
-                    cb(why);
+                    finish(why);
                     return;
                 }
                 found = res.servers || [];
@@ -152,7 +180,13 @@ var DLNA = (function () {
                  * case where those lines are needed, and they are otherwise
                  * unreachable from off the TV. */
                 if (SMB.dumpServiceLogs) SMB.dumpServiceLogs('dlna search');
-                cb(null);
+                var configured = servers();
+                configured.forEach(function (s) {
+                    var live = choice(found, s.id);
+                    if (live) { s.control = live.control; if (!s.renamed) s.name = live.name; }
+                });
+                saveServers(configured);
+                finish(null);
             });
         });
     }
@@ -164,6 +198,7 @@ var DLNA = (function () {
         want = want || '';
         if (want) {
             for (var i = 0; i < list.length; i++) if (list[i].id === want) return list[i];
+            return null;
         }
         return list.length === 1 ? list[0] : null;
     }
@@ -177,20 +212,14 @@ var DLNA = (function () {
      * use, so the page is ready when it is opened. */
     function prepare(cb) {
         cb = cb || function () {};
-        if (!pinnedId()) { cb(null, null); return; }
-        if (found.length && Date.now() - searchedAt < SEARCH_TTL_MS) { cb(null, choice(found, pinnedId())); return; }
-        discover(function (why) { cb(why ? new Error(why) : null, why ? null : choice(found, pinnedId())); });
+        if (found.length && Date.now() - searchedAt < SEARCH_TTL_MS) { cb(null, found.slice()); return; }
+        discover(function (why) { cb(why ? new Error(why) : null, found.slice()); });
     }
 
     /* One media server at a time: whichever the user picks is remembered and
      * used from then on. */
     function rememberServer(s) {
-        try {
-            if (s && s.id) Settings.set('dlnaServer', s.id);
-            // Picking a media server is setting DLNA up, which makes it the
-            // one network source in use.
-            if (window.VlcApp && window.VlcApp.setNetworkMethod) window.VlcApp.setNetworkMethod('dlna');
-        } catch (e) {}
+        if (s && s.id) saveServer(s);
     }
     function pinnedId() {
         try { return Settings.get('dlnaServer') || ''; } catch (e) { return ''; }
@@ -227,18 +256,33 @@ var DLNA = (function () {
         stack = [];
         render({ id: '0', title: s.name });
     }
+    function openFolder(id, path, title) {
+        setupBack();
+        var seq = ++browseSequence;
+        head(title || I18n.t('dlna.title'), I18n.t('common.connecting'));
+        message(FileTypes.icon('dir'), I18n.t('common.connecting'));
+        prepare(function (err, live) {
+            if (seq !== browseSequence) return;
+            var selected = choice(live || [], id);
+            if (err || !selected) { message(FileTypes.icon('other'), I18n.t('source.unavailable')); return; }
+            server = selected; stack = [];
+            render({ id: path || '0', title: title || selected.name });
+        });
+        return true;
+    }
     function pathText() {
         return [server.name].concat(stack.slice(1).map(function (f) { return f.title; }),
                                     folder.id === '0' ? [] : [folder.title]).join(' / ');
     }
 
     function render(f, focusTitle) {
+        var seq = ++browseSequence;
         folder = f;
         head(f.title, pathText());
         message('<img class="remix-icon" src="assets/remix/loader-4-line.svg" alt="">', I18n.t('common.loading'));
         var srv = server, here = f, above = stack.slice();
         request('POST', BASE + '/dlna/browse', { control: srv.control, id: f.id }, 30000, function (err, res) {
-            if (server !== srv || folder !== here) return;   // left meanwhile
+            if (server !== srv || folder !== here || seq !== browseSequence) return;
             if (err || !res || !res.ok) {
                 var why = err ? err.message : (res && res.error) || 'browse failed';
                 dbg('browse ' + JSON.stringify(here.id) + ' on ' + srv.name + ' failed: ' + why);
@@ -262,8 +306,9 @@ var DLNA = (function () {
         var ul = list();
         ul.innerHTML = '';
         var playlist = playlistOf(entries), focus = null;
+        playlist.forEach(function (p) { p.source = { kind: 'dlna', srv: server.id, path: folder.id, name: folder.title }; });
 
-        if (stack.length || found.length > 1) {
+        if (stack.length) {
             var up = row('<img class="remix-icon" src="assets/remix/corner-up-left-line.svg" alt="">', '..');
             up.dataset.dir = '1';
             up.addEventListener('click', goUp);
@@ -274,6 +319,7 @@ var DLNA = (function () {
             var meta = e.isDir ? '' : e.duration ? clock(e.duration) : humanSize(e.size);
             var li = row(FileTypes.icon(k), e.title, meta);
             li.dataset.dir = e.isDir ? '1' : '0';
+            if (e.isDir && window.LibraryUI) LibraryUI.bindFolder(li, { kind: 'dlna', srv: server.id, path: e.id, name: e.title });
             if (k === 'other') li.classList.add('unopenable');
             if (isPlayable(k)) li.dataset.uri = e.url;
             if (focusTitle && e.title === focusTitle) focus = li;
@@ -296,7 +342,6 @@ var DLNA = (function () {
     function goUp() {
         if (!server) { exit(); return; }
         if (stack.length) { var child = folder; render(stack.pop(), child.title); return; }
-        if (found.length > 1) { showServers(); return; }
         exit();
     }
     function exit() {
@@ -314,11 +359,18 @@ var DLNA = (function () {
         });
     }
     function teardownBack() {
+        browseSequence++;
         if (backHandler) { Remote.pop(backHandler); backHandler = null; }
     }
 
     return {
         openBrowser: openBrowser,
+        openFolder: openFolder,
+        servers: servers,
+        addServer: saveServer,
+        removeServer: removeServer,
+        renameServer: renameServer,
+        discover: discover,
         prepare:     prepare,       // launch-time sweep for the pinned server
         pinnedId:    pinnedId,      // exposed for the Node tests
         choice:      choice,        // \" — which server a sweep should open

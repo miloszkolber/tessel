@@ -129,8 +129,10 @@ var SMB = (function () {
         x.open('GET', url, true);
         x.timeout = 15000;
         x.onload = function () {
-            try { cb(null, JSON.parse(x.responseText)); }
-            catch (e) { cb(new Error('bad response')); }
+            var result;
+            try { result = JSON.parse(x.responseText); }
+            catch (e) { cb(new Error('bad response')); return; }
+            cb(null, result);
         };
         x.onerror = function () { cb(new Error('service unreachable')); };
         x.ontimeout = function () { cb(new Error('timeout')); };
@@ -142,8 +144,10 @@ var SMB = (function () {
         x.setRequestHeader('Content-Type', 'application/json');
         x.timeout = 20000;
         x.onload = function () {
-            try { cb(null, JSON.parse(x.responseText)); }
-            catch (e) { cb(new Error('bad response')); }
+            var result;
+            try { result = JSON.parse(x.responseText); }
+            catch (e) { cb(new Error('bad response')); return; }
+            cb(null, result);
         };
         x.onerror = function () { cb(new Error('service unreachable')); };
         x.ontimeout = function () { cb(new Error('timeout')); };
@@ -151,7 +155,16 @@ var SMB = (function () {
     }
 
     /* ── launch the hybrid service, then wait for it to answer /smb/ping ──── */
+    var serviceWaiters = null;
     function ensureService(cb) {
+        if (serviceWaiters) { serviceWaiters.push(cb); return; }
+        serviceWaiters = [cb];
+        startService(function (err) {
+            var waiting = serviceWaiters; serviceWaiters = null;
+            waiting.forEach(function (done) { done(err); });
+        });
+    }
+    function startService(cb) {
         try {
             var appId = tizen.application.getCurrentApplication().appInfo.id;
             var pkgId = appId.split('.')[0];
@@ -194,7 +207,17 @@ var SMB = (function () {
      * file opened from Recents after a restart finds the service down, or up
      * but never told which share to read.  Leaves a live connection alone:
      * /smb/connect drops and rebuilds it.  id picks the server ('' = first). */
+    var connectionWaiters = {};
     function ensureConnected(id, cb) {
+        id = id || '';
+        if (connectionWaiters[id]) { connectionWaiters[id].push(cb); return; }
+        connectionWaiters[id] = [cb];
+        checkConnection(id, function (err) {
+            var waiting = connectionWaiters[id]; delete connectionWaiters[id];
+            waiting.forEach(function (done) { done(err); });
+        });
+    }
+    function checkConnection(id, cb) {
         id = id || '';
         getJson(BASE + '/smb/ping', function (err, res) {
             if (!err && res && (res.servers || []).indexOf(id) >= 0) return cb(null);
@@ -381,12 +404,12 @@ var SMB = (function () {
         if (ul) ul.innerHTML = '<li><span class="icon"><img class="remix-icon" src="assets/remix/error-warning-line.svg" alt=""></span><span class="name">' + esc(msg) + '</span></li>';
     }
 
+    var browseSequence = 0;
     function render(path, focusName) {
+        var seq = ++browseSequence;
         UI.showView('view-browse');
         if (window.VlcApp && window.VlcApp.setBrowsePage) window.VlcApp.setBrowsePage('network');
         if (window.VlcApp && window.VlcApp.setBrowseGrid) window.VlcApp.setBrowseGrid(true);
-        if (window.VlcApp && window.VlcApp.renderStrips)
-            window.VlcApp.renderStrips(document.getElementById('browse-strips'));
         document.getElementById('browse-title').textContent = path ? path.split('/').pop() : I18n.t('smb.title');
         var srv = serverById(current) || {};
         document.getElementById('browse-path').textContent = '\\\\' + (srv.host || '') + '\\' + (srv.share || '') + (path || '');
@@ -394,6 +417,7 @@ var SMB = (function () {
         ul.innerHTML = '<li><span class="icon"><img class="remix-icon" src="assets/remix/loader-4-line.svg" alt=""></span><span class="name">' + esc(I18n.t('common.loading')) + '</span></li>';
 
         list(path, function (err, entries) {
+            if (seq !== browseSequence) return;
             ul.innerHTML = '';
             if (err) {
                 dbg('list ' + JSON.stringify(path || '/') + ' failed: ' + err.message);
@@ -462,6 +486,7 @@ var SMB = (function () {
                 // app.js reads what to pin off the row.
                 if (e.isDir) {
                     var fav = { kind: 'smb', srv: current, path: join(path, e.name), name: e.name };
+                    if (window.LibraryUI) LibraryUI.bindFolder(li, fav);
                     li.dataset.fav = JSON.stringify(fav);
                     if (typeof Favorites !== 'undefined' && Favorites.find(fav)) li.classList.add('is-fav');
                 }
@@ -533,7 +558,6 @@ var SMB = (function () {
     function goUp() {
         if (pickingServer) { exit(); return; }
         if (!pathStack.length) {
-            if (servers().length > 1) { showServers(); return; }
             exit();
             return;
         }
@@ -556,6 +580,7 @@ var SMB = (function () {
         });
     }
     function teardownBack() {
+        browseSequence++;
         if (backHandler) { Remote.pop(backHandler); backHandler = null; }
     }
 
@@ -609,6 +634,7 @@ var SMB = (function () {
     /* Connect to server `id` and list `path` on it ('' or absent: the share
      * root), with the way up through the folders above it. */
     function openServer(id, path) {
+        var seq = ++browseSequence;
         pickingServer = false;
         current = id;
         path = path || '';
@@ -626,9 +652,11 @@ var SMB = (function () {
 
         dbg('openBrowser' + (id ? ' [' + id + ']' : '') + (path ? ' ' + JSON.stringify(path) : ''));
         ensureService(function (err) {
+            if (seq !== browseSequence) return;
             if (err) { dbg('ensureService failed: ' + err.message); showError(err.message); return; }
             dumpServiceLogs('service start');
-            connect(id, function (err2) {
+            ensureConnected(id, function (err2) {
+                if (seq !== browseSequence) return;
                 if (err2) {
                     showError(I18n.t('smb.connectFailed', err2.message));
                     dumpServiceLogs('connect failure');   // the service-side NEGOTIATE/auth/socket trail
@@ -873,6 +901,7 @@ var SMB = (function () {
             var hostEl = document.getElementById('smb-host');
             var typedHost = hostEl ? hostEl.value.trim() : '';
             var nc = readSettingsForm();
+            if (!nc.host || !nc.share) { dbg('save: host and share are both required'); UI.toast(I18n.t(nc.host ? 'smb.shareMissing' : 'smb.hostMissing')); return; }
             var id = saveServer(nc);
             if (id === null) { UI.toast(I18n.t('smb.duplicate')); return; }
             editing = id;
@@ -884,8 +913,8 @@ var SMB = (function () {
                 ' pass=' + (nc.pass ? nc.pass.length + ' chars' : 'none') +
                 (nc.domain ? ' domain=' + JSON.stringify(nc.domain) : '') +
                 (nc.host && nc.share ? '' : '  ** host and share are both required **'));
-            UI.toast(I18n.t('smb.saved'));
-            if (window.VlcApp && window.VlcApp.setNetworkMethod) window.VlcApp.setNetworkMethod('smb');
+            if (window.VlcApp && window.VlcApp.sourceSaved) window.VlcApp.sourceSaved('smb', id);
+            else UI.toast(I18n.t('smb.saved'));
             if (!nc.host || !nc.share)
                 UI.toast(I18n.t(nc.host ? 'smb.shareMissing' : 'smb.hostMissing'));
         });
@@ -899,6 +928,8 @@ var SMB = (function () {
     return {
         openBrowser:     openBrowser,
         openFolder:      openFolder,
+        editServer:      editServer,
+        removeServer:    removeServer,
         parentPaths:     parentPaths,       // exposed for the Node tests
         // The app's full player is coming up over this folder: its BACK
         // belongs to the player now.

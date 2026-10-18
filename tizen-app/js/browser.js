@@ -29,8 +29,7 @@ var Browser = (function () {
     /* Static fallback list of known Tizen virtual root names — used only when
      * tizen.filesystem.listStorages() isn't available (very old firmware). */
     var STATIC_ROOTS = [
-        'removable1', 'removable2', 'removable3', 'removable4',
-        'downloads', 'videos', 'music', 'images', 'documents'
+        'removable1', 'removable2', 'removable3', 'removable4'
     ];
 
     /* List the top-level "drives" — only includes ones that resolve.
@@ -93,14 +92,13 @@ var Browser = (function () {
                         storages.map(function (s) { return s.label + '(' + s.type + '/' + s.state + ')'; }).join(', '));
                 // Use mounted storages — both INTERNAL and EXTERNAL
                 dynamicNames = storages
-                    .filter(function (s) { return s.state === 'MOUNTED'; })
+                    .filter(function (s) { return s.state === 'MOUNTED' && s.type === 'EXTERNAL'; })
                     .map(function (s) { return s.label; });
                 if (dynamicNames.length === 0) {
-                    if (typeof Debug !== 'undefined') Debug.browse('listStorages empty — falling back to static probe');
-                    resolveAll(STATIC_ROOTS, finalize);
+                    finalize([]);
                 } else {
                     // Also try standard convenience names that listStorages might miss
-                    var extras = ['videos', 'downloads', 'music', 'images', 'documents'];
+                    var extras = [];
                     var combined = dynamicNames.slice();
                     extras.forEach(function (n) { if (combined.indexOf(n) < 0) combined.push(n); });
                     resolveAll(combined, finalize);

@@ -25,6 +25,7 @@
         if (!r.ok) throw Error(r.status);
         return r.text();
     }).then(function (html) {
+        html = html.replace('<head>', '<head>' + S_OPEN + 'dev/storage.js' + S_CLOSE);
         html = html.replace('<title>Tessel</title>', '<title>Tessel — simulated demo</title>');
         // Simulated decoder in place of the AVPlay/HTML5 backend.
         html = html.replace('src="js/player.js"', 'src="demo/player.js"');

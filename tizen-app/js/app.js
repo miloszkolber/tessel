@@ -26,6 +26,7 @@
     }
     function markWatched(uri) {
         if (!uri) return;
+        if (typeof Library !== 'undefined') Library.complete(uri);
         // A finished file should start from the beginning next time.
         clearResumePos(uri);
         var w = getWatched();
@@ -76,6 +77,7 @@
     }
     function saveResumePos(uri, timeMs, durMs) {
         if (!uri) return;
+        if (typeof Library !== 'undefined') Library.checkpoint(uri, timeMs, durMs);
         var m = getResumeMap();
         if (!timeMs || timeMs < RESUME_MIN_MS) {
             // Stopped near the start: drop any stale position so the next
@@ -374,6 +376,7 @@
         installMediaSessionHandlers();
 
         UI.showView('view-home');
+        refreshHome();
         // While an Up Next card holds focus the strip stands tall, so cues
         // lift above it too (see the up-next-open subtitle rule).  focusout
         // fires before the incoming focus lands, hence the relatedTarget
@@ -401,17 +404,6 @@
         SMB.ensureService(function (err) {
             if (!err) UrlDrop.setEnabled(Settings.get('castEnabled') !== false);
         });
-        // Subtitle lift follows the queue strip: while an Up Next card holds
-        // focus the strip is tall, so cues move higher via body.up-next-open.
-        var upNextBox = document.getElementById('up-next');
-        if (upNextBox) {
-            upNextBox.addEventListener('focusin', function () {
-                document.body.classList.add('up-next-open');
-            });
-            upNextBox.addEventListener('focusout', function (ev) {
-                if (!upNextBox.contains(ev.relatedTarget)) document.body.classList.remove('up-next-open');
-            });
-        }
     }
 
     /* ── Action dispatcher ────────────────────────────────────────── */
@@ -454,7 +446,6 @@
             case 'prev':               handlePrev(); break;
             case 'next':               if (!playNext(false)) UI.toast(I18n.t('player.noNext'));     break;
             case 'play-queue-index':   playQueueIndex(el && el.dataset ? el.dataset.index : -1); break;
-            case 'play-strip-item':    openStripItem(el && el.dataset ? el.dataset.uri : ''); break;
             case 'rewind': case 'seek-backward': seekJump(-1); flashOSD(); break;
             case 'forward': case 'seek-forward': seekJump(1); flashOSD(); break;
             case 'toggle-repeat':      toggleRepeat(); break;
@@ -479,8 +470,11 @@
         renderSavedStreams();
         UI.showView('view-url'); state.view = 'url';
     }
-    function openUrl(url, title) {
-        title = title || urlBaseName(url);
+    function openUrl(url, title, back) {
+        url = String(url || '').trim();
+        if (!LibraryUI.validUrl(url)) { UI.toast(I18n.t('url.enterFirst')); return; }
+        title = title || Library.title(url);
+        Library.recent(url, title);
         // A channel or song list can't go to AVPlay as it is (issue #110):
         // read it first.  An HLS manifest turns out to be one when read, and
         // is then played exactly as before — so is anything that can't be
@@ -490,13 +484,13 @@
                 title:   title,
                 read:    function (cb) { fetchBytes(url, cb); },
                 resolve: function (ref) { return Playlist.resolveUrl(ref, url); },
-                playAsStream: function () { playStreamUrl(url, title); },
+                playAsStream: function () { playStreamUrl(url, title, back || returnToStreamPage); },
                 // Drawn again: a channel may have been saved in the list.
-                back:    function () { renderSavedStreams(); UI.showView('view-url'); state.view = 'url'; }
+                back:    back || returnToStreamPage
             });
             return;
         }
-        playStreamUrl(url, title, returnToStreamPage);
+        playStreamUrl(url, title, back || returnToStreamPage);
     }
     /* Back from a stream that was launched here comes back to this screen. */
     function returnToStreamPage() {
@@ -509,6 +503,7 @@
         state.originBack = back || null;
         state.playlist  = [{ uri: url, title: title }];
         state.playlistIndex = 0;
+        Library.begin(state.playlist, 0);
         playUri(url, title, {});
     }
 
@@ -520,32 +515,7 @@
     var savedMenuFor = null;           // whose ⋯ menu was opened last, to come back to
 
     function renderSavedStreams() {
-        var box  = document.getElementById('saved-streams');
-        var list = document.getElementById('saved-streams-list');
-        if (!box || !list) return;
-        var items = SavedStreams.list();
-        list.innerHTML = '';
-        items.forEach(function (s) {
-            var row = document.createElement('div');
-            row.className = 'saved-item';
-            var play = document.createElement('button');
-            play.className = 'preset saved-stream';
-            play.dataset.action = 'play-saved';
-            play.dataset.id = s.id;
-            play.textContent = s.name;
-            play.title = s.url;
-            var more = document.createElement('button');
-            more.className = 'preset saved-more';
-            more.dataset.action = 'saved-menu';
-            more.dataset.id = s.id;
-            more.innerHTML = '<img class="remix-icon" src="assets/remix/more-2-fill.svg" alt="">';
-            more.setAttribute('aria-label', I18n.t('saved.options', s.name));
-            row.appendChild(play);
-            row.appendChild(more);
-            list.appendChild(row);
-        });
-        box.classList.toggle('hidden', !items.length);
-        if (state.view === 'url') UI.refreshFocusables();
+        LibraryUI.stream();
     }
 
     /* Focus a saved stream's chip once the list has been drawn again;
@@ -569,8 +539,10 @@
         var url = document.getElementById('url-input').value.trim();
         if (!url) { UI.toast(I18n.t('url.enterFirst')); return; }
         var dup = SavedStreams.findByUrl(url);
-        if (dup) { UI.toast(I18n.t('saved.already', dup.name)); focusSaved(dup.id); return; }
-        openSavedEdit('', urlBaseName(url), url);
+        if (dup) { LibraryUI.stream('saved:' + dup.id); return; }
+        if (!LibraryUI.validUrl(url)) { UI.toast(I18n.t('url.enterFirst')); return; }
+        var saved = SavedStreams.add(Library.title(url), url);
+        LibraryUI.stream('saved:' + saved.id);
     }
 
     function openSavedEdit(id, name, url) {
@@ -654,23 +626,7 @@
      * and play it. The field is filled first so the URL is visible if
      * playback fails. Pairing (code + QR) lives in Settings. */
     function fetchRemoteUrl() {
-        if (typeof UrlDrop === 'undefined') { UI.toast(I18n.t('url.dropUnavailable')); return; }
-        UI.toast(I18n.t('url.checking'));
-        UrlDrop.fetchLatest(function (err, url) {
-            if (err) {
-                if (typeof Debug !== 'undefined') Debug.error('url-drop: ' + err);
-                UI.toast(I18n.t('url.serviceDown'));
-                return;
-            }
-            if (!url) {
-                UI.toast(I18n.t('url.nothingWaiting'));
-                return;
-            }
-            var input = document.getElementById('url-input');
-            if (input) input.value = url;
-            UI.toast(I18n.t('url.gotIt'));
-            openUrl(url);
-        });
+        LibraryUI.receive();
     }
 
     /* Pairing block in Settings: the TV's own LAN address plus a locally-
@@ -721,7 +677,9 @@
      * navigation releases it through the browser's own exit; the preview and
      * the simulator jump between screens directly, so the app releases it
      * whenever a top-level screen takes over. */
+    var browseSequence = 0;
     function releaseBrowsers() {
+        browseSequence++;
         ['SMB', 'WebDAV', 'DLNA'].forEach(function (name) {
             var mod = window[name];
             if (mod && typeof mod.detach === 'function') {
@@ -733,38 +691,47 @@
     /* ── File browser ─────────────────────────────────────────────── */
     function openBrowserAtRoot() {
         releaseBrowsers();
+        var seq = ++browseSequence;
         state.browseAtRoot = true;
         state.browseDir   = null;
         state.listBack    = null;
         setBrowsePage('usb');            // the drive's root listing
         UI.showView('view-browse'); state.view = 'browse';
-        document.getElementById('browse-title').textContent = I18n.t('browse.storage');
+        document.getElementById('browse-title').textContent = I18n.t('usb.title');
+        document.getElementById('browse-description').textContent = I18n.t('usb.description');
+        setBrowseGrid(true);
+        document.getElementById('browse-list').classList.add('device-roots');
         document.getElementById('browse-path').textContent = '/';
 
         Browser.listRoots(function (err, roots) {
+            if (seq !== browseSequence) return;
+            document.getElementById('view-browse').classList.toggle('empty-storage', !!err || !roots.length);
             var ul = document.getElementById('browse-list');
             ul.innerHTML = '';
             /* The carousel is drawn from the drive that is attached right now,
              * so it goes up before the two "nothing to show" cases — with no
              * drive it hides itself rather than keeping the last listing's
              * cards on screen. */
-            renderStrips(document.getElementById('browse-strips'));
             if (err) {
                 ul.innerHTML = '<li><span class="icon"><img class="remix-icon" src="assets/remix/error-warning-line.svg" alt=""></span><span class="name">' +
                                err.message + '</span></li>';
+                ul.classList.add('empty-devices'); UI.refreshFocusables(); UI.focusOn(ul.firstElementChild);
                 return;
             }
             if (!roots.length) {
                 ul.innerHTML = '<li><span class="icon"><img class="remix-icon" src="assets/remix/information-fill.svg" alt=""></span>'
                              + '<span class="name">' + escapeHtml(I18n.t('browse.noStorage')) + '</span></li>';
+                ul.classList.add('empty-devices'); UI.refreshFocusables(); UI.focusOn(ul.firstElementChild);
                 return;
             }
             roots.forEach(function (r, i) {
                 var li = document.createElement('li');
+                li.dataset.dir = '1';
                 li.dataset.tag = 'root-' + i;
                 li.dataset.idx = i;
                 var pretty = prettifyRootName(r.name);
                 var isUsb  = /removable|usb/i.test(r.name);
+                LibraryUI.bindFolder(li, { kind: 'usb', name: pretty, path: r.fullPath, root: r.name, rootPath: r.fullPath });
                 li.innerHTML  =
                     '<span class="icon"><img class="remix-icon" src="assets/remix/' + (isUsb ? 'hard-drive-2-fill' : 'folder-fill') + '.svg" alt=""></span>' +
                     '<span class="name">' + escapeHtml(pretty) + '</span>' +
@@ -782,6 +749,7 @@
 
     function listInto(dir, focusUri) {
         if (!dir) return;
+        var seq = ++browseSequence;
         setBrowsePage('usb');
         setBrowseGrid(true);
         state.browseDir = dir;
@@ -790,6 +758,7 @@
         document.getElementById('browse-path').textContent = dir.fullPath;
 
         Browser.listDir(dir, function (err, entries) {
+            if (seq !== browseSequence) return;
             var ul = document.getElementById('browse-list');
             ul.innerHTML = '';
             if (err) {
@@ -816,7 +785,8 @@
                 .filter(function (e) { return e.playable; })
                 .map(function (e) {
                     return { uri: e.uri, title: e.name, subtitles: e.subtitles, file: e.file,
-                             art: e.kind === 'audio' ? art : null };
+                              source: usbFavorite(dir, dir.name),
+                              art: e.kind === 'audio' ? art : null };
                 });
             function backHere(uri) {
                 return function (last) {
@@ -874,7 +844,6 @@
             if (!ul.children.length)
                 ul.innerHTML = '<li><span class="icon"><img class="remix-icon" src="assets/remix/information-fill.svg" alt=""></span><span class="name">' + escapeHtml(I18n.t('browse.empty')) + '</span></li>';
             // Carousels only on the drive's own root listing.
-            renderStrips(document.getElementById('browse-strips'));
             UI.refreshFocusables();
             UI.focusOn(focus || ul.firstElementChild);
         });
@@ -896,6 +865,7 @@
      * the ♥ shows it is pinned. */
     function markFavoriteRow(li, fav) {
         if (!fav || !fav.path) return;
+        if (window.LibraryUI) LibraryUI.bindFolder(li, fav);
         li.dataset.fav = JSON.stringify(fav);
         li.classList.toggle('is-fav', !!Favorites.find(fav));
     }
@@ -935,7 +905,14 @@
      * keep its links honest.  The browse view serves three surfaces, and the
      * player is a different page for audio than for video. */
     var browsePage = 'usb';
-    function setBrowsePage(name) { browsePage = name; }
+    function setBrowsePage(name) {
+        browsePage = name;
+        var list = document.getElementById('browse-list');
+        if (list) { list.classList.remove('device-roots'); list.classList.remove('empty-devices'); }
+        document.getElementById('view-browse').classList.remove('empty-storage');
+        var description = document.getElementById('browse-description');
+        if (description) description.textContent = I18n.t(name === 'network' ? 'network.description' : 'usb.description');
+    }
     function currentPageName() {
         // Read from the visible view: the preview harness drives views
         // directly, and state.view lags behind in a few paths.
@@ -956,8 +933,6 @@
     function setBrowseGrid(on) {
         var ul = document.getElementById('browse-list');
         if (ul) ul.classList.toggle('grid', !!on);
-        var strips = document.getElementById('browse-strips');
-        if (strips && !on) { strips.classList.add('hidden'); strips.innerHTML = ''; }
     }
 
     /* ► pins a folder: show that hint exactly while a pinnable row holds the
@@ -997,8 +972,6 @@
      * what the user came for — and Back from the source's own root comes
      * back here to the picker. */
     function openNetwork() {
-        var method = networkMethod();
-        if (method && isConfigured(method)) { openNetworkSource(method); return; }
         showNetworkPicker();
     }
     function showNetworkPicker() {
@@ -1009,14 +982,13 @@
         state.view = 'network';
         closeNetConfig(false);
         fillNetworkRows();
-        renderStrips(document.getElementById('network-strips'), 'network');
+        LibraryUI.network();
     }
     /* Where a source browser's root-level BACK goes when it was opened from
      * the Network page: back on the picker, once.  false lets the browser
      * fall through to its own destination. */
     var networkReturn = false;
     function networkSourceBack() {
-        if (!networkReturn) return false;
         showNetworkPicker();
         return true;
     }
@@ -1047,16 +1019,7 @@
      * The SMB and WebDAV forms used to live in Settings; they belong with the
      * sources they configure. */
     function openNetConfig(which) {
-        var modal = document.getElementById('net-config');
-        document.getElementById('net-config-title').textContent =
-            I18n.t(which === 'smb' ? 'smb.section' : 'dav.section');
-        document.getElementById('grp-smb').classList.toggle('hidden', which !== 'smb');
-        document.getElementById('grp-dav').classList.toggle('hidden', which !== 'dav');
-        modal.classList.remove('hidden');
-        document.getElementById('net-scrim').classList.remove('hidden');
-        UI.refreshFocusables();
-        var first = modal.querySelector('#grp-' + which + ' .settings-row');
-        if (first) UI.focusOn(first);
+        LibraryUI.editSource(which === 'dav' ? 'webdav' : 'smb', 'new');
     }
     /* Called by the SMB/WebDAV forms once a server is saved: that method
      * becomes the one network connection in use. */
@@ -1069,15 +1032,7 @@
      * ready before the user asks for it: SMB/WebDAV open their session, DLNA
      * looks for the pinned server so its page is populated on the way in. */
     function connectNetwork() {
-        var method = networkMethod();
-        try {
-            if (method === 'smb' && typeof SMB !== 'undefined' && SMB.servers().length)
-                SMB.ensureConnected('', function () {});
-            if (method === 'webdav' && typeof WebDAV !== 'undefined' && WebDAV.servers().length)
-                WebDAV.ensureConnected(WebDAV.servers()[0].id, function () {});
-            if (method === 'dlna' && typeof DLNA !== 'undefined' && DLNA.prepare)
-                DLNA.prepare(function () {});
-        } catch (e) {}
+        LibraryUI.refreshConnections();
     }
     function closeNetConfig(restore) {
         document.getElementById('net-config').classList.add('hidden');
@@ -1177,135 +1132,6 @@
         });
     }
 
-    /* ── Recent / continue carousels ────────────────────────────────────
-     * The same thumbnail strip the player's Queue uses, shown on the USB
-     * and Network roots: what was played lately, and what was left
-     * unfinished (skipping files whose last 5% is all that remains). */
-    var STRIP_MAX = 10;
-    var CONTINUE_MIN_MS = 30000;      // below this it was barely started
-    var CONTINUE_TAIL = 0.95;         // past 95% counts as finished
-    function continuePlayable() {
-        var map = getResumeMap(), out = [];
-        Object.keys(map).forEach(function (uri) {
-            var r = map[uri];
-            if (!r || !r.dur || !r.pos) return;
-            if (r.pos < CONTINUE_MIN_MS) return;                 // barely started
-            if (r.pos / r.dur >= CONTINUE_TAIL) return;          // effectively finished
-            out.push({ uri: uri, pos: r.pos, dur: r.dur, ts: r.ts || 0, art: folderArtFor(uri) });
-        });
-        out.sort(function (a, b) { return b.ts - a.ts; });
-        return out.slice(0, STRIP_MAX).map(function (r) {
-            return { uri: r.uri, title: titleForUri(r.uri), progress: r.pos / r.dur * 100 };
-        });
-    }
-    /* A URI's title as the lists that produced it had it, else its basename. */
-    function titleForUri(uri) {
-        var hit = null;
-        state.playlist.forEach(function (p) { if (p.uri === uri) hit = p.title; });
-        if (hit) return hit;
-        var s = String(uri || '').split('?')[0].split('#')[0].replace(/\/+$/, '');
-        return decodeURIComponent(s.split('/').pop() || uri);
-    }
-    /* One carousel: title plus thumbnail tiles, exactly the Queue look. */
-    function buildStrip(titleKey, items, container) {
-        if (!items.length) return;
-        var box = document.createElement('div');
-        box.className = 'strip';
-        var h = document.createElement('div');
-        h.className = 'strip-title';
-        h.textContent = I18n.t(titleKey);
-        box.appendChild(h);
-        var ul = document.createElement('ul');
-        ul.className = 'strip-list';
-        items.forEach(function (item) {
-            var li = document.createElement('li');
-            li.className = 'strip-card';
-            var btn = document.createElement('button');
-            btn.className = 'strip-open';
-            btn.dataset.action = 'play-strip-item';
-            btn.dataset.uri = item.uri;
-            btn.title = item.title;
-            btn.appendChild(queueThumb(item));
-            var name = document.createElement('span');
-            name.className = 'strip-name';
-            name.textContent = item.title;
-            btn.appendChild(name);
-            li.appendChild(btn);
-            ul.appendChild(li);
-        });
-        box.appendChild(ul);
-        container.appendChild(box);
-    }
-    function renderStrips(container, page) {
-        if (!container) return;
-        page = page || browsePage;
-        container.innerHTML = '';
-        if (page === 'usb') {
-            /* Only files that are on a drive mounted right now: an unplugged
-             * drive leaves its resume entries behind, and they must not show
-             * (nor a stream from somewhere else — this is the USB page). */
-            Browser.listRoots(function (err, roots) {
-                if (err || browsePage !== 'usb') {
-                    if (err) container.classList.add('hidden');
-                    return;
-                }
-                var mounted = (roots || []).map(function (r) { return r.fullPath; });
-                paintStrips(container, continueForPage(continuePlayable(), 'usb', mounted));
-            });
-            return;
-        }
-        paintStrips(container, continueForPage(continuePlayable(), page, []));
-    }
-    function paintStrips(container, items) {
-        buildStrip('strip.continue', items, container);
-        container.classList.toggle('hidden', !container.children.length);
-        UI.refreshFocusables();
-    }
-    /* Which Continue playing cards belong on a page.  The USB page shows the
-     * files of attached storage, the Network page the network sources; a
-     * stream the user pasted belongs to neither list's storage. */
-    function continueForPage(items, page, mounted) {
-        if (page !== 'usb' && page !== 'network') return [];       // a playlist carries none
-        return items.filter(function (it) {
-            var local = /^file:/i.test(String(it.uri));
-            if (page === 'network') return !local;
-            return local && onMountedDrive(it.uri, mounted);
-        });
-    }
-    function onMountedDrive(uri, mounted) {
-        var path = String(uri || '').replace(/^file:\/\//i, '').split('?')[0].split('#')[0];
-        try { path = decodeURIComponent(path); } catch (e) {}
-        for (var i = 0; i < (mounted || []).length; i++) {
-            var root = String(mounted[i] || '').replace(/\/+$/, '');
-            if (root && (path === root || path.indexOf(root + '/') === 0)) return true;
-        }
-        return false;
-    }
-    function openStripItem(uri) {
-        if (!uri) return;
-        // The player owns Back from here, and Back comes to the page the
-        // carousel sits on rather than always home.
-        releaseBrowsers();
-        state.origin    = /^file:/i.test(uri) ? 'browse' : 'network';
-        state.originDir = null;
-        state.originBack = function () { returnToStripPage(); };
-        state.playlist  = [{ uri: uri, title: titleForUri(uri) }];
-        state.playlistIndex = 0;
-        playUri(uri, titleForUri(uri));
-    }
-    /* The carousel is drawn on the drive's root listing and on the Network
-     * page, so returning to it means re-opening one of those. */
-    function returnToStripPage() {
-        if (state.origin === 'network') {
-            if (typeof Debug !== 'undefined') Debug.view('network (strip return)');
-            UI.showView('view-network'); state.view = 'network';
-            fillNetworkRows();
-            renderStrips(document.getElementById('network-strips'), 'network');
-            return;
-        }
-        if (typeof Debug !== 'undefined') Debug.view('browse root (strip return)');
-        openBrowserAtRoot();
-    }
 
     /* ── Playlists (issue #110) ───────────────────────────────────────
      * src: {
@@ -1873,6 +1699,7 @@
         }
         var item = state.playlist[state.playlistIndex];
         if (!item) return;
+        Library.begin(state.playlist, state.playlistIndex);
         playUri(item.uri, item.title, { subtitles: item.subtitles || [], file: item.file || null, tagSrc: item.tagSrc || null });
     }
     /* The next (+1) or previous (−1) item, wrapping only under repeat-all. */
@@ -2076,7 +1903,7 @@
         // Watched ≥ 90 % counts as seen even if the user stops before the end
         // (markWatched also drops the resume position); anything short of
         // that keeps its position so the file can pick up where it left off.
-        if (lastProgress.duration && lastProgress.time / lastProgress.duration >= 0.9)
+        if (lastProgress.duration && lastProgress.time / lastProgress.duration >= 0.95)
             markWatched(state.playingUri);
         else if (lastProgress.time > 0)   // time===0 → playback never started;
             saveResumePos(state.playingUri, lastProgress.time, lastProgress.duration);
@@ -2117,6 +1944,7 @@
         state.listBack = null;
         state.playlistView = null;
         UI.showView('view-home');
+        refreshHome();
         hideError();
         document.getElementById('osd-top').classList.add('hidden');
         document.getElementById('osd-bottom').classList.add('hidden');
@@ -2582,7 +2410,7 @@
                        (cls === 'ok' ? 'check-line' : cls === 'maybe' ? 'question-line' : 'close-line') + '.svg" alt=""> ' + escapeHtml(label) + '</span></div>';
             }
 
-            var codecHtml = '<h3>' + escapeHtml(I18n.t('tv.html5Codecs')) + '</h3><div class="codecs">';
+            var codecHtml = '<section class="info-panel" tabindex="0"><h3>' + escapeHtml(I18n.t('tv.html5Codecs')) + '</h3><p class="muted">' + escapeHtml(I18n.t('tv.probeNote')) + '</p><div class="codecs">';
             Object.keys(codecs).forEach(function (name) {
                 var status = codecs[name];
                 var cls = status === 'probably' ? 'ok' : status === 'maybe' ? 'maybe' : 'no';
@@ -2591,17 +2419,18 @@
                                                     I18n.t('tv.notSupported');
                 codecHtml += codec(name, cls, label);
             });
-            codecHtml += '</div>';
+            codecHtml += '</div></section>';
 
-            codecHtml += '<h3>' + escapeHtml(I18n.t('tv.streaming')) + '</h3><div class="codecs">';
-            codecHtml += codec('HLS / DASH', 'ok', I18n.t('tv.supported'));
-            codecHtml += codec('RTSP / RTMP', 'ok', I18n.t('tv.supported'));
-            codecHtml += codec(I18n.t('tv.usbFiles'), 'ok', I18n.t('tv.viaHtml5'));
-            codecHtml += codec(I18n.t('tv.mkv'), 'ok', I18n.t('tv.viaAvplay'));
-            codecHtml += codec(I18n.t('tv.dtsAudio'), 'no', I18n.t('tv.cantDecode'));
-            codecHtml += '</div>';
+            codecHtml += '<section class="info-panel" tabindex="0"><h3>' + escapeHtml(I18n.t('tv.streaming')) + '</h3><p class="muted">' + escapeHtml(I18n.t('tv.protocolNote')) + '</p><div class="codecs">';
+            codecHtml += codec('HTTP / HLS / DASH', 'maybe', I18n.t('tv.deviceDependent'));
+            codecHtml += codec('RTSP / RTMP', 'maybe', I18n.t('tv.deviceDependent'));
+            codecHtml += codec(I18n.t('tv.usbFiles'), 'maybe', I18n.t('tv.viaHtml5'));
+            codecHtml += codec(I18n.t('tv.mkv'), 'maybe', I18n.t('tv.viaAvplay'));
+            codecHtml += codec(I18n.t('tv.dtsAudio'), 'maybe', I18n.t('tv.deviceDependent'));
+            codecHtml += '</div></section>';
 
-            box.innerHTML = '<h3>' + escapeHtml(I18n.t('settings.tvInfo')) + '</h3>' + rows.join('') + codecHtml;
+            box.innerHTML = '<section class="info-panel" tabindex="0"><h3>' + escapeHtml(I18n.t('settings.tvInfo')) + '</h3>' + rows.join('') + '</section>' + codecHtml;
+            UI.refreshFocusables();
         });
     }
 
@@ -2816,13 +2645,11 @@
     }
     /* ── Repeat toggle from the OSD ───────────────────────────────── */
     /* Off → all → one → off, like a music player's repeat button. */
-    /* Repeat: the transport-row toggle cycles off → all → one, with the
-     * value announced as a toast. */
+    /* Repeat updates its visible icon and accessible value silently. */
     function toggleRepeat() {
         var cur = Settings.get('repeatMode');
         var next = cur === 'off' ? 'all' : cur === 'all' ? 'one' : 'off';
         applyRepeatOption(next);
-        UI.toast(I18n.t('toast.repeat', repeatName(next)));
         scheduleOSDHide();
     }
     function repeatName(code) {
@@ -2838,6 +2665,7 @@
         btn.querySelector('img').src = 'assets/remix/' + (one ? 'repeat-one-fill' : 'repeat-2-fill') + '.svg';
         btn.classList.toggle('repeat-on', on);
         btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.setAttribute('aria-label', I18n.t('toast.repeat', repeatName(mode)));
     }
 
     /* ── Shuffle (issue #43) ──────────────────────────────────────────
@@ -2848,11 +2676,11 @@
      * order, but the app doesn't retain the pre-shuffle list — restoring
      * alphabetical requires re-entering the folder, which is a fair trade
      * for keeping the state minimal. */
-    /* Shuffle: the transport-row toggle flips it, with the value as a toast. */
+    /* Shuffle updates the pressed state without a success toast. */
     function toggleShuffle() {
         var next = !Settings.get('shuffle');
         applyShuffle(next);
-        UI.toast(I18n.t('toast.shuffle', I18n.t(next ? 'common.on' : 'common.off')));
+        document.getElementById('btn-shuffle').setAttribute('aria-label', I18n.t('toast.shuffle', I18n.t(next ? 'common.on' : 'common.off')));
         scheduleOSDHide();
     }
     function applyShuffle(on) {
@@ -2863,6 +2691,7 @@
         if (on && state.playlist.length > 1 && state.playlistIndex >= 0) {
             state.playlist = shufflePlaylist(state.playlist, state.playlistIndex);
             state.playlistIndex = 0;
+            Library.begin(state.playlist, state.playlistIndex);
             updateNextPrevButtons();
         }
     }
@@ -3767,17 +3596,34 @@
             .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    function refreshHome() { if (window.LibraryUI) LibraryUI.home(getResumeMap(), getWatched()); }
+    function openUsbFolder(pin) {
+        releaseBrowsers();
+        var seq = browseSequence;
+        tizen.filesystem.resolve(LibraryUI.usbPath(pin, pin.path), function (dir) {
+            if (seq !== browseSequence) return;
+            UI.showView('view-browse'); state.view = 'browse'; state.browseAtRoot = false;
+            state.browseRoot = { name: pin.root || '', fullPath: pin.rootPath || pin.path };
+            listInto(dir);
+        }, function () { UI.toast(I18n.t('source.unavailable')); }, 'r');
+    }
+
     // Public hooks used by js/smb.js to hand SMB playback back to the app so it
     // reuses next/prev, auto-play, recent & watched tracking.
     window.VlcApp = {
         play: playFromList, home: backToHome, openSettings: openSettings,
+        leavePlayback: exitPlayer,
+        refreshHome: refreshHome,
+        openStream: openUrl,
+        openUsbFolder: openUsbFolder,
+        sourceSaved: function (kind, id) { LibraryUI.sourceSaved(kind, id); },
+        prepareSourceBrowse: function () { releaseBrowsers(); networkReturn = true; },
         // smb.js hands a playlist on a share over the same way.
         openPlaylist: openPlaylist, maxPlaylistBytes: MAX_PLAYLIST_BYTES,
         // The network browsers draw into the same browse view and need the
         // grid/tile treatment and the roots' carousels.
         setBrowseGrid: setBrowseGrid,
         setBrowsePage: setBrowsePage,
-        renderStrips: renderStrips,
         currentPageName: currentPageName,
         // A source opened from the Network page returns to its picker.
         networkSourceBack: networkSourceBack,
@@ -3796,9 +3642,6 @@
         // the Node tests. Both are pure.
         scrubStepSize: scrubStepSize,
         stepList: stepList,
-        // Which Continue playing cards each page shows, exposed for the
-        // Node tests (pure).
-        continueForPage: continueForPage,
         // Per-file playback memory, exposed so the Node tests can drive
         // the merge/propagate rules without a DOM.
         playbackPrefsFor: playPrefsFor,

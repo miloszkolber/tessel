@@ -64,7 +64,7 @@ test('remove, and what is refused', function () {
     favs.remove(a.id);
     assert.deepStrictEqual(favs.list().map(function (f) { return f.name; }), ['B']);
     assert.strictEqual(favs.get(a.id), null);
-    assert.strictEqual(favs.add({ kind: 'dlna', path: '/x', name: 'x' }), null);
+    assert.strictEqual(favs.add({ kind: 'unknown', path: '/x', name: 'x' }), null);
     assert.strictEqual(favs.add({ kind: 'smb', srv: '', path: '', name: 'x' }), null);
     assert.strictEqual(favs.add(null), null);
 });
@@ -75,4 +75,17 @@ test('a damaged list reads as empty rather than throwing', function () {
     var favs = Favorites.create(storage({ vlctv_favorites_v1: [null, { kind: 'x', path: '/a' }, { kind: 'usb', path: '/ok', id: 'q', name: 'ok' }] }));
     assert.deepStrictEqual(favs.list().map(function (f) { return f.path; }), ['/ok']);
     assert.deepStrictEqual(Favorites.create(null).list(), []);
+});
+test('device roots, DLNA object identities and complete stream URLs remain distinct and rename durably', function () {
+    var store = storage(), favs = Favorites.create(store);
+    favs.add({ kind: 'usb', path: '/drive', root: 'removable1', rootPath: '/drive', name: 'Drive' });
+    var a = favs.add({ kind: 'dlna', srv: 'device-a', path: '0', name: 'A' });
+    var b = favs.add({ kind: 'dlna', srv: 'device-b', path: '0', name: 'B' });
+    assert.notEqual(a.id, b.id);
+    favs.add({ kind: 'url', path: 'https://example.com/film?token=1', name: 'Film' });
+    favs.add({ kind: 'url', path: 'https://example.com/film?token=2', name: 'Other' });
+    favs.rename(a.id, 'Renamed');
+    var again = Favorites.create(store);
+    assert.equal(again.list().length, 5); assert.equal(again.get(a.id).name, 'Renamed');
+    assert.equal(again.list()[0].root, 'removable1');
 });

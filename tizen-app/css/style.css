@@ -60,6 +60,81 @@ button:focus { outline: none; }
 
 .hidden { display: none !important; }
 
+/* Library pages share one layout and card system. */
+#view-home, #view-url, #view-network, #view-browse {
+    align-items: stretch; justify-content: flex-start; text-align: start;
+    padding-bottom: 130px; scroll-padding-top: 24px; scroll-padding-bottom: 130px;
+}
+.page-heading { flex: 0 0 auto; }
+.library-row { margin: 0 0 32px; min-width: 0; }
+.library-row h2, .row-heading, .presets-label {
+    margin: 0 0 20px; font-size: 22px; font-weight: 500; text-transform: uppercase; color: #aaa;
+}
+.card-row { display: flex; overflow-x: auto; gap: 24px; padding: 8px; margin: -8px; scrollbar-width: none; }
+.card-row::-webkit-scrollbar { display: none; }
+.media-card { position: relative; display: flex; flex-direction: column; align-items: stretch; text-align: start;
+    flex: 0 0 338px; width: 338px; min-height: 170px; padding: 18px; border: 2px solid #303030;
+    border-radius: 12px; background: var(--bg-card); overflow: hidden; }
+.card-picture { display: flex; align-items: center; justify-content: center; position: relative; height: 80px; }
+.card-picture > .remix-icon { width: 48px; height: 48px; opacity: .85; }
+.card-art { position: absolute; inset: 0; height: 100%; width: 100%; object-fit: cover; }
+.card-title { font-size: 24px; font-weight: 500; margin-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-description { font-size: 18px; color: var(--fg-dim); margin-top: 6px; }
+.media-card.focused, .media-card:focus, #view-home .tile.focused { outline: 3px solid #f4f4f4; outline-offset: -3px; border-color: #6a6a6a; background: #242424; box-shadow: none; transform: none; }
+.missing-source { position: absolute; top: 0; right: 0; border-radius: 50%; padding: 8px; background: #0a0a0a; z-index: 1; }
+.missing-source .remix-icon { width: 24px; height: 24px; }
+.card-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: #444; border-radius: 3px; overflow: hidden; z-index: 1; }
+.card-progress > span { display: block; height: 100%; background: #eee; }
+.add-card { border-style: dashed; }
+#view-home .home-tiles { display: flex; flex: 0 0 auto; gap: 24px; justify-content: flex-start; width: 100%; overflow-x: auto; padding: 8px; margin: -8px; scrollbar-width: none; }
+#view-home .tile { flex: 0 0 338px; width: 338px; min-height: 170px; padding: 20px; border-radius: 12px; }
+#view-home .tile-sub { display: none; }
+#view-home .tile-icon { display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; line-height: normal; margin-bottom: 12px; border-radius: 50%; }
+#view-home .tile-icon .remix-icon { width: 38px; height: 38px; }
+#view-home .tile-label { font-size: 24px; }
+#view-url .url-input-wrap { max-width: 1430px; width: 100%; margin: 0 0 24px; }
+#view-url .url-input-wrap > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+#view-url .actions { display: flex; gap: 24px; justify-content: flex-start; margin-bottom: 48px; width: 100%; }
+#view-url .actions > button { width: 338px; min-height: 64px; margin: 0; border-radius: 12px; }
+#view-url .saved-streams { width: 100%; max-width: none; }
+.dialog-scrim { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; padding: 40px; }
+.dialog-card { width: 680px; max-width: 100%; max-height: calc(100vh - 80px); display: flex; flex-direction: column;
+    background: #151515; border: 1px solid #303030; border-radius: 16px; padding: 32px; text-align: start; }
+.dialog-card h2 { font-size: 28px; font-weight: 600; margin: 0 0 32px; }
+.dialog-body { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.dialog-body input { width: 100%; min-height: 64px; padding: 14px 18px; background: #0a0a0a; border: 2px solid #303030; border-radius: 8px; color: white; font: inherit; }
+.dialog-option { min-height: 80px; flex-shrink: 0; padding: 18px 24px; text-align: start; border: 2px solid #303030; border-radius: 8px; background: #151515; }
+.dialog-option:disabled { opacity: .45; }
+.dialog-option.focused, .dialog-body input.focused, .dialog-body .settings-row.focused { outline: none; border-color: #f4f4f4; background: #242424; }
+.dialog-body .settings-group { margin: 0; }
+.dialog-body .settings-row-input { display: flex; flex-direction: column; align-items: stretch; padding: 0; border: none; background: none; gap: 10px; margin-bottom: 20px; }
+.dialog-body .settings-row-input input { max-width: none; text-align: start; }
+.dialog-body .settings-row { font-size: 24px; }
+.receive-body { align-items: center; text-align: center; }
+.receive-qr img { width: 320px; max-width: 100%; height: auto; border-radius: 12px; }
+.receive-address { overflow-wrap: anywhere; font-family: monospace; font-size: 20px; }
+.muted { color: #aaa; font-size: 22px; }
+.info-panel { background: #151515; border: 2px solid #303030; border-radius: 12px; padding: 28px; margin-bottom: 32px; }
+.info-panel.focused { outline: none; border-color: #f4f4f4; }
+.info-panel h3 { margin-top: 0; }
+.browse-list.grid.device-roots { display: flex; gap: 24px; }
+.browse-list.grid.device-roots li { flex: 0 0 338px; width: 338px; min-height: 190px; padding: 24px; border: 2px solid #303030; border-radius: 12px; align-items: center; }
+.browse-list.grid.device-roots li.focused { outline: 3px solid #f4f4f4; outline-offset: -3px; box-shadow: none; background: #242424; }
+.browse-list.grid.device-roots .name { font-size: 24px; }
+.browse-list.grid.device-roots .meta { display: none; }
+.browse-list.grid.device-roots .icon { display: flex; justify-content: center; align-items: center; height: 90px; }
+.browse-list.grid.device-roots.empty-devices { justify-content: center; padding-top: 100px; }
+.browse-list.grid.device-roots.empty-devices li { width: 600px; flex-basis: 600px; border: none; text-align: center; background: transparent; }
+.browse-list.grid.device-roots.empty-devices li.focused { outline: none; }
+.empty-storage .browse-actions, .empty-storage #hint-fav, .empty-storage #hint-save { display: none !important; }
+.hint { position: fixed; bottom: 0; left: 0; right: 0; padding: 36px 60px; margin: 0 !important; z-index: 30;
+    background: linear-gradient(transparent, #0a0a0a 45%); text-align: end; pointer-events: none; }
+@media (max-width: 1000px) {
+    .media-card, #view-home .tile { flex-basis: 280px; width: 280px; }
+    #view-url .actions { flex-wrap: wrap; }
+    .page-heading h1 { font-size: 42px; }
+}
+
 /* ── Views: full screen, vertically + horizontally centred contents ────
  * Each non-player view paints its own opaque background — required because
  * the body is black (for AVPlay video plane visibility) and we don't want
@@ -382,35 +457,6 @@ button:focus { outline: none; }
 .browse-list.grid .meta { margin-left: 0; }
 .browse-list.grid .fav-mark, .browse-list.grid .watched { position: absolute; top: 12px; right: 12px; }
 .browse-list.grid li { position: relative; }
-
-/* ── Carousels on the USB and Network roots ───────────────────────── */
-.strip-wrap { width: 100%; max-width: 1400px; margin-bottom: 24px; text-align: left; }
-.strip + .strip { margin-top: 20px; }
-.strip-title {
-    font-size: 18px; line-height: 1.4; color: #ccc;
-    text-transform: uppercase; letter-spacing: 2px; font-weight: 600;
-    margin: 0 0 10px;
-}
-.strip-list {
-    list-style: none; margin: 0;
-    /* Padding leaves room for the 7px focus halo and the tile lift. */
-    padding: 10px 12px 16px;
-    display: flex; flex-direction: row; gap: 20px;
-    overflow-x: auto; overflow-y: hidden;
-}
-.strip-card { flex: 0 0 240px; min-width: 0; }
-.strip-open {
-    display: flex; flex-direction: column; align-items: stretch;
-    width: 100%; padding: 0; text-align: left; color: var(--fg-mute);
-    background: transparent;
-}
-.strip-open .up-next-thumb { height: 135px; margin-bottom: 8px; }
-.strip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 20px; }
-.strip-open.focused .up-next-thumb, .strip-open:focus .up-next-thumb {
-    outline: 3px solid #fff; box-shadow: 0 0 0 7px rgba(255,255,255,.25);
-}
-.strip-open.focused, .strip-open:focus { outline: none; }
-.strip-open.focused .strip-name, .strip-open:focus .strip-name { color: var(--fg); }
 
 /* Network configuration is a centred card over a dim scrim, exactly like the
  * player's Info modal — not a corner menu. */
@@ -1238,14 +1284,15 @@ body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 
 }
 .settings-switch.on { background: #f4f4f4; }
 .settings-switch.on::after { inset-inline-start: 33px; background: #151515; }
-.page-heading { text-align: start; margin: 64px 0 48px; }
-.page-heading h1 { margin: 0 0 12px; font-size: 52px; font-weight: 600; }
-.page-heading p { margin: 0; color: var(--fg-dim); font-size: 28px; }
+.page-heading { text-align: start; margin: 24px 0 36px; }
+.page-heading h1 { margin: 0 0 12px; font-size: 42px; font-weight: 600; }
+.page-heading p { margin: 0; color: var(--fg-dim); font-size: 24px; }
 #view-settings .settings-content { max-width: 1430px; width: 100%; margin: 0; }
 #view-settings .settings-group { margin-bottom: 16px; }
 #view-settings .settings-row { border-radius: 8px; min-height: 80px; }
 #view-settings .settings-row.focused { outline: none; box-shadow: inset 0 0 0 2px #f4f4f4; }
-#view-settings .tvinfo { margin-top: 48px; }
+#view-settings .tvinfo { margin-top: 48px; padding: 0; border: none; background: transparent; }
+#view-settings .tvinfo .codec .status { color: var(--fg-dim); }
 .settings-row .settings-value {
     display: inline-flex;
     align-items: center;

@@ -13,7 +13,7 @@ openspec validate --all --strict --no-interactive
 git diff --check
 ```
 
-Serve `tizen-app/` statically and open `demo.html` for the interactive simulator, or `dev-player.html` for isolated interface states. Neither decoder validates real media playback. The package script emits unsigned `dist/tessel.wgt`. Re-sign with a Samsung distributor certificate matching the target TV before installing.
+Serve `tizen-app/` statically and open `demo.html` for the interactive simulator. `dev-player.html` redirects to that same harness rather than maintaining different interface fixtures. Simulator storage is namespaced separately from the installed application. The fake decoder does not validate real media playback. The package script emits unsigned `dist/tessel.wgt`. Re-sign with a Samsung distributor certificate matching the target TV before installing.
 
 ## Code map
 

@@ -1,24 +1,5 @@
 <!doctype html>
-<html lang="en">
 <meta charset="utf-8">
-<title>Tessel — Player preview (dev only)</title>
-<body>Loading player preview…
-<script>
-// Use the real application markup and coordinator; substitute only the decoder.
-fetch('index.html', { cache: 'no-store' }).then(function (r) { if (!r.ok) throw Error(r.status); return r.text(); }).then(function (html) {
-    html = html.replace('<title>Tessel</title>', '<title>Tessel — Player preview (dev only)</title>');
-    html = html.replace('src="js/player.js"', 'src="dev/backend.js"');
-    html = html.replace('</body>', '<script src="dev/start.js"><\/script></body>');
-    // Preview reloads must show current source, not a mix of cached revisions.
-    var revision = Date.now();
-    html = html.replace(/(src|href)="((?:js|css|dev)\/[^"?]+\.(?:js|css))"/g, '$1="$2?dev=' + revision + '"');
-    var open = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function (method, url) {
-        if (typeof url === 'string' && /^i18n\//.test(url)) arguments[1] = url + '?dev=' + revision;
-        return open.apply(this, arguments);
-    };
-    document.open(); document.write(html); document.close();
-}).catch(function (err) { document.body.textContent = 'Preview failed: ' + err.message; });
-</script>
-</body>
-</html>
+<title>Tessel preview</title>
+<script>location.replace('demo.html' + location.search + location.hash);</script>
+<p>The preview is now the <a href="demo.html">interactive simulator</a>.</p>

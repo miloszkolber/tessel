@@ -111,12 +111,15 @@ var Simulator = (function () {
         return 1800000;
     }
 
+    var usbMounted = true;
     var DRIVE = { name: 'USB Drive', children: [
         { name: 'Series', children: [
             { name: 'Season 1', children: [
                 { name: 'S01E01 - Pilot.mkv', size: 1456000000, srt: 'S01E01 - Pilot.en.srt' },
                 { name: 'S01E01 - Pilot.en.srt', size: 41000 },
-                { name: 'S01E02 - The Second One.mkv', size: 1288000000 }
+                { name: 'S01E02 - The Second One.mkv', size: 1288000000 },
+                { name: 'S01E03 - Crossroads.mkv', size: 1288000000 },
+                { name: 'S01E04 - Home.mkv', size: 1288000000 }
             ] },
             { name: 'Season 2', children: [
                 { name: 'S02E01 - Return.mkv', size: 1330000000 }
@@ -218,10 +221,11 @@ var Simulator = (function () {
     var tizenShim = {
         filesystem: {
             listStorages: function (ok) {
-                ok([{ label: 'removable1', type: 'EXTERNAL', state: 'MOUNTED' }]);
+                ok(usbMounted ? [{ label: 'removable1', type: 'EXTERNAL', state: 'MOUNTED' }] : []);
             },
             resolve: function (target, ok, err, mode) {
                 setTimeout(function () {
+                    if (!usbMounted) { err(new Error('USB disconnected')); return; }
                     var found = null;
                     if (ROOTS[target]) found = { node: ROOTS[target], path: '' };
                     else found = resolvePath(target);
@@ -496,5 +500,6 @@ var Simulator = (function () {
     /* Install immediately: the app reads `tizen` while its own scripts run. */
     install();
 
-    return { install: install, castSend: castSend, DURATIONS: DURATIONS, DRIVE: DRIVE };
+    return { install: install, castSend: castSend, DURATIONS: DURATIONS, DRIVE: DRIVE,
+        setUsbMounted: function (on) { usbMounted = on; } };
 })();

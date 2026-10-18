@@ -141,16 +141,16 @@ test('SamsungOne leads the font stacks and home has no brand header', function (
     assert.ok(home.indexOf('home-tiles') >= 0, 'tiles remain');
 });
 
-test('the preview offers a page and state for each surface', function () {
-    var start = fs.readFileSync(path.join(ROOT, 'dev/start.js'), 'utf8');
-    ['showUsbFixture', 'showPlaylistFixture', 'openPlaylist', 'previewLinks'].forEach(function (fn) {
-        assert.ok(start.indexOf(fn) >= 0, fn);
-    });
-    [['home', 'default'], ['stream', 'saved'], ['video', 'queue'], ['audio', 'buffering'],
-     ['playlist', 'empty'], ['usb', 'continue'], ['network', 'smb-config'], ['settings', 'default']
-    ].forEach(function (pair) {
-        assert.ok(start.indexOf("'" + pair[0] + "'") >= 0 && start.indexOf("'" + pair[1] + "'") >= 0,
-            pair[0] + '/' + pair[1]);
-    });
-    assert.ok(start.indexOf('PREVIEW_PAGES') >= 0, 'state links');
+test('simulator storage cannot overwrite or clear real application storage', function () {
+    var data = { setting: 'real' };
+    var native = { getItem: function (k) { return data[k] || null; }, setItem: function (k, v) { data[k] = String(v); },
+        removeItem: function (k) { delete data[k]; }, key: function (i) { return Object.keys(data)[i]; }, get length() { return Object.keys(data).length; } };
+    var context = { window: { localStorage: native }, location: { pathname: '/demo.html' } };
+    vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'dev/storage.js'), 'utf8'), context);
+    context.window.localStorage.setItem('setting', 'simulated');
+    assert.equal(native.getItem('setting'), 'real');
+    assert.equal(context.window.localStorage.getItem('setting'), 'simulated');
+    context.window.localStorage.clear();
+    assert.equal(native.getItem('setting'), 'real');
+    assert.equal(context.window.localStorage.getItem('setting'), null);
 });

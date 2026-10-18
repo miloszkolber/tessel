@@ -7,6 +7,7 @@
 
 var UI = (function () {
     var currentView = null;
+    var viewRevision = 0;
     var focusable = [];
     var focusIdx  = 0;
 
@@ -15,6 +16,8 @@ var UI = (function () {
         '.browse-list li, .track-section li:not(.muted)';
 
     function showView(id) {
+        viewRevision++;
+        if (typeof Remote !== 'undefined' && Remote.cancelHold) Remote.cancelHold();
         var views = document.querySelectorAll('.view');
         for (var i = 0; i < views.length; i++) views[i].classList.add('hidden');
         var v = document.getElementById(id);
@@ -57,7 +60,9 @@ var UI = (function () {
         var errorOv   = document.getElementById('error-overlay');
 
         var scope = currentView;
-        if (picker    && !picker.classList.contains('hidden'))    scope = picker;
+        var dialog = document.getElementById('library-modal');
+        if (dialog) scope = dialog;
+        else if (picker    && !picker.classList.contains('hidden'))    scope = picker;
         else if (errorOv   && !errorOv.classList.contains('hidden')) scope = errorOv;
         else if (trackMenu && !trackMenu.classList.contains('hidden')) scope = trackMenu;
         else if (moreMenu && !moreMenu.classList.contains('hidden')) scope = moreMenu;
@@ -69,7 +74,7 @@ var UI = (function () {
         focusable = focusable.filter(function (el) {
             // Animated OSDs stay laid out while hidden. Their descendants
             // must leave the focus order as soon as hiding starts.
-            return !el.closest('.hidden') && el.offsetParent !== null;
+            return !el.disabled && !el.closest('.hidden') && el.offsetParent !== null;
         });
     }
 
@@ -220,6 +225,7 @@ var UI = (function () {
         activateFocused:   activateFocused,
         refreshFocusables: refreshFocusables,
         toast:             toast,
-        get currentView() { return currentView; }
+        get currentView() { return currentView; },
+        get viewRevision() { return viewRevision; }
     };
 })();

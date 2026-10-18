@@ -102,7 +102,7 @@ test('saving logs what was stored, without the password itself', function () {
 test('saving with the share missing says so, in the log and on screen', function () {
     var t = loadSmb({ host: '192.168.1.10' });
     t.save();
-    var line = t.lines.filter(function (l) { return /settings saved/.test(l); })[0];
-    assert.ok(/host and share are both required/.test(line), line);
+    assert.ok(t.lines.some(function (line) { return /host and share are both required/.test(line); }));
+    assert.deepStrictEqual(t.saved(), {}, 'invalid settings must not overwrite the saved server');
     assert.ok(t.toasts.indexOf('Share name is missing') >= 0, JSON.stringify(t.toasts));
 });

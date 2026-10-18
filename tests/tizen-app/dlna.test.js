@@ -172,14 +172,14 @@ test('a pinned media server is used straight away, others are not listed', funct
     assert.equal(D.choice(found, 'b').name, 'Study');
 });
 
-test('the server list is only for choosing: nothing pinned, or the pin is gone', function () {
+test('a missing configured DLNA device never substitutes another sole server', function () {
     var D = loadDlna();
     var found = [{ id: 'a', name: 'Living room' }, { id: 'b', name: 'Study' }];
     assert.equal(D.choice(found, ''), null);
     assert.equal(D.choice(found, 'gone'), null);
-    // One server on the LAN is that one, pinned or not.
+    // Auto-selection without an identity must not override a saved identity.
     assert.equal(D.choice([found[0]], '').id, 'a');
-    assert.equal(D.choice([found[0]], 'gone').id, 'a');
+    assert.equal(D.choice([found[0]], 'gone'), null);
 });
 
 test('an entry\'s kind is the server\'s class, else the URL\'s extension', function () {
