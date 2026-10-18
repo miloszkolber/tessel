@@ -1,0 +1,2616 @@
+/* ============================================================================
+ * Tessel — SMB proxy service  (Tizen Web Service application, Node.js runtime)
+ * ----------------------------------------------------------------------------
+ * The .wgt sandbox can't speak SMB (raw TCP 445 + the CIFS protocol), but a
+ * hybrid <tizen:service> runs on the set's Node runtime and CAN open sockets.
+ * This service is a tiny localhost HTTP server that:
+ *
+ *   POST /smb/connect   { host, share, user, pass, domain?, port? }
+ *                       → NEGOTIATE + NTLMv2 SESSION_SETUP + TREE_CONNECT
+ *   GET  /smb/list?path=/sub          → JSON [{ name, isDir, size }]
+ *   GET  /smb/stream?path=/a/b.mkv    → byte stream, honours HTTP Range
+ *   POST /smb/shares  { host, user, pass, domain?, port? }
+ *                       → { ok:true, shares:[{ name, remark }] }, the disk
+ *                         shares the server lists (see listShares)
+ *   POST /smb/write?srv=<id> { path, text }
+ *                       → { ok, path, size }: the text as a file on the
+ *                         share, overwritten if it exists (the backup and
+ *                         the debug log, issue #132)
+ *   GET  /smb/ping                    → { ok:true, connected } liveness check
+ *   GET  /dlna/discover, POST /dlna/browse
+ *                       → DLNA media servers on the LAN and their folders
+ *                         (see the DLNA block near the bottom)
+ *   POST /dav/connect, GET /dav/list, GET /dav/stream
+ *                       → a WebDAV server's folders and files, Basic or
+ *                         Digest auth (see the WebDAV block near the bottom)
+ *
+ * It also hosts the optional *local relay* (see the block near the bottom):
+ * a second listener, on the LAN rather than loopback, that serves files off
+ * the TV's own USB drive to the transcode server — so USB files can get the
+ * same surround / codec treatment as files on the share.
+ *
+ * The web app points AVPlay at  http://127.0.0.1:8127/smb/stream?path=...
+ * AVPlay then demuxes / seeks exactly like any other HTTP source; seeking
+ * arrives as a Range request which we map to an SMB2 READ at offset/length.
+ *
+ * Self-contained on purpose: zero npm dependencies so there's nothing to
+ * bundle or transpile for the ancient Node build on the TV.  Pure ES5.
+ *
+ * Scope of the embedded SMB2 client: SMB 2.0.2 / 2.1, NTLMv2 auth, optional
+ * HMAC-SHA256 signing (used only when the server marks it required), reading
+ * (NEGOTIATE / SESSION_SETUP / TREE_CONNECT / CREATE / QUERY_DIRECTORY / READ /
+ * CLOSE) plus one kind of writing: a whole small file at once (WRITE), for
+ * the backup.  Enough to browse a share and stream files — plus IOCTL on the
+ * srvsvc pipe, which is how /smb/shares lists what a server offers.
+ * ==========================================================================*/
+
+var http   = require('http');
+var net    = require('net');
+var crypto = require('crypto');
+var fs     = require('fs');
+var os     = require('os');
+
+/* The TV's Node runtime predates Buffer.alloc / Buffer.from (added in Node
+ * 4.5/5.10) — it only has the legacy `new Buffer()` constructor. Without this
+ * shim every SMB request throws "Buffer.alloc is not a function" the moment a
+ * connection is built, so /smb/ping works but /smb/connect hangs and times out.
+ * Polyfill onto the legacy constructor, matching alloc's zero-fill semantics. */
+if (typeof Buffer.alloc !== 'function') {
+    Buffer.alloc = function (size, fill) {
+        var b = new Buffer(size);
+        b.fill(fill === undefined ? 0 : fill);
+        return b;
+    };
+}
+if (typeof Buffer.from !== 'function') {
+    Buffer.from = function (data, encoding) { return new Buffer(data, encoding); };
+}
+
+var PORT        = 8127;
+var LISTEN_HOST = '127.0.0.1';
+
+/* ── debug ring buffer, surfaced at GET /smb/debug/logs ──────────────────── */
+var LOGS = [];
+function log(msg, data) {
+    var line = new Date().toISOString() + ' ' + msg +
+               (data !== undefined ? ' ' + safeJson(data) : '');
+    LOGS.push(line);
+    if (LOGS.length > 2000) LOGS.shift();
+    console.log(line);
+    if (typeof debugAppend === 'function') debugAppend('svc', msg + (data !== undefined ? ' ' + safeJson(data) : ''));
+}
+function safeJson(d) { try { return typeof d === 'object' ? JSON.stringify(d) : String(d); } catch (e) { return ''; } }
+
+/* ============================================================================
+ * MD4  (RFC 1320) — needed for the NT hash; Node's crypto may lack md4 on the
+ * TV's OpenSSL build, so we carry our own and never gamble on the provider.
+ * ==========================================================================*/
+function md4(buf) {
+    function rol(x, n) { return (x << n) | (x >>> (32 - n)); }
+    function add(a, b) { return (a + b) | 0; }
+    var F = function (x, y, z) { return (x & y) | (~x & z); };
+    var G = function (x, y, z) { return (x & y) | (x & z) | (y & z); };
+    var H = function (x, y, z) { return x ^ y ^ z; };
+
+    var len = buf.length;
+    var bitLen = len * 8;
+    var withPad = len + 1;
+    while (withPad % 64 !== 56) withPad++;
+    var m = Buffer.alloc(withPad + 8, 0);
+    buf.copy(m, 0);
+    m[len] = 0x80;
+    m.writeUInt32LE(bitLen >>> 0, withPad);
+    m.writeUInt32LE(Math.floor(bitLen / 4294967296) >>> 0, withPad + 4);
+
+    var a = 0x67452301, b = 0xefcdab89, c = 0x98badcfe, d = 0x10325476;
+    var X = new Array(16);
+    for (var off = 0; off < m.length; off += 64) {
+        for (var i = 0; i < 16; i++) X[i] = m.readUInt32LE(off + i * 4);
+        var aa = a, bb = b, cc = c, dd = d;
+        var r1 = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15];
+        var s1 = [3,7,11,19];
+        for (i = 0; i < 16; i++) {
+            var k = r1[i];
+            var sh = s1[i % 4];
+            if      ((i & 3) === 0) a = rol(add(a, F(b, c, d) + X[k] | 0), sh);
+            else if ((i & 3) === 1) d = rol(add(d, F(a, b, c) + X[k] | 0), sh);
+            else if ((i & 3) === 2) c = rol(add(c, F(d, a, b) + X[k] | 0), sh);
+            else                    b = rol(add(b, F(c, d, a) + X[k] | 0), sh);
+        }
+        var r2 = [0,4,8,12,1,5,9,13,2,6,10,14,3,7,11,15];
+        var s2 = [3,5,9,13];
+        for (i = 0; i < 16; i++) {
+            k = r2[i]; sh = s2[i % 4];
+            var g = (0x5a827999) | 0;
+            if      ((i & 3) === 0) a = rol(add(a, (G(b, c, d) + X[k] | 0) + g | 0), sh);
+            else if ((i & 3) === 1) d = rol(add(d, (G(a, b, c) + X[k] | 0) + g | 0), sh);
+            else if ((i & 3) === 2) c = rol(add(c, (G(d, a, b) + X[k] | 0) + g | 0), sh);
+            else                    b = rol(add(b, (G(c, d, a) + X[k] | 0) + g | 0), sh);
+        }
+        var r3 = [0,8,4,12,2,10,6,14,1,9,5,13,3,11,7,15];
+        var s3 = [3,9,11,15];
+        for (i = 0; i < 16; i++) {
+            k = r3[i]; sh = s3[i % 4];
+            var h = (0x6ed9eba1) | 0;
+            if      ((i & 3) === 0) a = rol(add(a, (H(b, c, d) + X[k] | 0) + h | 0), sh);
+            else if ((i & 3) === 1) d = rol(add(d, (H(a, b, c) + X[k] | 0) + h | 0), sh);
+            else if ((i & 3) === 2) c = rol(add(c, (H(d, a, b) + X[k] | 0) + h | 0), sh);
+            else                    b = rol(add(b, (H(c, d, a) + X[k] | 0) + h | 0), sh);
+        }
+        a = add(a, aa); b = add(b, bb); c = add(c, cc); d = add(d, dd);
+    }
+    var out = Buffer.alloc(16);
+    out.writeUInt32LE(a >>> 0, 0); out.writeUInt32LE(b >>> 0, 4);
+    out.writeUInt32LE(c >>> 0, 8); out.writeUInt32LE(d >>> 0, 12);
+    return out;
+}
+function hmacMd5(key, data)    { return crypto.createHmac('md5',    key).update(data).digest(); }
+function hmacSha256(key, data) { return crypto.createHmac('sha256', key).update(data).digest(); }
+
+/* The TV's native Buffer.from accepts typed arrays/strings but throws "this is
+ * not a typed array" on a plain number array — and the polyfill above never
+ * runs because Buffer.from already exists. Build small constant byte buffers
+ * via Buffer.alloc + index assignment, which the runtime does support. */
+function bytes(arr) {
+    var b = Buffer.alloc(arr.length);
+    for (var i = 0; i < arr.length; i++) b[i] = arr[i] & 0xFF;
+    return b;
+}
+/* The TV's partial Buffer can't do string encodings ('ucs2'/'binary' throw
+ * "<enc> is not a function"), so build/decode UTF-16LE and ASCII by hand. */
+function utf16le(str) {
+    str = (str == null) ? '' : String(str);
+    var b = Buffer.alloc(str.length * 2);
+    for (var i = 0; i < str.length; i++) b.writeUInt16LE(str.charCodeAt(i) & 0xFFFF, i * 2);
+    return b;
+}
+function fromUtf16le(buf, start, end) {
+    var s = '';
+    for (var i = start; i + 1 < end; i += 2) s += String.fromCharCode(buf.readUInt16LE(i));
+    return s;
+}
+function asciiBytes(str) {
+    var b = Buffer.alloc(str.length);
+    for (var i = 0; i < str.length; i++) b[i] = str.charCodeAt(i) & 0xFF;
+    return b;
+}
+
+/* ── 64-bit LE helpers (JS-number-safe up to 2^53 ≈ 9 PB, plenty for files) ─ */
+function writeU64LE(b, off, n) { b.writeUInt32LE(n % 4294967296 >>> 0, off); b.writeUInt32LE(Math.floor(n / 4294967296) >>> 0, off + 4); }
+function readU64LE(b, off)     { return b.readUInt32LE(off) + b.readUInt32LE(off + 4) * 4294967296; }
+
+/* ============================================================================
+ * SMB2 protocol constants
+ * ==========================================================================*/
+var SMB2 = {
+    NEGOTIATE: 0x0000, SESSION_SETUP: 0x0001, LOGOFF: 0x0002,
+    TREE_CONNECT: 0x0003, TREE_DISCONNECT: 0x0004, CREATE: 0x0005,
+    CLOSE: 0x0006, READ: 0x0008, WRITE: 0x0009, IOCTL: 0x000B, QUERY_DIRECTORY: 0x000E
+};
+var SMB2_NAME = {
+    0x0000: 'NEGOTIATE', 0x0001: 'SESSION_SETUP', 0x0002: 'LOGOFF',
+    0x0003: 'TREE_CONNECT', 0x0004: 'TREE_DISCONNECT', 0x0005: 'CREATE',
+    0x0006: 'CLOSE', 0x0008: 'READ', 0x0009: 'WRITE', 0x000B: 'IOCTL', 0x000E: 'QUERY_DIRECTORY'
+};
+var ST = {
+    SUCCESS:               0x00000000,
+    MORE_PROCESSING:       0xC0000016,
+    NO_MORE_FILES:         0x80000006,
+    END_OF_FILE:           0xC0000011,
+    BUFFER_OVERFLOW:       0x80000005,
+    PENDING:               0x00000103
+};
+var FLAGS_SIGNED = 0x00000008;
+
+/* The NT statuses a user can actually do something about.  A bare
+ * "TREE_CONNECT failed 0xc00000cc" on the TV screen (and in the issue tracker)
+ * tells nobody anything; "no share with that name on the server" points
+ * straight at the Share field.  Keyed by the hex string so the table reads
+ * like the wire values it mirrors.  Anything not listed keeps the raw hex. */
+var NT_STATUS = {
+    '0xc000000d': ['STATUS_INVALID_PARAMETER',      'the server rejected the request itself, not the password'],
+    '0xc0000022': ['STATUS_ACCESS_DENIED',          'this account is not allowed in here'],
+    '0xc0000034': ['STATUS_OBJECT_NAME_NOT_FOUND',  'no such file or folder'],
+    '0xc000003a': ['STATUS_OBJECT_PATH_NOT_FOUND',  'no such folder'],
+    '0xc0000043': ['STATUS_SHARING_VIOLATION',      'the file is locked by another program'],
+    '0xc0000064': ['STATUS_NO_SUCH_USER',           'no such user on the server'],
+    '0xc000006a': ['STATUS_WRONG_PASSWORD',         'wrong password'],
+    '0xc000006d': ['STATUS_LOGON_FAILURE',          'wrong username or password'],
+    '0xc000006f': ['STATUS_INVALID_LOGON_HOURS',    'this account may not log on at this hour'],
+    '0xc0000070': ['STATUS_INVALID_WORKSTATION',    'the server refuses logons from this device'],
+    '0xc0000071': ['STATUS_PASSWORD_EXPIRED',       'that password has expired'],
+    '0xc0000072': ['STATUS_ACCOUNT_DISABLED',       'that account is disabled'],
+    '0xc00000bb': ['STATUS_NOT_SUPPORTED',          'the server refused the request (NTLM may be switched off)'],
+    '0xc00000cc': ['STATUS_BAD_NETWORK_NAME',       'no share with that name on the server'],
+    '0xc000015b': ['STATUS_LOGON_TYPE_NOT_GRANTED', 'this account may not log on over the network'],
+    '0xc0000203': ['STATUS_USER_SESSION_DELETED',   'the server dropped the session'],
+    '0xc0000234': ['STATUS_ACCOUNT_LOCKED_OUT',     'that account is locked out']
+};
+function ntHex(status)  { return '0x' + (status >>> 0).toString(16); }
+function ntName(status) { var e = NT_STATUS[ntHex(status)]; return e ? e[0] : ''; }
+/* "wrong password (STATUS_WRONG_PASSWORD 0xc000006a)" — plain words first for
+ * the person reading the TV screen, the codes kept for the bug report. */
+function ntText(status) {
+    var e = NT_STATUS[ntHex(status)];
+    return e ? e[1] + ' (' + e[0] + ' ' + ntHex(status) + ')' : ntHex(status);
+}
+
+/* NTLMSSP negotiate flags: Unicode, NTLM with extended session security
+ * (NTLMv2), plus SIGN / 128 / 56 — the set every Windows client sends
+ * (github issue #83).
+ * `>>> 0` because 0x80000000 turns the OR negative, which writeUInt32LE rejects. */
+var NTLM_F = (0x00000001 |    // NEGOTIATE_UNICODE
+              0x00000004 |    // REQUEST_TARGET
+              0x00000010 |    // NEGOTIATE_SIGN
+              0x00000200 |    // NEGOTIATE_NTLM
+              0x00008000 |    // NEGOTIATE_ALWAYS_SIGN
+              0x00080000 |    // NEGOTIATE_EXTENDED_SESSIONSECURITY
+              0x20000000 |    // NEGOTIATE_128
+              0x80000000) >>> 0;  // NEGOTIATE_56
+var NTLM_ANON = 0x00000800;   // NTLMSSP_NEGOTIATE_ANONYMOUS
+
+/* ============================================================================
+ * SmbConnection — one TCP socket to one share, request/response correlated by
+ * MessageId so multiple in-flight reads (AVPlay loves to parallelise) are fine.
+ * ==========================================================================*/
+function SmbConnection(opts) {
+    this.host    = opts.host;
+    this.port    = opts.port || 445;
+    this.share   = opts.share;
+    this.user    = opts.user || '';
+    this.pass    = opts.pass || '';
+    this.domain  = opts.domain || '';
+    this.anonymous = !!opts.anonymous;   // guest / no-login session
+    this.socket  = null;
+    this.rxbuf   = Buffer.alloc(0);
+    this.msgId   = 0;
+    this.sessionId = Buffer.alloc(8);
+    this.treeId  = 0;
+    this.signKey = null;          // set only if server requires signing
+    this.signing = false;
+    this.pending = {};            // messageId -> cb(status, header, body)
+    this.dead    = false;
+    this.dialect = 0;
+    this.maxRead = 65536;         // server's MaxReadSize; 64 KiB until NEGOTIATE
+    this.maxWrite = 65536;        // server's MaxWriteSize, likewise
+}
+
+SmbConnection.prototype._frame = function () {
+    /* Direct-TCP transport: 4-byte length prefix (00 + 24-bit BE) per message. */
+    while (this.rxbuf.length >= 4) {
+        var msgLen = (this.rxbuf[1] << 16) | (this.rxbuf[2] << 8) | this.rxbuf[3];
+        if (this.rxbuf.length < 4 + msgLen) break;
+        var msg = this.rxbuf.slice(4, 4 + msgLen);
+        this.rxbuf = this.rxbuf.slice(4 + msgLen);
+        this._dispatch(msg);
+    }
+};
+SmbConnection.prototype._dispatch = function (msg) {
+    if (msg.length < 64) return;
+    var status = msg.readUInt32LE(8);
+    var cmd    = msg.readUInt16LE(12);
+    var mid    = readU64LE(msg, 24);
+    var credit = msg.readUInt16LE(14);
+    /* Async interim STATUS_PENDING: ignore, the real response follows. */
+    if (status === ST.PENDING) return;
+    var named = ntName(status);
+    log('SMB_RECV', { cmd: SMB2_NAME[cmd] || ('0x' + cmd.toString(16)),
+                      mid: mid, status: ntHex(status) + (named ? ' ' + named : ''),
+                      credit: credit, bodyLen: msg.length - 64 });
+    var cb = this.pending[mid];
+    if (!cb) return;
+    delete this.pending[mid];
+    var body = msg.slice(64);
+    cb(status, msg.slice(0, 64), body);
+};
+SmbConnection.prototype._die = function (why) {
+    if (this.dead) return;
+    this.dead = true;
+    var pendingCmds = Object.keys(this.pending).length;
+    log('SMB_DEAD', { why: why,
+                      lastSent: SMB2_NAME[this.lastSentCmd] || ('0x' + (this.lastSentCmd || 0).toString(16)),
+                      pendingCount: pendingCmds });
+    var p = this.pending; this.pending = {};
+    for (var k in p) try { p[k](-1, null, null); } catch (e) {}
+    try { if (this.socket) this.socket.destroy(); } catch (e) {}
+};
+
+/* Build a 64-byte SMB2 sync header. */
+SmbConnection.prototype._header = function (command, creditCharge) {
+    var charge = creditCharge || 1;
+    var h = Buffer.alloc(64);
+    h.writeUInt32BE(0xFE534D42, 0);         // 0xFE 'S' 'M' 'B'
+    h.writeUInt16LE(64, 4);                  // StructureSize
+    h.writeUInt16LE(charge, 6);              // CreditCharge
+    h.writeUInt32LE(0, 8);                    // Status (req: 0)
+    h.writeUInt16LE(command, 12);
+    h.writeUInt16LE(64, 14);                  // CreditRequest (ask generously)
+    h.writeUInt32LE(0, 16);                   // Flags
+    h.writeUInt32LE(0, 20);                   // NextCommand
+    /* MS-SMB2 §3.2.4.1.5: a multi-credit request (CreditCharge > 1) consumes
+     * `charge` consecutive MessageIds.  The next request must skip past the
+     * reserved range; the server treats reuse of any reserved MessageId as a
+     * protocol violation and silently FINs the TCP connection (which is
+     * exactly the AVI failure mode reported by the tester -- first READ at
+     * mid=5 with charge=4 reserved [5..8], so mid=6 for the next READ
+     * collided and Samba closed us).  Always advance by charge, not by 1. */
+    var id = this.msgId;
+    this.msgId += charge;
+    writeU64LE(h, 24, id);
+    h.writeUInt32LE(0, 32);                   // Reserved
+    h.writeUInt32LE(this.treeId >>> 0, 36);
+    this.sessionId.copy(h, 40);
+    // Signature (48..63) left zero
+    return { buf: h, id: id };
+};
+
+/* Send header+body, optionally signed, register the callback. */
+SmbConnection.prototype._send = function (command, body, creditCharge, cb) {
+    if (this.dead) return cb(-1, null, null);
+    var hdr = this._header(command, creditCharge);
+    /* SESSION_SETUP requests are never signed: the server derives the session
+     * key from the very NTLM message the request carries, so it has nothing to
+     * check a signature against yet. Windows answers a signed one with
+     * STATUS_INVALID_PARAMETER (github issue #83) and Samba with
+     * `server signing = mandatory` drops the connection. Signing starts with
+     * the first request after the session is up. */
+    if (this.signing && this.signKey && command !== SMB2.SESSION_SETUP) {
+        hdr.buf.writeUInt32LE(FLAGS_SIGNED, 16);
+        var full = Buffer.concat([hdr.buf, body]);
+        var sig = hmacSha256(this.signKey, full).slice(0, 16);
+        sig.copy(hdr.buf, 48);
+        var packet = Buffer.concat([hdr.buf, body]);
+    } else {
+        packet = Buffer.concat([hdr.buf, body]);
+    }
+    this.pending[hdr.id] = cb;
+    this.lastSentCmd = command;
+    log('SMB_SEND', { cmd: SMB2_NAME[command] || ('0x' + command.toString(16)),
+                      mid: hdr.id, charge: creditCharge, bodyLen: body.length });
+    var pfx = Buffer.alloc(4);
+    pfx[0] = 0;
+    pfx[1] = (packet.length >> 16) & 0xFF;
+    pfx[2] = (packet.length >> 8) & 0xFF;
+    pfx[3] = packet.length & 0xFF;
+    try { this.socket.write(Buffer.concat([pfx, packet])); }
+    catch (e) { this._die('write:' + e.message); }
+};
+
+/* ── connect: open socket, then NEGOTIATE → SESSION_SETUP → TREE_CONNECT ──── */
+SmbConnection.prototype.connect = function (done) {
+    var self = this;
+
+    // Single-shot completion: a connect can only succeed or fail once, so guard
+    // against the timer / 'error' / 'close' all racing to call back.
+    var settled = false;
+    function finish(err) {
+        if (settled) return; settled = true;
+        clearTimeout(timer);
+        done && done(err);
+    }
+    // net.connect to a dead/filtered host:445 otherwise hangs for the OS TCP
+    // timeout (minutes), so the HTTP POST just times out with no explanation.
+    var timer = setTimeout(function () {
+        log('SMB_CONNECT_TIMEOUT', self.host + ':' + self.port);
+        self._die('connect timeout');
+        finish(new Error('connect timed out to ' + self.host + ':' + self.port + ' (host/port/firewall?)'));
+    }, 8000);
+
+    this.socket = net.connect(this.port, this.host, function () {
+        log('SMB_TCP_OPEN', self.host + ':' + self.port);
+        self._negotiate(function (err) {
+            if (err) return finish(err);
+            self._sessionSetup(function (err2) {
+                if (err2) return finish(err2);
+                self._treeConnect(finish);
+            });
+        });
+    });
+    this.socket.setNoDelay(true);
+    this.socket.on('data', function (chunk) {
+        self.rxbuf = Buffer.concat([self.rxbuf, chunk]);
+        self._frame();
+    });
+    this.socket.on('error', function (e) { log('SMB_SOCK_ERR', e.message); self._die('sock:' + e.message); finish(e); });
+    this.socket.on('close', function () { self._die('closed'); finish(new Error('connection closed before ready')); });
+};
+
+SmbConnection.prototype._negotiate = function (cb) {
+    var self = this;
+    var dialects = [0x0202, 0x0210];
+    var body = Buffer.alloc(36 + dialects.length * 2);
+    body.writeUInt16LE(36, 0);                       // StructureSize
+    body.writeUInt16LE(dialects.length, 2);          // DialectCount
+    body.writeUInt16LE(0x0001, 4);                   // SecurityMode = signing enabled
+    body.writeUInt16LE(0, 6);                        // Reserved
+    body.writeUInt32LE(0x00000004, 8);               // Capabilities = LARGE_MTU (multi-credit reads on 2.1)
+    crypto.randomBytes(16).copy(body, 12);           // ClientGuid
+    writeU64LE(body, 28, 0);                         // ClientStartTime
+    for (var i = 0; i < dialects.length; i++) body.writeUInt16LE(dialects[i], 36 + i * 2);
+
+    this._send(SMB2.NEGOTIATE, body, 1, function (status, hdr, resp) {
+        if (status !== ST.SUCCESS) return cb(new Error('NEGOTIATE failed: ' + ntText(status)));
+        self.dialect = resp.readUInt16LE(4);
+        var securityMode = resp.readUInt16LE(2);
+        self.signing = !!(securityMode & 0x0002); // server marks signing REQUIRED
+        // MaxReadSize@32. Clamp our per-READ size to it so we never exceed the
+        // server's limit (64 KiB on 2.0.2 → single-credit; larger on 2.1).
+        self.maxRead = resp.readUInt32LE(32) || 65536;
+        self.maxWrite = resp.readUInt32LE(36) || 65536;   // MaxWriteSize@36
+        log('SMB_NEGOTIATE', { dialect: '0x' + self.dialect.toString(16), signingRequired: self.signing,
+                               maxRead: self.maxRead, maxWrite: self.maxWrite });
+        cb(null);
+    });
+};
+
+/* NTLMSSP type 1 (negotiate). */
+function ntlmType1() {
+    var b = Buffer.alloc(32);
+    asciiBytes('NTLMSSP\0').copy(b, 0);
+    b.writeUInt32LE(1, 8);          // MessageType
+    b.writeUInt32LE(NTLM_F, 12);    // NegotiateFlags
+    // Domain + Workstation fields left zero
+    return b;
+}
+
+/* Parse NTLMSSP type 2 (challenge): server challenge + target info blob. */
+function parseNtlmType2(buf) {
+    var serverChallenge = buf.slice(24, 32);
+    var tiLen = buf.readUInt16LE(40);
+    var tiOff = buf.readUInt32LE(44);
+    var targetInfo = buf.slice(tiOff, tiOff + tiLen);
+    return { challenge: serverChallenge, targetInfo: targetInfo };
+}
+
+/* Pull MsvAvTimestamp (AvId 0x07) out of target info if present. */
+function findAvTimestamp(ti) {
+    var p = 0;
+    while (p + 4 <= ti.length) {
+        var id = ti.readUInt16LE(p), len = ti.readUInt16LE(p + 2);
+        if (id === 0x0000) break;          // MsvAvEOL
+        if (id === 0x0007 && len === 8) return ti.slice(p + 4, p + 12);
+        p += 4 + len;
+    }
+    return null;
+}
+
+/* OR `flag` into MsvAvFlags (AvId 0x06) inside target info, adding the pair
+ * before MsvAvEOL if it isn't already there. Used to set the "MIC present"
+ * bit (0x2) so servers that pin the authenticate message don't reject us. */
+function setMsvAvFlag(ti, flag) {
+    var p = 0, eol = ti.length;
+    while (p + 4 <= ti.length) {
+        var id = ti.readUInt16LE(p), len = ti.readUInt16LE(p + 2);
+        if (id === 0x0000) { eol = p; break; }       // MsvAvEOL
+        if (id === 0x0006 && len === 4) {            // MsvAvFlags already present
+            var out = Buffer.alloc(ti.length); ti.copy(out);
+            out.writeUInt32LE((out.readUInt32LE(p + 4) | flag) >>> 0, p + 4);
+            return out;
+        }
+        p += 4 + len;
+    }
+    var pair = Buffer.alloc(8);
+    pair.writeUInt16LE(0x0006, 0); pair.writeUInt16LE(4, 2); pair.writeUInt32LE(flag >>> 0, 4);
+    return Buffer.concat([ti.slice(0, eol), pair, ti.slice(eol)]);
+}
+
+/* NTLMSSP type 3 (authenticate) + the derived session key. */
+SmbConnection.prototype._buildNtlmType3 = function (challengeBuf) {
+    var t2 = parseNtlmType2(challengeBuf);
+
+    // NTLMv2 key material
+    var ntHash    = md4(utf16le(this.pass));                                   // NT hash
+    var idBytes   = utf16le((this.user || '').toUpperCase() + (this.domain || ''));
+    var ntlmv2Key = hmacMd5(ntHash, idBytes);
+
+    // "temp" / NTLMv2 client blob
+    var clientChallenge = crypto.randomBytes(8);
+    var ts = findAvTimestamp(t2.targetInfo);
+    var haveTs = !!ts;                       // server sent a timestamp → emit a MIC
+    if (!ts) { ts = Buffer.alloc(8, 0); }    // fall back to zero timestamp
+
+    // When emitting a MIC we must flag it in the echoed AV pairs (bit 0x2).
+    var targetInfo = haveTs ? setMsvAvFlag(t2.targetInfo, 0x00000002) : t2.targetInfo;
+
+    var blob = Buffer.concat([
+        bytes([0x01, 0x01, 0, 0, 0, 0, 0, 0]),  // RespType=1, HiRespType=1, Reserved
+        ts,                                           // timestamp (FILETIME)
+        clientChallenge,                              // 8 bytes
+        bytes([0, 0, 0, 0]),                    // Reserved
+        targetInfo,                                   // server's AV pairs, echoed (+MIC flag)
+        bytes([0, 0, 0, 0])                     // Reserved
+    ]);
+
+    var ntProof = hmacMd5(ntlmv2Key, Buffer.concat([t2.challenge, blob]));
+    var ntResp  = Buffer.concat([ntProof, blob]);
+    // Spec: with a timestamp present, LM response is Z(24); otherwise LMv2.
+    var lmResp  = haveTs
+        ? Buffer.alloc(24, 0)
+        : Buffer.concat([hmacMd5(ntlmv2Key, Buffer.concat([t2.challenge, clientChallenge])), clientChallenge]);
+    var sessionKey = hmacMd5(ntlmv2Key, ntProof);   // ExportedSessionKey (no key exch)
+
+    var domB = utf16le(this.domain);
+    var userB = utf16le(this.user);
+    var wsB   = utf16le('VLCTV');
+
+    // Fixed part: 8 sig + 4 type + 6×8 fields + 4 flags + 8 version + 16 MIC = 88.
+    var fixed = 88;
+    function field(len, off) { var f = Buffer.alloc(8); f.writeUInt16LE(len, 0); f.writeUInt16LE(len, 2); f.writeUInt32LE(off, 4); return f; }
+
+    var cur = fixed;
+    var lmOff = cur; cur += lmResp.length;
+    var ntOff = cur; cur += ntResp.length;
+    var domOff = cur; cur += domB.length;
+    var userOff = cur; cur += userB.length;
+    var wsOff = cur; cur += wsB.length;
+    // EncryptedRandomSessionKey: empty
+
+    var hdr = Buffer.alloc(fixed);
+    asciiBytes('NTLMSSP\0').copy(hdr, 0);
+    hdr.writeUInt32LE(3, 8);                       // MessageType
+    field(lmResp.length, lmOff).copy(hdr, 12);     // LmChallengeResponse
+    field(ntResp.length, ntOff).copy(hdr, 20);     // NtChallengeResponse
+    field(domB.length,  domOff).copy(hdr, 28);     // DomainName
+    field(userB.length, userOff).copy(hdr, 36);    // UserName
+    field(wsB.length,   wsOff).copy(hdr, 44);      // Workstation
+    field(0,            cur).copy(hdr, 52);        // EncryptedRandomSessionKey (empty)
+    hdr.writeUInt32LE(NTLM_F, 60);                 // NegotiateFlags
+    // 64..71 Version = zeros, 72..87 MIC = zeros (filled below)
+
+    var token = Buffer.concat([hdr, lmResp, ntResp, domB, userB, wsB]);
+
+    // MIC = HMAC_MD5(ExportedSessionKey, type1 || type2 || type3-with-zero-MIC).
+    if (haveTs) {
+        var mic = hmacMd5(sessionKey, Buffer.concat([ntlmType1(), challengeBuf, token]));
+        mic.copy(token, 72);
+    }
+    return { token: token, sessionKey: sessionKey };
+};
+
+/* NTLMSSP type 3 for an anonymous (guest) logon: empty NT response, a single
+ * zero LM byte, and the ANONYMOUS flag. No session key, so no signing. */
+SmbConnection.prototype._buildAnonymousType3 = function () {
+    var lmResp = bytes([0x00]);   // Z(1) per MS-NLMP anonymous rule
+    var ntResp = Buffer.alloc(0);
+    var domB = Buffer.alloc(0), userB = Buffer.alloc(0), wsB = utf16le('VLCTV');
+    var fixed = 72;
+    function field(len, off) { var f = Buffer.alloc(8); f.writeUInt16LE(len, 0); f.writeUInt16LE(len, 2); f.writeUInt32LE(off, 4); return f; }
+    var cur = fixed;
+    var lmOff = cur; cur += lmResp.length;
+    var ntOff = cur; cur += ntResp.length;
+    var domOff = cur; cur += domB.length;
+    var userOff = cur; cur += userB.length;
+    var wsOff = cur; cur += wsB.length;
+
+    var hdr = Buffer.alloc(fixed);
+    asciiBytes('NTLMSSP\0').copy(hdr, 0);
+    hdr.writeUInt32LE(3, 8);
+    field(lmResp.length, lmOff).copy(hdr, 12);
+    field(ntResp.length, ntOff).copy(hdr, 20);
+    field(domB.length,  domOff).copy(hdr, 28);
+    field(userB.length, userOff).copy(hdr, 36);
+    field(wsB.length,   wsOff).copy(hdr, 44);
+    field(0,            cur).copy(hdr, 52);
+    hdr.writeUInt32LE((NTLM_F | NTLM_ANON) >>> 0, 60);
+    return { token: Buffer.concat([hdr, lmResp, ntResp, domB, userB, wsB]) };
+};
+
+SmbConnection.prototype._sessionSetupRequest = function (token, cb) {
+    var body = Buffer.alloc(24 + token.length);
+    body.writeUInt16LE(25, 0);                 // StructureSize
+    body.writeUInt8(0, 2);                     // Flags
+    body.writeUInt8(this.signing ? 0x02 : 0x01, 3); // SecurityMode
+    body.writeUInt32LE(0, 4);                  // Capabilities
+    body.writeUInt32LE(0, 8);                  // Channel
+    body.writeUInt16LE(64 + 24, 12);           // SecurityBufferOffset (from header start)
+    body.writeUInt16LE(token.length, 14);      // SecurityBufferLength
+    writeU64LE(body, 16, 0);                   // PreviousSessionId
+    token.copy(body, 24);
+    this._send(SMB2.SESSION_SETUP, body, 1, cb);
+};
+
+SmbConnection.prototype._sessionSetup = function (done) {
+    var self = this;
+    // Round 1: type1
+    this._sessionSetupRequest(ntlmType1(), function (status, hdr, resp) {
+        if (status !== ST.MORE_PROCESSING)
+            return done(new Error('SESSION_SETUP r1 unexpected: ' + ntText(status)));
+        // Server assigns SessionId here; use it for every subsequent request.
+        hdr.copy(self.sessionId, 0, 40, 48);
+        // SESSION_SETUP response: StructureSize(2), SessionFlags(2),
+        // SecurityBufferOffset(2)@4, SecurityBufferLength(2)@6.
+        var secOff = resp.readUInt16LE(4), secLen = resp.readUInt16LE(6);
+        var challenge = resp.slice(secOff - 64, secOff - 64 + secLen);
+        var t3;
+        if (self.anonymous) {
+            // Anonymous sessions have no key, so signing is off regardless of
+            // what the server asked for (it'll simply reject if it insists).
+            self.signing = false; self.signKey = null;
+            t3 = self._buildAnonymousType3();
+        } else {
+            t3 = self._buildNtlmType3(challenge);
+            // Signing key becomes available now; sign from the type3 request onward.
+            self.signKey = t3.sessionKey;
+        }
+        self._sessionSetupRequest(t3.token, function (status2, hdr2, resp2) {
+            if (status2 !== ST.SUCCESS)
+                return done(new Error('Sign-in failed: ' + ntText(status2)));
+            /* MS-SMB2 §3.2.5.1.3: for SMB 2.1+ on a non-anonymous, non-guest
+             * session, the client SHOULD sign subsequent messages even when
+             * the server's NEGOTIATE response only set SIGNING_ENABLED (not
+             * SIGNING_REQUIRED).  Samba allows the first post-auth message
+             * unsigned and then closes the TCP socket on the second, which
+             * is exactly what we were seeing on AVI playback (first READ
+             * succeeds, second READ kills the connection with no response).
+             *
+             * Read SMB2_SESSION_FLAGS from the response: bit 0x01 = IS_GUEST,
+             * 0x02 = IS_NULL.  If neither is set and we have a session key,
+             * sign from here on. */
+            var sessionFlags = (resp2 && resp2.length >= 4) ? resp2.readUInt16LE(2) : 0;
+            var isGuestOrNull = !!(sessionFlags & 0x0003);
+            if (!self.anonymous && !isGuestOrNull && self.signKey) {
+                self.signing = true;
+            }
+            log('SMB_AUTH_OK', { anonymous: self.anonymous,
+                                  sessionFlags: '0x' + sessionFlags.toString(16),
+                                  signing: self.signing });
+            done(null);
+        });
+    });
+};
+
+SmbConnection.prototype._treeConnect = function (done) {
+    var self = this;
+    var unc = utf16le('\\\\' + this.host + '\\' + this.share);
+    var body = Buffer.alloc(8 + unc.length);
+    body.writeUInt16LE(9, 0);            // StructureSize
+    body.writeUInt16LE(0, 2);            // Flags/Reserved
+    body.writeUInt16LE(64 + 8, 4);       // PathOffset
+    body.writeUInt16LE(unc.length, 6);   // PathLength
+    unc.copy(body, 8);
+    this._send(SMB2.TREE_CONNECT, body, 1, function (status, hdr) {
+        if (status !== ST.SUCCESS) return done(new Error('Share "' + self.share + '" refused: ' + ntText(status)));
+        self.treeId = hdr.readUInt32LE(36);
+        log('SMB_TREE_OK', { share: self.share, treeId: self.treeId });
+        done(null);
+    });
+};
+
+/* Normalise an incoming /path into an SMB relative name (backslashes, no
+ * leading slash). Empty → share root. */
+function smbName(path) {
+    var p = (path || '').replace(/^[\\/]+/, '').replace(/\//g, '\\');
+    return p;
+}
+
+/* CREATE (open) — returns { fileId(Buffer16), size }. isDir picks the option;
+ * access overrides the read-only DesiredAccess (a named pipe is written to),
+ * disposition the FILE_OPEN default (a file being written is created or
+ * overwritten: FILE_OVERWRITE_IF). */
+var ACCESS_WRITE_FILE = 0x00100183;   // READ_DATA|WRITE_DATA|READ_ATTR|WRITE_ATTR|SYNCHRONIZE
+var DISPOSITION_OVERWRITE_IF = 5;
+SmbConnection.prototype.open = function (path, isDir, cb, access, disposition) {
+    var name = utf16le(smbName(path));
+    var body = Buffer.alloc(56 + Math.max(name.length, 1));
+    body.writeUInt16LE(57, 0);            // StructureSize (fixed 56 + 1 var)
+    body.writeUInt8(0, 2);                // SecurityFlags
+    body.writeUInt8(0, 3);                // RequestedOplockLevel
+    body.writeUInt32LE(2, 4);             // ImpersonationLevel = Impersonation
+    writeU64LE(body, 8, 0);               // SmbCreateFlags
+    writeU64LE(body, 16, 0);              // Reserved
+    body.writeUInt32LE(access || 0x00100081, 24); // DesiredAccess: READ_DATA|READ_ATTR|SYNCHRONIZE
+    body.writeUInt32LE(0, 28);            // FileAttributes
+    body.writeUInt32LE(0x00000007, 32);   // ShareAccess: READ|WRITE|DELETE
+    body.writeUInt32LE(disposition || 1, 36); // CreateDisposition = FILE_OPEN unless told otherwise
+    body.writeUInt32LE(isDir ? 0x00000001 : 0x00000040, 40); // DIRECTORY_FILE / NON_DIRECTORY_FILE
+    body.writeUInt16LE(64 + 56, 44);      // NameOffset
+    body.writeUInt16LE(name.length, 46);  // NameLength
+    body.writeUInt32LE(0, 48);            // CreateContextsOffset
+    body.writeUInt32LE(0, 52);            // CreateContextsLength
+    if (name.length) name.copy(body, 56);
+
+    this._send(SMB2.CREATE, body, 1, function (status, hdr, resp) {
+        if (status !== ST.SUCCESS) return cb(new Error('open "' + path + '": ' + ntText(status)));
+        var size   = readU64LE(resp, 48);        // EndOfFile
+        var fileId = resp.slice(64, 80);         // 16-byte FileId
+        cb(null, { fileId: fileId, size: size });
+    });
+};
+
+SmbConnection.prototype.close = function (fileId, cb) {
+    var body = Buffer.alloc(24);
+    body.writeUInt16LE(24, 0);
+    body.writeUInt16LE(0, 2);
+    body.writeUInt32LE(0, 4);
+    fileId.copy(body, 8);
+    this._send(SMB2.CLOSE, body, 1, function () { cb && cb(); });
+};
+
+/* QUERY_DIRECTORY loop → array of { name, isDir, size }. */
+SmbConnection.prototype.list = function (path, done) {
+    var self = this;
+    this.open(path, true, function (err, dir) {
+        if (err) return done(err);
+        var out = [];
+        var pattern = utf16le('*');
+
+        function round(restart) {
+            var body = Buffer.alloc(32 + pattern.length);
+            body.writeUInt16LE(33, 0);                  // StructureSize
+            body.writeUInt8(0x01, 2);                   // FileInformationClass = FileDirectoryInformation
+            body.writeUInt8(restart ? 0x01 : 0x00, 3);  // Flags: RESTART_SCANS on first call
+            body.writeUInt32LE(0, 4);                   // FileIndex
+            dir.fileId.copy(body, 8);                   // FileId
+            body.writeUInt16LE(64 + 32, 24);            // FileNameOffset
+            body.writeUInt16LE(pattern.length, 26);     // FileNameLength
+            body.writeUInt32LE(0x10000, 28);            // OutputBufferLength (64 KiB)
+            pattern.copy(body, 32);
+
+            self._send(SMB2.QUERY_DIRECTORY, body, 1, function (status, hdr, resp) {
+                if (status === ST.NO_MORE_FILES) { self.close(dir.fileId); return done(null, out); }
+                if (status !== ST.SUCCESS) { self.close(dir.fileId); return done(new Error('list: ' + ntText(status))); }
+                var bufOff = resp.readUInt16LE(2) - 64;
+                var bufLen = resp.readUInt32LE(4);
+                parseDirInfo(resp.slice(bufOff, bufOff + bufLen), out);
+                round(false);
+            });
+        }
+        round(true);
+    });
+};
+
+/* Parse FileDirectoryInformation entries (info class 1). */
+function parseDirInfo(buf, out) {
+    var p = 0;
+    while (p < buf.length) {
+        var next   = buf.readUInt32LE(p);
+        var endOf  = readU64LE(buf, p + 40);          // EndOfFile (size)
+        var attrs  = buf.readUInt32LE(p + 56);        // FileAttributes
+        var nameLn = buf.readUInt32LE(p + 60);
+        var name   = fromUtf16le(buf, p + 64, p + 64 + nameLn);
+        if (name !== '.' && name !== '..') {
+            out.push({ name: name, isDir: !!(attrs & 0x10), size: (attrs & 0x10) ? 0 : endOf });
+        }
+        if (next === 0) break;
+        p += next;
+    }
+}
+
+/* Single SMB2 READ at offset/length → Buffer (may be short, may be empty). */
+SmbConnection.prototype.read = function (fileId, offset, length, cb) {
+    var charge = Math.max(1, Math.ceil(length / 65536));
+    var body = Buffer.alloc(49);
+    body.writeUInt16LE(49, 0);            // StructureSize
+    body.writeUInt8(0, 2);                // Padding
+    body.writeUInt8(0, 3);                // Flags
+    body.writeUInt32LE(length, 4);        // Length
+    writeU64LE(body, 8, offset);          // Offset
+    fileId.copy(body, 16);                // FileId
+    body.writeUInt32LE(0, 32);            // MinimumCount
+    body.writeUInt32LE(0, 36);            // Channel
+    body.writeUInt32LE(0, 40);            // RemainingBytes
+    body.writeUInt16LE(0, 44);            // ReadChannelInfoOffset
+    body.writeUInt16LE(0, 46);            // ReadChannelInfoLength
+    body.writeUInt8(0, 48);               // Buffer (1-byte pad)
+
+    this._send(SMB2.READ, body, charge, function (status, hdr, resp) {
+        if (status === ST.END_OF_FILE) return cb(null, Buffer.alloc(0));
+        if (status !== ST.SUCCESS) return cb(new Error('read: ' + ntText(status)));
+        // READ response: StructureSize(2), DataOffset(1)@2, Reserved(1),
+        // DataLength(4)@4. DataOffset is from the SMB2 header start.
+        var dataOff = resp.readUInt8(2) - 64;
+        var dataLen = resp.readUInt32LE(4);
+        cb(null, resp.slice(dataOff, dataOff + dataLen));
+    });
+};
+
+/* Single SMB2 WRITE of `data` at offset → the count the server took.
+ * `data` must fit the server's MaxWriteSize; putFile() cuts to size. */
+SmbConnection.prototype.write = function (fileId, offset, data, cb) {
+    var charge = Math.max(1, Math.ceil(data.length / 65536));
+    var body = Buffer.alloc(48 + data.length);
+    body.writeUInt16LE(49, 0);            // StructureSize (fixed 48 + 1 var)
+    body.writeUInt16LE(64 + 48, 2);       // DataOffset, from the SMB2 header start
+    body.writeUInt32LE(data.length, 4);   // Length
+    writeU64LE(body, 8, offset);          // Offset
+    fileId.copy(body, 16);                // FileId
+    body.writeUInt32LE(0, 32);            // Channel
+    body.writeUInt32LE(0, 36);            // RemainingBytes
+    body.writeUInt16LE(0, 40);            // WriteChannelInfoOffset
+    body.writeUInt16LE(0, 42);            // WriteChannelInfoLength
+    body.writeUInt32LE(0, 44);            // Flags
+    data.copy(body, 48);
+
+    this._send(SMB2.WRITE, body, charge, function (status, hdr, resp) {
+        if (status !== ST.SUCCESS) return cb(new Error('write: ' + ntText(status)));
+        // WRITE response: StructureSize(2), Reserved(2), Count(4)@4.
+        cb(null, resp.readUInt32LE(4));
+    });
+};
+
+/* The whole of `data` as the file at `path`, created or overwritten, then
+ * looked up again: cb(err, size on the share).  Written in pieces no
+ * larger than the server's MaxWriteSize, each one waited for. */
+SmbConnection.prototype.putFile = function (path, data, cb) {
+    var self = this;
+    this.open(path, false, function (err, file) {
+        if (err) return cb(err);
+        var pos = 0;
+        function next() {
+            if (pos >= data.length) {
+                return self.close(file.fileId, function () {
+                    self.open(path, false, function (e2, again) {
+                        if (e2) return cb(null, -1);     // written, but can't be looked up again
+                        self.close(again.fileId, function () { cb(null, again.size); });
+                    });
+                });
+            }
+            var piece = data.slice(pos, pos + Math.min(self.maxWrite, 1048576));
+            self.write(file.fileId, pos, piece, function (we, count) {
+                if (we) return self.close(file.fileId, function () { cb(we); });
+                if (!(count > 0)) return self.close(file.fileId, function () { cb(new Error('write: the server took nothing')); });
+                pos += count;
+                next();
+            });
+        }
+        next();
+    }, ACCESS_WRITE_FILE, DISPOSITION_OVERWRITE_IF);
+};
+
+/* ── share list: NetrShareEnum over the srvsvc pipe ─────────────────────────
+ *
+ * SMB itself has no "list shares" command.  A client asks the server's
+ * Server Service instead: tree-connect to IPC$, open the \srvsvc named pipe,
+ * and speak DCE/RPC through it — a bind to the SRVSVC interface, then one
+ * NetrShareEnum call (MS-SRVS 3.1.4.8).  Each RPC PDU goes out as an SMB2
+ * IOCTL with FSCTL_PIPE_TRANSCEIVE, which writes the request and reads the
+ * reply in one round trip; a reply that doesn't fit comes back with
+ * STATUS_BUFFER_OVERFLOW or as several RPC fragments, and the rest is READ
+ * off the pipe.  The request and reply are NDR-encoded by hand below. */
+var FSCTL_PIPE_TRANSCEIVE = 0x0011C017;
+var RPC_MAX_FRAG = 4280;              // what Windows and Samba both settle on
+
+/* 16-byte DCE/RPC UUID + version: the first three fields are little-endian. */
+function rpcSyntax(uuid, major, minor) {
+    var h = uuid.replace(/-/g, '');
+    var b = Buffer.alloc(20);
+    b.writeUInt32LE(parseInt(h.slice(0, 8), 16), 0);
+    b.writeUInt16LE(parseInt(h.slice(8, 12), 16), 4);
+    b.writeUInt16LE(parseInt(h.slice(12, 16), 16), 6);
+    for (var i = 0; i < 8; i++) b[8 + i] = parseInt(h.slice(16 + i * 2, 18 + i * 2), 16);
+    b.writeUInt16LE(major, 16);
+    b.writeUInt16LE(minor, 18);
+    return b;
+}
+var SRVSVC_SYNTAX = rpcSyntax('4b324fc8-1670-01d3-1278-5a47bf6ee188', 3, 0);
+var NDR_SYNTAX    = rpcSyntax('8a885d04-1ceb-11c9-9fe8-08002b104860', 2, 0);
+
+/* Common 16-byte RPC header; frag_length is filled in from the body. */
+function rpcPdu(ptype, callId, body) {
+    var h = Buffer.alloc(16);
+    h[0] = 5; h[1] = 0;                  // rpc_vers 5.0
+    h[2] = ptype;
+    h[3] = 0x03;                         // PFC_FIRST_FRAG | PFC_LAST_FRAG
+    h[4] = 0x10;                         // data rep: little-endian, ASCII, IEEE
+    h.writeUInt16LE(16 + body.length, 8);
+    h.writeUInt16LE(0, 10);              // auth_length
+    h.writeUInt32LE(callId, 12);
+    return Buffer.concat([h, body]);
+}
+
+function rpcBind() {
+    var b = Buffer.alloc(12 + 44);
+    b.writeUInt16LE(RPC_MAX_FRAG, 0);    // max_xmit_frag
+    b.writeUInt16LE(RPC_MAX_FRAG, 2);    // max_recv_frag
+    b.writeUInt32LE(0, 4);               // assoc_group_id
+    b[8] = 1;                            // one presentation context
+    b.writeUInt16LE(0, 12);              // p_cont_id
+    b[14] = 1;                           // one transfer syntax
+    SRVSVC_SYNTAX.copy(b, 16);
+    NDR_SYNTAX.copy(b, 36);
+    return rpcPdu(11, 1, b);             // 11 = bind
+}
+
+/* NDR conformant varying string (wchar_t*), padded to 4 bytes. */
+function ndrString(str) {
+    var chars = utf16le(str + '\0');
+    var n = chars.length / 2;
+    var pad = (4 - (chars.length % 4)) % 4;
+    var b = Buffer.alloc(12 + chars.length + pad);
+    b.writeUInt32LE(n, 0);               // max_count
+    b.writeUInt32LE(0, 4);               // offset
+    b.writeUInt32LE(n, 8);               // actual_count
+    chars.copy(b, 12);
+    return b;
+}
+
+/* NetrShareEnum(ServerName, InfoStruct{ Level 1, empty container },
+ * PreferedMaximumLength = MAX, ResumeHandle = 0). */
+function rpcShareEnumRequest(host) {
+    var stub = Buffer.concat([
+        u32s(0x00020000),                // ServerName: unique pointer referent
+        ndrString('\\\\' + host),
+        u32s(1, 1,                       // Level, union switch
+             0x00020004,                 // -> SHARE_INFO_1_CONTAINER
+             0, 0,                       //    EntriesRead, Buffer = NULL
+             0xFFFFFFFF,                 // PreferedMaximumLength
+             0x00020008, 0)              // ResumeHandle -> 0
+    ]);
+    var hdr = Buffer.alloc(8);
+    hdr.writeUInt32LE(stub.length, 0);   // alloc_hint
+    hdr.writeUInt16LE(0, 4);             // p_cont_id
+    hdr.writeUInt16LE(15, 6);            // opnum 15 = NetrShareEnum
+    return rpcPdu(0, 2, Buffer.concat([hdr, stub]));   // 0 = request
+}
+function u32s() {
+    var b = Buffer.alloc(arguments.length * 4);
+    for (var i = 0; i < arguments.length; i++) b.writeUInt32LE(arguments[i] >>> 0, i * 4);
+    return b;
+}
+
+/* Split a byte stream of RPC PDUs into them.  Returns { pdus, rest, last }:
+ * last is true once a PDU carrying PFC_LAST_FRAG has arrived. */
+function rpcSplit(buf) {
+    var pdus = [], p = 0, last = false;
+    while (buf.length - p >= 16) {
+        var len = buf.readUInt16LE(p + 8);
+        if (len < 16 || buf.length - p < len) break;
+        var pdu = buf.slice(p, p + len);
+        pdus.push(pdu);
+        if (pdu[3] & 0x02) last = true;
+        p += len;
+    }
+    return { pdus: pdus, rest: buf.slice(p), last: last };
+}
+
+/* Pull the SHARE_INFO_1 array out of a NetrShareEnum reply's stub data. */
+function parseShareEnum(stub) {
+    var p = 0;
+    function u32() { var v = stub.readUInt32LE(p); p += 4; return v; }
+    function str() {
+        var max = u32(); u32(); var n = u32();
+        if (n > max || p + n * 2 > stub.length) throw new Error('bad NDR string');
+        var s = fromUtf16le(stub, p, p + n * 2).replace(/\0+$/, '');
+        p += n * 2;
+        p += (4 - (p % 4)) % 4;
+        return s;
+    }
+    u32(); u32();                        // Level, union switch
+    if (!u32()) return [];               // container pointer
+    var count = u32();
+    if (!u32() || !count) return [];     // Buffer pointer
+    if (u32() !== count) throw new Error('bad share array');
+    var rows = [];
+    for (var i = 0; i < count; i++) rows.push({ namePtr: u32(), type: u32(), remarkPtr: u32() });
+    for (var j = 0; j < count; j++) {
+        rows[j].name   = rows[j].namePtr   ? str() : '';
+        rows[j].remark = rows[j].remarkPtr ? str() : '';
+    }
+    return rows;
+}
+
+/* FSCTL_PIPE_TRANSCEIVE: write `input` to the pipe, read up to maxOut back.
+ * cb(err, data, more) — more is true on STATUS_BUFFER_OVERFLOW, meaning the
+ * pipe holds more of the reply than fitted. */
+SmbConnection.prototype.transceive = function (fileId, input, maxOut, cb) {
+    var body = Buffer.alloc(56 + input.length);
+    body.writeUInt16LE(57, 0);            // StructureSize
+    body.writeUInt32LE(FSCTL_PIPE_TRANSCEIVE, 4);
+    fileId.copy(body, 8);
+    body.writeUInt32LE(64 + 56, 24);      // InputOffset
+    body.writeUInt32LE(input.length, 28); // InputCount
+    body.writeUInt32LE(0, 32);            // MaxInputResponse
+    body.writeUInt32LE(0, 36);            // OutputOffset
+    body.writeUInt32LE(0, 40);            // OutputCount
+    body.writeUInt32LE(maxOut, 44);       // MaxOutputResponse
+    body.writeUInt32LE(0x00000001, 48);   // Flags: SMB2_0_IOCTL_IS_FSCTL
+    input.copy(body, 56);
+    this._send(SMB2.IOCTL, body, 1, function (status, hdr, resp) {
+        if (status !== ST.SUCCESS && status !== ST.BUFFER_OVERFLOW)
+            return cb(new Error('srvsvc: ' + ntText(status)));
+        // IOCTL response: OutputOffset(4)@32, OutputCount(4)@36, from header start.
+        var off = resp.readUInt32LE(32) - 64, len = resp.readUInt32LE(36);
+        cb(null, resp.slice(off, off + len), status === ST.BUFFER_OVERFLOW);
+    });
+};
+
+/* One RPC call on the open pipe → the reply's PDUs, however many fragments
+ * and SMB round trips it took. */
+SmbConnection.prototype.rpcCall = function (fileId, pdu, cb) {
+    var self = this;
+    this.transceive(fileId, pdu, RPC_MAX_FRAG * 2, function (err, data, more) {
+        if (err) return cb(err);
+        var got = [], buf = data;
+        (function drain() {
+            var sp = rpcSplit(buf);
+            got = got.concat(sp.pdus);
+            buf = sp.rest;
+            if (sp.last && !more) return cb(null, got);
+            self.read(fileId, 0, RPC_MAX_FRAG * 2, function (e2, chunk) {
+                if (e2) return cb(e2);
+                if (!chunk.length) return cb(new Error('srvsvc: reply cut short'));
+                // A READ that filled the buffer may still leave bytes behind.
+                more = chunk.length >= RPC_MAX_FRAG * 2;
+                buf = Buffer.concat([buf, chunk]);
+                drain();
+            });
+        })();
+    });
+};
+
+/* The disk shares this server lists: [{ name, remark }], sorted by name.
+ * Needs a connection whose tree is IPC$.  Hidden and administrative shares
+ * (C$, ADMIN$, print$ …) are left out — they aren't where anyone keeps
+ * films, and a TV remote shouldn't be offered them. */
+SmbConnection.prototype.listShares = function (done) {
+    var self = this;
+    this.open('srvsvc', false, function (err, pipe) {
+        if (err) return done(new Error('srvsvc: ' + err.message));
+        function finish(e, v) { self.close(pipe.fileId); done(e, v); }
+        self.rpcCall(pipe.fileId, rpcBind(), function (e1, ack) {
+            if (e1) return finish(e1);
+            if (!ack.length || ack[0][2] !== 12) return finish(new Error('srvsvc: bind refused'));
+            self.rpcCall(pipe.fileId, rpcShareEnumRequest(self.host), function (e2, pdus) {
+                if (e2) return finish(e2);
+                var stubs = [];
+                for (var i = 0; i < pdus.length; i++) {
+                    var pdu = pdus[i];
+                    if (pdu[2] === 3) return finish(new Error('srvsvc: call rejected (0x' +
+                        pdu.readUInt32LE(24).toString(16) + ')'));          // fault
+                    if (pdu[2] !== 2) return finish(new Error('srvsvc: unexpected reply'));
+                    stubs.push(pdu.slice(24, pdu.readUInt16LE(8) - pdu.readUInt16LE(10)));
+                }
+                var stub = Buffer.concat(stubs);
+                var werr = stub.length >= 4 ? stub.readUInt32LE(stub.length - 4) : 0;
+                if (werr) return finish(new Error('srvsvc: server error 0x' + werr.toString(16)));
+                var rows;
+                try { rows = parseShareEnum(stub); }
+                catch (e3) { return finish(new Error('srvsvc: ' + e3.message)); }
+                var shares = rows.filter(function (r) {
+                    // STYPE_DISKTREE only, and not STYPE_SPECIAL / a $ name.
+                    return (r.type & 0x0FFFFFFF) === 0 && !(r.type & 0x80000000) &&
+                           r.name && !/\$$/.test(r.name);
+                }).map(function (r) { return { name: r.name, remark: r.remark }; });
+                shares.sort(function (a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
+                finish(null, shares);
+            });
+        });
+    }, 0x0012019F);   // GENERIC read + write on the pipe
+};
+
+/* ============================================================================
+ * Connection registry — one live connection keyed by host|share. Re-used
+ * across list/stream so we pay the negotiate/auth cost once.
+ * ==========================================================================*/
+var conns = {};
+function connKey(o) { return (o.host || '') + '|' + (o.share || ''); }
+
+function getConn(creds, cb) {
+    var key = connKey(creds);
+    var c = conns[key];
+    if (c && !c.dead) return cb(null, c);
+    c = new SmbConnection(creds);
+    conns[key] = c;
+    c.connect(function (err) {
+        if (err) { delete conns[key]; return cb(err); }
+        cb(null, c);
+    });
+}
+
+/* The credentials each server last connected with, keyed by the app's server
+ * id ('' is the first server), so list/stream only have to name the server:
+ * ?srv=<id>, or nothing for the first one — which is all an app from before
+ * multiple servers ever sends. */
+var credsById = {};
+function credsFor(query) { return credsById[(query && query.srv) || ''] || null; }
+
+/* ============================================================================
+ * HTTP surface
+ * ==========================================================================*/
+var CT = {
+    mkv: 'video/x-matroska', mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime',
+    avi: 'video/x-msvideo', webm: 'video/webm', ts: 'video/mp2t', m2ts: 'video/mp2t',
+    flv: 'video/x-flv', wmv: 'video/x-ms-wmv', mpg: 'video/mpeg', mpeg: 'video/mpeg',
+    mp3: 'audio/mpeg', flac: 'audio/flac', aac: 'audio/aac', m4a: 'audio/mp4',
+    ogg: 'audio/ogg', wav: 'audio/wav', opus: 'audio/opus',
+    // sidecar subtitles the web side fetches as text
+    srt: 'text/plain; charset=utf-8', vtt: 'text/vtt; charset=utf-8',
+    ass: 'text/plain; charset=utf-8', ssa: 'text/plain; charset=utf-8',
+    smi: 'text/plain; charset=utf-8', sami: 'text/plain; charset=utf-8'
+};
+function contentType(path) {
+    var ext = (path.split('.').pop() || '').toLowerCase();
+    return CT[ext] || 'application/octet-stream';
+}
+function cors(res, code, type, extra) {
+    var h = {
+        'Content-Type': type,
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Range',
+        // Without this a cross-origin page can't read how big a ranged
+        // reply's file is.
+        'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges',
+        'Access-Control-Allow-Private-Network': 'true',
+        'Cache-Control': 'no-store'
+    };
+    if (extra) for (var k in extra) h[k] = extra[k];
+    res.writeHead(code, h);
+}
+function sendJson(res, code, obj) { cors(res, code, 'application/json'); res.end(JSON.stringify(obj)); }
+
+function handleConnect(req, res) {
+    var raw = '';
+    req.on('data', function (c) { raw += c; });
+    req.on('end', function () {
+        var creds;
+        try { creds = JSON.parse(raw || '{}'); } catch (e) { return sendJson(res, 400, { ok: false, error: 'bad json' }); }
+        log('CONNECT_REQ', { host: creds.host, port: creds.port || 445, share: creds.share,
+                             user: creds.anonymous ? '(guest)' : (creds.user || ''),
+                             domain: creds.domain || '', pass: creds.pass ? creds.pass.length + ' chars' : 'none' });
+        if (!creds.host || !creds.share) {
+            log('CONNECT_REJECTED', 'host and share required');
+            return sendJson(res, 400, { ok: false, error: 'host and share required' });
+        }
+        // Drop any stale connection for this share so creds changes take effect.
+        var key = connKey(creds);
+        if (conns[key]) { try { conns[key]._die('reconnect'); } catch (e) {} delete conns[key]; }
+        // Wrap so a synchronous throw (e.g. a missing runtime API) returns an
+        // error to the client immediately instead of bubbling to the uncaught
+        // handler and leaving the request to time out.
+        try {
+            getConn(creds, function (err, c) {
+                if (err) { log('CONNECT_FAIL', err.message); return sendJson(res, 502, { ok: false, error: err.message }); }
+                credsById[creds.id || ''] = creds;
+                log('CONNECT_OK', { dialect: '0x' + c.dialect.toString(16), signing: c.signing });
+                sendJson(res, 200, { ok: true, dialect: '0x' + c.dialect.toString(16), signing: c.signing });
+            });
+        } catch (e) {
+            log('CONNECT_THREW', e && e.message);
+            sendJson(res, 500, { ok: false, error: 'service error: ' + (e && e.message) });
+        }
+    });
+}
+
+/* List the shares on a server, for the Settings form.  A connection of its
+ * own, to IPC$, closed again straight after: it must not replace the one the
+ * browser streams from, and the share it would be keyed by isn't known yet —
+ * that's the point of asking. */
+function handleShares(req, res) {
+    var raw = '';
+    req.on('data', function (c) { raw += c; });
+    req.on('end', function () {
+        var creds;
+        try { creds = JSON.parse(raw || '{}'); } catch (e) { return sendJson(res, 400, { ok: false, error: 'bad json' }); }
+        if (!creds.host) return sendJson(res, 400, { ok: false, error: 'host required' });
+        log('SHARES_REQ', { host: creds.host, port: creds.port || 445,
+                            user: creds.anonymous ? '(guest)' : (creds.user || '') });
+        var opts = {};
+        for (var k in creds) opts[k] = creds[k];
+        opts.share = 'IPC$';
+        var c = new SmbConnection(opts);
+        try {
+            c.connect(function (err) {
+                if (err) { log('SHARES_FAIL', err.message); c._die('done'); return sendJson(res, 502, { ok: false, error: err.message }); }
+                c.listShares(function (e2, shares) {
+                    c._die('done');
+                    if (e2) { log('SHARES_FAIL', e2.message); return sendJson(res, 502, { ok: false, error: e2.message }); }
+                    log('SHARES_OK', { count: shares.length });
+                    sendJson(res, 200, { ok: true, shares: shares });
+                });
+            });
+        } catch (e) {
+            log('SHARES_THREW', e && e.message);
+            sendJson(res, 500, { ok: false, error: 'service error: ' + (e && e.message) });
+        }
+    });
+}
+
+function handleList(req, res, query) {
+    var creds = credsFor(query);
+    if (!creds) return sendJson(res, 409, { ok: false, error: 'not connected' });
+    var path = query.path || '';
+    getConn(creds, function (err, c) {
+        if (err) return sendJson(res, 502, { ok: false, error: err.message });
+        c.list(path, function (e2, entries) {
+            if (e2) return sendJson(res, 502, { ok: false, error: e2.message });
+            entries.sort(function (a, b) {
+                if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+                return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1;
+            });
+            sendJson(res, 200, { ok: true, path: path, entries: entries });
+        });
+    });
+}
+
+var WRITE_MAX_BYTES = 8 * 1024 * 1024;   // a backup is kilobytes; a debug log at most a few MB
+
+/* POST /smb/write?srv=<id> { path, text } — the text, UTF-8, as the file at
+ * path on the share, created or overwritten (issue #132: a USB stick
+ * doesn't keep what the TV writes on it; a share does). */
+function handleWrite(req, res, query) {
+    var creds = credsFor(query);
+    if (!creds) return sendJson(res, 409, { ok: false, error: 'not connected' });
+    var raw = '', over = false;
+    req.on('data', function (c) { if (over) return; raw += c; if (raw.length > WRITE_MAX_BYTES) over = true; });
+    req.on('end', function () {
+        if (over) return sendJson(res, 413, { ok: false, error: 'too large' });
+        var q;
+        try { q = JSON.parse(raw || '{}'); } catch (e) { return sendJson(res, 400, { ok: false, error: 'bad json' }); }
+        if (!q.path || typeof q.text !== 'string') return sendJson(res, 400, { ok: false, error: 'path and text required' });
+        var data = Buffer.from(q.text, 'utf8');
+        getConn(creds, function (err, c) {
+            if (err) return sendJson(res, 502, { ok: false, error: err.message });
+            c.putFile(q.path, data, function (e2, size) {
+                if (e2) { log('SMB_WRITE_FAIL', { path: q.path, error: e2.message }); return sendJson(res, 502, { ok: false, error: e2.message }); }
+                log('SMB_WRITE_OK', { path: q.path, bytes: data.length, size: size });
+                sendJson(res, 200, { ok: true, path: q.path, size: size });
+            });
+        });
+    });
+}
+
+var READ_CHUNK = 256 * 1024;   // per SMB2 READ; CreditCharge ≤ 4
+
+/* Reverted: SMB file-handle caching across HTTP Range requests broke
+ * AVPlay's prepareAsync on AVI inputs (failed with "Unknown error" ~11 s
+ * after av().open()).  Going back to the per-HTTP-request open/close
+ * pattern while we add service-side log surfacing so the next attempt
+ * can be diagnosed properly.  See task #12. */
+
+function handleStream(req, res, query) {
+    var creds = credsFor(query);
+    if (!creds) { cors(res, 409, 'text/plain'); return res.end('not connected'); }
+    var path = query.path || '';
+    getConn(creds, function (err, c) {
+        if (err) { cors(res, 502, 'text/plain'); return res.end(err.message); }
+        c.open(path, false, function (e2, file) {
+            if (e2) { cors(res, 404, 'text/plain'); return res.end(e2.message); }
+            var size = file.size;
+
+            // Parse Range: bytes=start-end
+            var start = 0, end = size - 1, partial = false;
+            var range = req.headers.range;
+            if (range) {
+                var m = /bytes=(\d*)-(\d*)/.exec(range);
+                if (m) {
+                    partial = true;
+                    if (m[1] !== '') start = parseInt(m[1], 10);
+                    if (m[2] !== '') end   = parseInt(m[2], 10);
+                    if (m[1] === '' && m[2] !== '') { start = size - parseInt(m[2], 10); end = size - 1; } // suffix range
+                }
+            }
+            // A range may run past the end ("the first MB" of a 2 KB file);
+            // it means up to the end.  Unclamped, Content-Length promised
+            // bytes that never came and the client saw a broken reply.
+            if (start < 0) start = 0;
+            if (end >= size) end = size - 1;
+            if (start > end || start >= size) {
+                c.close(file.fileId);
+                cors(res, 416, 'text/plain', { 'Content-Range': 'bytes */' + size });
+                return res.end();
+            }
+            var length = end - start + 1;
+            var headers = {
+                'Accept-Ranges': 'bytes',
+                'Content-Length': String(length),
+                'Content-Type': contentType(path)
+            };
+            if (partial) headers['Content-Range'] = 'bytes ' + start + '-' + end + '/' + size;
+            cors(res, partial ? 206 : 200, headers['Content-Type'], headers);
+
+            var pos = start, remaining = length, aborted = false;
+            req.on('close', function () { aborted = true; });
+
+            function pump() {
+                if (aborted || remaining <= 0) { c.close(file.fileId); if (!aborted) res.end(); return; }
+                // Never exceed the server's MaxReadSize, or a 2.0.2 server (64 KiB,
+                // single-credit) rejects the over-large multi-credit READ.
+                var want = Math.min(READ_CHUNK, c.maxRead, remaining);
+                c.read(file.fileId, pos, want, function (re, data) {
+                    if (aborted) { c.close(file.fileId); return; }
+                    if (re)            { c.close(file.fileId); try { res.end(); } catch (e) {} return; }
+                    if (!data.length)  { c.close(file.fileId); res.end(); return; } // hit EOF early
+                    pos += data.length; remaining -= data.length;
+                    var ok = res.write(data);
+                    if (ok) pump();
+                    else res.once('drain', pump);   // respect backpressure
+                });
+            }
+            pump();
+        });
+    });
+}
+
+/* ── local relay: TV-local files, served to the transcode server ─────────────
+ *
+ * Files on a USB drive are physically at the TV, so the transcode box can't
+ * reach them the way it reaches the SMB share — which is why USB files never
+ * got the surround / unsupported-codec treatment.  This listener closes that
+ * gap by turning the relationship around: the TV serves, the box fetches.
+ *
+ * Deliberately a SECOND http.Server rather than another route on the loopback
+ * one.  The loopback server carries the SMB endpoints, and those hold the
+ * user's share credentials — none of that should become reachable from the LAN
+ * just because someone wants to play a USB file.  This one only knows how to
+ * read a file.
+ *
+ * Three things gate it, all of which must hold:
+ *   - the app armed it (POST /local/enable over loopback, which the LAN
+ *     listener does not route, so only the app on this TV can arm it);
+ *   - the request carries the random key the app minted;
+ *   - the path sits under one of the roots tizen.filesystem itself resolved.
+ * Disarmed, the socket isn't even open.
+ * ------------------------------------------------------------------------ */
+var LOCAL_PORT  = 8128;
+var localKey    = '';    // '' = disarmed
+var localRoots  = [];    // absolute path prefixes we may read from
+var localServer = null;
+
+/* Constant-time-ish compare so the key can't be probed a character at a time. */
+function localKeyOK(k) {
+    k = String(k || '');
+    if (!localKey || k.length !== localKey.length) return false;
+    var diff = 0;
+    for (var i = 0; i < localKey.length; i++) diff |= localKey.charCodeAt(i) ^ k.charCodeAt(i);
+    return diff === 0;
+}
+
+/* Turn the requested path into an absolute path we're allowed to read, or null.
+ * Accepts the file:// URIs the app already carries around as well as bare
+ * paths.  The query parser has already percent-decoded once, so we don't decode
+ * again here — a second pass would let a doubly-encoded path smuggle characters
+ * past this check.  Traversal is rejected outright rather than normalised away;
+ * there's no legitimate '..' in a path that came from tizen.filesystem. */
+function localResolve(p) {
+    var s = String(p || '');
+    s = s.replace(/^file:\/\//, '');
+    if (!s || s.charAt(0) !== '/' || s.indexOf('\0') >= 0) return null;
+    var parts = s.split('/');
+    for (var i = 0; i < parts.length; i++) if (parts[i] === '..') return null;
+    for (var j = 0; j < localRoots.length; j++) {
+        var r = localRoots[j];
+        if (s === r || s.indexOf(r + '/') === 0) return s;
+    }
+    return null;
+}
+
+/* The address to advertise to the transcode server. os.networkInterfaces() is
+ * the honest answer — asking the web layer for the TV's IP means guessing which
+ * of the several Tizen APIs this firmware actually implements, and the process
+ * that's doing the listening already knows. */
+function lanAddress() {
+    var ifs, best = '';
+    try { ifs = os.networkInterfaces() || {}; } catch (e) { return ''; }
+    for (var name in ifs) {
+        var list = ifs[name] || [];
+        for (var i = 0; i < list.length; i++) {
+            var a = list[i];
+            if (!a || a.internal) continue;
+            if (a.family !== 'IPv4' && a.family !== 4) continue;
+            if (!best) best = a.address;
+            if (/^(eth|en)/.test(name)) return a.address;   // wired wins over wlan
+        }
+    }
+    return best;
+}
+
+function localURL() {
+    var ip = lanAddress();
+    return ip ? 'http://' + ip + ':' + LOCAL_PORT : '';
+}
+
+/* GET/HEAD /local/stream?path=…&key=… — the only thing on the LAN listener. */
+function handleLocalStream(req, res, query) {
+    if (!localKeyOK(query.key)) { cors(res, 403, 'text/plain'); return res.end('forbidden'); }
+    var path = localResolve(query.path);
+    if (!path) { log('LOCAL_REJECT', query.path); cors(res, 403, 'text/plain'); return res.end('path not allowed'); }
+
+    var st;
+    try { st = fs.statSync(path); } catch (e) { cors(res, 404, 'text/plain'); return res.end('not found'); }
+    if (!st.isFile()) { cors(res, 404, 'text/plain'); return res.end('not a file'); }
+    var size = st.size;
+
+    var start = 0, end = size - 1, partial = false;
+    var range = req.headers.range;
+    if (range) {
+        var m = /bytes=(\d*)-(\d*)/.exec(range);
+        if (m) {
+            partial = true;
+            if (m[1] !== '') start = parseInt(m[1], 10);
+            if (m[2] !== '') end   = parseInt(m[2], 10);
+            if (m[1] === '' && m[2] !== '') { start = size - parseInt(m[2], 10); end = size - 1; }
+        }
+    }
+    if (start < 0) start = 0;
+    if (end >= size) end = size - 1;
+    if (start > end || start >= size) {
+        cors(res, 416, 'text/plain', { 'Content-Range': 'bytes */' + size });
+        return res.end();
+    }
+
+    var headers = {
+        'Accept-Ranges': 'bytes',
+        'Content-Length': String(end - start + 1),
+        'Content-Type': contentType(path)
+    };
+    if (partial) headers['Content-Range'] = 'bytes ' + start + '-' + end + '/' + size;
+    cors(res, partial ? 206 : 200, headers['Content-Type'], headers);
+    if (req.method === 'HEAD') return res.end();
+
+    // createReadStream handles backpressure and closes the fd on both ends.
+    var stream = fs.createReadStream(path, { start: start, end: end });
+    stream.on('error', function (e) { log('LOCAL_READ_ERR', e && e.message); try { res.end(); } catch (e2) {} });
+    req.on('close', function () { try { stream.destroy(); } catch (e) {} });
+    stream.pipe(res);
+}
+
+/* POST /local/enable { key, roots:[…] } — loopback only, by construction. */
+function handleLocalEnable(req, res) {
+    var raw = '';
+    req.on('data', function (c) { raw += c; });
+    req.on('end', function () {
+        var body;
+        try { body = JSON.parse(raw || '{}'); } catch (e) { return sendJson(res, 400, { ok: false, error: 'bad json' }); }
+        var key = String(body.key || '');
+        if (key.length < 16) return sendJson(res, 400, { ok: false, error: 'key too short' });
+
+        var roots = [];
+        for (var i = 0; i < (body.roots || []).length; i++) {
+            var r = String(body.roots[i] || '').replace(/^file:\/\//, '').replace(/\/+$/, '');
+            if (r.charAt(0) === '/' && r.split('/').indexOf('..') < 0) roots.push(r);
+        }
+        if (!roots.length) return sendJson(res, 400, { ok: false, error: 'no usable roots' });
+
+        localKey = key;
+        localRoots = roots;
+
+        // Re-arming while already listening just swaps the key and roots.
+        if (localServer) return sendJson(res, 200, { ok: true, url: localURL(), roots: roots });
+
+        try {
+            localServer = http.createServer(function (rq, rs) {
+                var u = require('url').parse(rq.url, true);
+                if (rq.method === 'OPTIONS') { cors(rs, 204, 'text/plain'); return rs.end(); }
+                if (u.pathname === '/local/stream' && (rq.method === 'GET' || rq.method === 'HEAD'))
+                    return handleLocalStream(rq, rs, u.query);
+                cors(rs, 404, 'text/plain'); rs.end('Not Found');
+            });
+            localServer.on('error', function (e) {
+                log('LOCAL_LISTEN_ERR', e && e.message);
+                localServer = null;
+            });
+            localServer.listen(LOCAL_PORT, '0.0.0.0', function () {
+                log('LOCAL_RELAY_LISTENING', '0.0.0.0:' + LOCAL_PORT + ' roots=' + roots.join(','));
+                sendJson(res, 200, { ok: true, url: localURL(), roots: roots });
+            });
+        } catch (e) {
+            log('LOCAL_LISTEN_THREW', e && e.message);
+            localServer = null;
+            sendJson(res, 500, { ok: false, error: 'could not open a LAN port: ' + (e && e.message) });
+        }
+    });
+}
+
+function handleLocalDisable(req, res) {
+    localKey = '';
+    localRoots = [];
+    if (localServer) { try { localServer.close(); } catch (e) {} localServer = null; }
+    log('LOCAL_RELAY_STOPPED');
+    sendJson(res, 200, { ok: true });
+}
+
+/* ── LAN discovery: find the transcode server without a pairing code ─────────
+ *
+ * Pairing used to mean reading a random code off one screen and typing it into
+ * another, with a round trip through a public ntfy topic to link two boxes
+ * sitting on the same switch.  The TV can just look instead: this service knows
+ * its own address and netmask, so it can sweep the subnet and ask whoever
+ * answers whether they're a transcode server.
+ *
+ * Two phases, because a full HTTP request per address is wasteful when almost
+ * every address is dead: first a plain TCP connect (a dead host costs one
+ * timeout, a live one answers or refuses immediately), then GET /api/hello only
+ * on the handful that opened.
+ * ------------------------------------------------------------------------- */
+var SCAN_PORT        = 8200;   // the transcode server's default
+var SCAN_BATCH       = 48;     // concurrent sockets; the TV's stack is not generous
+var SCAN_CONNECT_MS  = 500;    // per-address TCP timeout
+var SCAN_HTTP_MS     = 2500;   // per-candidate HTTP timeout
+var SCAN_MAX_HOSTS   = 1024;   // refuse to sweep something enormous
+
+/* "192.168.1.37" ⇄ 3232235813.  Addresses are kept as plain numbers, not
+ * bit patterns: anything from 128.0.0.0 up exceeds 2^31, and JavaScript's
+ * bitwise operators would silently reinterpret it as a negative int32.
+ * `>>> 0` puts the genuinely bitwise steps back into unsigned space; the
+ * rest is arithmetic.  -1 for anything that isn't a dotted quad. */
+function ip4ToInt(a) {
+    var p = String(a || '').split('.');
+    if (p.length !== 4) return -1;
+    var n = 0;
+    for (var i = 0; i < 4; i++) {
+        var v = parseInt(p[i], 10);
+        if (!(v >= 0 && v <= 255)) return -1;
+        n = (n * 256) + v;
+    }
+    return n;
+}
+function ip4ToStr(n) {
+    return [Math.floor(n / 16777216) % 256, Math.floor(n / 65536) % 256,
+            Math.floor(n / 256) % 256, n % 256].join('.');
+}
+/* The directed broadcast address of ip/mask ("192.168.1.255"), or '' when
+ * either isn't a dotted quad. */
+function ip4Broadcast(ip, mask) {
+    var ipN = ip4ToInt(ip), maskN = ip4ToInt(mask);
+    if (ipN < 0 || maskN < 0) return '';
+    return ip4ToStr(((ipN & maskN) >>> 0) + ((~maskN) >>> 0));
+}
+
+/* Turn "192.168.1.37" + "255.255.255.0" into every host address on that subnet,
+ * minus the network, broadcast and our own address. Returns null when the mask
+ * is too wide to sweep politely — the caller then tells the user to type the
+ * address instead of hammering 65k hosts. */
+function subnetHosts(ip, mask) {
+    var ipN = ip4ToInt(ip), maskN = ip4ToInt(mask);
+    if (ipN < 0 || maskN < 0) return null;
+
+    var network = (ipN & maskN) >>> 0;
+    var size = ((~maskN) >>> 0) + 1;        // addresses in the subnet
+    if (size < 4 || size > SCAN_MAX_HOSTS) return null;
+
+    var out = [];
+    for (var i = 1; i < size - 1; i++) {    // skip network + broadcast
+        var addr = network + i;
+        if (addr !== ipN) out.push(ip4ToStr(addr));
+    }
+    return out;
+}
+
+/* Our own IPv4 interfaces, as {address, netmask} — the scan origin. */
+function localIPv4s() {
+    var out = [], ifs;
+    try { ifs = os.networkInterfaces() || {}; } catch (e) { return out; }
+    for (var name in ifs) {
+        var list = ifs[name] || [];
+        for (var i = 0; i < list.length; i++) {
+            var a = list[i];
+            if (!a || a.internal) continue;
+            if (a.family !== 'IPv4' && a.family !== 4) continue;
+            out.push({ address: a.address, netmask: a.netmask || '255.255.255.0', name: name });
+        }
+    }
+    return out;
+}
+
+/* Phase 1: is anything listening on host:port? cb(true|false), never throws. */
+function probePort(host, port, cb) {
+    var done = false, sock;
+    function finish(open) {
+        if (done) return;
+        done = true;
+        try { if (sock) sock.destroy(); } catch (e) {}
+        cb(open);
+    }
+    try {
+        sock = net.connect(port, host, function () { finish(true); });
+        sock.setTimeout(SCAN_CONNECT_MS, function () { finish(false); });
+        sock.on('error', function () { finish(false); });
+    } catch (e) { finish(false); }
+}
+
+/* Phase 2: is it one of ours? cb(server|null). */
+function probeHello(host, port, cb) {
+    var done = false, req;
+    function finish(v) { if (done) return; done = true; cb(v); }
+    try {
+        req = http.get({ host: host, port: port, path: '/api/hello', agent: false }, function (res) {
+            if (res.statusCode !== 200) { res.resume(); return finish(null); }
+            var body = '';
+            res.on('data', function (c) { body += c; if (body.length > 8192) finish(null); });
+            res.on('end', function () {
+                var j = null;
+                try { j = JSON.parse(body); } catch (e) {}
+                if (!j || j.app !== 'vlc-tv-transcode') return finish(null);
+                finish({
+                    url:        'http://' + host + ':' + port,
+                    host:       host,
+                    port:       port,
+                    name:       j.name || host,
+                    api:        j.api || 0,
+                    configured: !!j.configured,
+                    canAdopt:   !!j.canAdopt
+                });
+            });
+        });
+        req.setTimeout(SCAN_HTTP_MS, function () { try { req.abort(); } catch (e) {} finish(null); });
+        req.on('error', function () { finish(null); });
+    } catch (e) { finish(null); }
+}
+
+/* Walk `items` SCAN_BATCH at a time, calling work(item, done) for each. */
+function eachLimited(items, limit, work, allDone) {
+    var i = 0, active = 0, finished = false;
+    if (!items.length) return allDone();
+    function pump() {
+        while (active < limit && i < items.length) {
+            active++;
+            work(items[i++], function () {
+                active--;
+                if (i >= items.length && active === 0) {
+                    if (!finished) { finished = true; allDone(); }
+                } else pump();
+            });
+        }
+    }
+    pump();
+}
+
+/* GET /discover[?port=8200] — sweep every local subnet and report what answers. */
+function handleDiscover(req, res, query) {
+    var port = parseInt(query.port, 10) || SCAN_PORT;
+    var ifaces = localIPv4s();
+    if (!ifaces.length) return sendJson(res, 200, { ok: false, error: 'this TV has no LAN address' });
+
+    var hosts = [], skipped = [];
+    for (var i = 0; i < ifaces.length; i++) {
+        var list = subnetHosts(ifaces[i].address, ifaces[i].netmask);
+        if (!list) { skipped.push(ifaces[i].address + '/' + ifaces[i].netmask); continue; }
+        for (var j = 0; j < list.length; j++) if (hosts.indexOf(list[j]) < 0) hosts.push(list[j]);
+    }
+    if (!hosts.length) {
+        return sendJson(res, 200, {
+            ok: false,
+            error: skipped.length ? 'network too large to scan (' + skipped.join(', ') + ')'
+                                  : 'no scannable network found'
+        });
+    }
+
+    log('DISCOVER_START', hosts.length + ' hosts on port ' + port);
+    var open = [];
+    eachLimited(hosts, SCAN_BATCH, function (host, done) {
+        probePort(host, port, function (isOpen) { if (isOpen) open.push(host); done(); });
+    }, function () {
+        log('DISCOVER_OPEN', open.length + ' host(s) listening');
+        var found = [];
+        eachLimited(open, 8, function (host, done) {
+            probeHello(host, port, function (srv) { if (srv) found.push(srv); done(); });
+        }, function () {
+            log('DISCOVER_DONE', found.length + ' server(s)');
+            sendJson(res, 200, { ok: true, servers: found, scanned: hosts.length });
+        });
+    });
+}
+
+/* ============================================================================
+ * DLNA media servers (issue #131)
+ * ----------------------------------------------------------------------------
+ * miniDLNA, Plex, Jellyfin, Serviio, a NAS's own media server: anything that
+ * is a UPnP MediaServer with a ContentDirectory.  The web app can't send UDP,
+ * so finding them is done here, and browsing too, so both halves log in one
+ * place:
+ *
+ *   GET  /dlna/discover               → { ok, servers:[{ id, name, control }] }
+ *   POST /dlna/browse { control, id } → { ok, entries:[{ id, title, isDir,
+ *                                         kind, url, size, duration, art, captions }] }
+ *                         (captions: server-advertised sidecars [{ url, ext }])
+ *
+ * Discovery is SSDP: an M-SEARCH, answered by unicast to our socket, so no
+ * group needs joining.  The search goes out three ways, because the
+ * multicast group alone proved unreliable from a TV (issue #131: a set on
+ * Wi-Fi found its Sonos speakers but never the miniDLNA box on the wire —
+ * the switch's IGMP snooping, or the access point, kept the group packet
+ * off that port): to the multicast group, to the subnet's broadcast
+ * address, and as a plain unicast to every host of a small subnet, the
+ * same sweep the transcode-server scan does.  A UPnP 1.1 device answers a
+ * unicast M-SEARCH like a multicast one; miniDLNA, Plex, Jellyfin and
+ * Serviio all do.  One socket per interface, bound to its address, so the
+ * multicast and broadcast packets leave on that interface rather than
+ * whichever one the default route picks.  Each answer's LOCATION is the
+ * device description, which names the server and its ContentDirectory's
+ * control URL.  Browsing is that service's Browse action over SOAP; the items
+ * it lists carry plain http URLs on the server, which AVPlay plays directly —
+ * the service is not in the way of the bytes.
+ *
+ * The XML is read with regular expressions.  It is machine-written, one
+ * shape per server, and a parser is more than this ES5, dependency-free
+ * service wants to carry.
+ * ------------------------------------------------------------------------- */
+var dgram = null;
+try { dgram = require('dgram'); } catch (e) {}
+
+var SSDP_ADDR        = '239.255.255.250';
+var SSDP_PORT        = 1900;
+var DLNA_SEARCH_MS   = 3000;   // how long M-SEARCH answers are collected
+/* Unicast targets per socket.  A datagram to an address nobody holds waits
+ * in the kernel for ARP to give up (about 3s) and counts against its socket's
+ * send buffer meanwhile, so one socket sweeping a /24 fills up after ~200 and
+ * libuv queues the rest behind them; closing the socket at DLNA_SEARCH_MS
+ * then cancels those with ECANCELED, never sent.  64 per socket stays well
+ * inside the default buffer, so every M-SEARCH leaves at once. */
+var DLNA_SWEEP_CHUNK = 64;
+var DLNA_HTTP_MS     = 8000;   // per description / Browse request
+var DLNA_PAGE        = 200;    // Browse page size
+var DLNA_MAX_ENTRIES = 5000;   // one folder; beyond this the list is cut
+var DLNA_MAX_BYTES   = 8 * 1024 * 1024;
+var DLNA_TARGETS     = ['urn:schemas-upnp-org:device:MediaServer:1',
+                        'urn:schemas-upnp-org:service:ContentDirectory:1'];
+
+function xmlUnescape(s) {
+    return String(s || '').replace(/&(lt|gt|quot|apos|amp|#(\d+)|#x([0-9a-fA-F]+));/g, function (m, n, dec, hex) {
+        if (dec || hex) {
+            var c = dec ? parseInt(dec, 10) : parseInt(hex, 16);
+            if (c > 0xFFFF) { c -= 0x10000; return String.fromCharCode(0xD800 + (c >> 10), 0xDC00 + (c & 0x3FF)); }
+            return String.fromCharCode(c);
+        }
+        return { lt: '<', gt: '>', quot: '"', apos: "'", amp: '&' }[n];
+    });
+}
+/* The body of the first <name> (any namespace prefix), unescaped, or ''. */
+function xmlText(xml, name) {
+    var m = new RegExp('<(?:[\\w.-]+:)?' + name + '(?:\\s[^>]*)?>([\\s\\S]*?)</(?:[\\w.-]+:)?' + name + '\\s*>', 'i')
+        .exec(xml || '');
+    return m ? xmlUnescape(m[1]).trim() : '';
+}
+/* Every <name …>…</name> or <name …/>: [{ attrs, body }]. */
+function xmlElements(xml, name) {
+    var out = [], m;
+    var re = new RegExp('<(?:[\\w.-]+:)?' + name + '\\b([^>]*?)(?:/>|>([\\s\\S]*?)</(?:[\\w.-]+:)?' + name + '\\s*>)', 'gi');
+    while ((m = re.exec(xml || ''))) out.push({ attrs: m[1] || '', body: m[2] || '' });
+    return out;
+}
+function xmlAttr(attrs, name) {
+    var m = new RegExp('(?:^|\\s)' + name + '\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\')', 'i').exec(attrs || '');
+    return m ? xmlUnescape(m[1] !== undefined ? m[1] : m[2]) : '';
+}
+
+/* An SSDP answer's headers, lower-cased names; null when it isn't one. */
+function parseSsdp(text) {
+    var lines = String(text || '').split(/\r?\n/);
+    if (!/^HTTP\/1\.[01] 200|^NOTIFY /i.test(lines[0] || '')) return null;
+    var h = {};
+    for (var i = 1; i < lines.length; i++) {
+        var c = lines[i].indexOf(':');
+        if (c > 0) h[lines[i].slice(0, c).trim().toLowerCase()] = lines[i].slice(c + 1).trim();
+    }
+    return h;
+}
+
+/* A device description → { id, name, control } for its ContentDirectory,
+ * or null when it has none.  Relative URLs are against URLBase if given,
+ * else the description's own address. */
+function parseDeviceDescription(xml, location) {
+    var services = xmlElements(xml, 'service'), control = '';
+    for (var i = 0; i < services.length && !control; i++)
+        if (/:ContentDirectory:/i.test(xmlText(services[i].body, 'serviceType')))
+            control = xmlText(services[i].body, 'controlURL');
+    if (!control) return null;
+    var base = xmlText(xml, 'URLBase') || location;
+    var urlMod = require('url');
+    var abs = urlMod.resolve(base, control);
+    if (!/^https?:\/\//i.test(abs)) return null;
+    var host = urlMod.parse(abs).hostname || '';
+    return { id: xmlText(xml, 'UDN') || location,
+             name: xmlText(xml, 'friendlyName') || host,
+             control: abs };
+}
+
+function didlKind(cls) {
+    cls = String(cls || '');
+    if (/videoItem/i.test(cls)) return 'video';
+    if (/audioItem/i.test(cls)) return 'audio';
+    if (/imageItem/i.test(cls)) return 'image';
+    return 'other';
+}
+/* "1:23:45.000" → seconds. */
+function didlDuration(s) {
+    var m = /^(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)/.exec(String(s || ''));
+    return m ? (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]) : 0;
+}
+/* A Browse Result (DIDL-Lite, already unescaped once) → the app's entries.
+ * An item keeps its first http resource; one without any is left out.
+ * Caption resources ride along separately: miniDLNA advertises a sidecar
+ * as an extra text/srt <res>, Samsung-profile servers (Serviio, …) as a
+ * sec:CaptionInfoEx element — the same pointers the TV's native player
+ * pairs, which our menu should too. */
+var CAPTION_MIME_EXTS = { 'text/srt': 'srt', 'text/vtt': 'vtt' };
+var CAPTION_URL_EXTS = ['srt', 'vtt', 'ass', 'ssa', 'smi', 'sami'];
+function captionExt(url, mime) {
+    var m = /\.([A-Za-z0-9]{2,4})(?:[?#]|$)/.exec(String(url || ''));
+    if (m && CAPTION_URL_EXTS.indexOf(m[1].toLowerCase()) >= 0) return m[1].toLowerCase();
+    return CAPTION_MIME_EXTS[String(mime || '').toLowerCase().split(';')[0].trim()] || '';
+}
+function parseDidl(didl) {
+    var out = [];
+    xmlElements(didl, 'container').forEach(function (c) {
+        out.push({ id: xmlAttr(c.attrs, 'id'), title: xmlText(c.body, 'title') || '?', isDir: true,
+                   count: parseInt(xmlAttr(c.attrs, 'childCount'), 10) || 0 });
+    });
+    xmlElements(didl, 'item').forEach(function (it) {
+        var res = xmlElements(it.body, 'res'), pick = null, captions = [], seen = {};
+        for (var i = 0; i < res.length; i++) {
+            var url = xmlUnescape(res[i].body).trim();
+            var pi = xmlAttr(res[i].attrs, 'protocolInfo') || 'http-get:';
+            if (!/^https?:\/\//i.test(url) || !/^http-get:/i.test(pi)) continue;
+            if (!pick) { pick = { url: url, attrs: res[i].attrs }; continue; }
+            var ext = captionExt(url, pi.split(':')[2]);
+            if (ext && !seen[url]) { seen[url] = true; captions.push({ url: url, ext: ext }); }
+        }
+        xmlElements(it.body, 'CaptionInfoEx').forEach(function (c) {
+            var curl = xmlUnescape(c.body).trim();
+            if (!/^https?:\/\//i.test(curl) || seen[curl]) return;
+            var cext = captionExt(curl, xmlAttr(c.attrs, 'type'));
+            if (!cext) return;
+            seen[curl] = true;
+            captions.push({ url: curl, ext: cext });
+        });
+        if (!pick) return;
+        out.push({ id: xmlAttr(it.attrs, 'id'), title: xmlText(it.body, 'title') || '?', isDir: false,
+                   kind: didlKind(xmlText(it.body, 'class')), url: pick.url,
+                   size: parseInt(xmlAttr(pick.attrs, 'size'), 10) || 0,
+                   duration: didlDuration(xmlAttr(pick.attrs, 'duration')),
+                   art: xmlText(it.body, 'albumArtURI'), captions: captions });
+    });
+    return out;
+}
+
+/* One HTTP request with a body limit and a timeout: cb(err, status, text). */
+function httpText(target, method, headers, body, cb) {
+    var done = false, req, urlMod = require('url'), u = urlMod.parse(target);
+    function finish(err, status, text) { if (done) return; done = true; cb(err, status, text); }
+    try {
+        req = http.request({ host: u.hostname, port: u.port || 80, path: u.path, method: method,
+                             headers: headers || {}, agent: false }, function (res) {
+            var chunks = [], size = 0;
+            res.on('data', function (c) {
+                size += c.length;
+                if (size > DLNA_MAX_BYTES) { try { req.abort(); } catch (e) {} return finish(new Error('reply too large')); }
+                chunks.push(c);
+            });
+            res.on('end', function () { finish(null, res.statusCode, Buffer.concat(chunks).toString('utf8')); });
+        });
+        req.setTimeout(DLNA_HTTP_MS, function () { try { req.abort(); } catch (e) {} finish(new Error('timeout')); });
+        req.on('error', function (e) { finish(e); });
+        req.end(body || undefined);
+    } catch (e) { finish(e); }
+}
+
+function browseRequest(objectId, start, count) {
+    return '<?xml version="1.0" encoding="utf-8"?>' +
+        '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">' +
+        '<s:Body><u:Browse xmlns:u="urn:schemas-upnp-org:service:ContentDirectory:1">' +
+        '<ObjectID>' + String(objectId).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</ObjectID>' +
+        '<BrowseFlag>BrowseDirectChildren</BrowseFlag><Filter>*</Filter>' +
+        '<StartingIndex>' + start + '</StartingIndex><RequestedCount>' + count + '</RequestedCount>' +
+        '<SortCriteria></SortCriteria></u:Browse></s:Body></s:Envelope>';
+}
+/* A Browse reply → { entries, returned, total }, or { error }. */
+function parseBrowseReply(status, xml) {
+    if (status !== 200) {
+        var why = xmlText(xml, 'errorDescription') || xmlText(xml, 'faultstring') || ('HTTP ' + status);
+        return { error: why };
+    }
+    var result = xmlText(xml, 'Result');
+    return { entries: parseDidl(result),
+             returned: parseInt(xmlText(xml, 'NumberReturned'), 10) || 0,
+             total: parseInt(xmlText(xml, 'TotalMatches'), 10) || 0 };
+}
+/* Every child of `objectId`, page by page: cb(err, entries). */
+function dlnaBrowse(control, objectId, cb) {
+    var all = [];
+    (function page(start) {
+        httpText(control, 'POST', {
+            'Content-Type': 'text/xml; charset="utf-8"',
+            'SOAPACTION': '"urn:schemas-upnp-org:service:ContentDirectory:1#Browse"'
+        }, browseRequest(objectId, start, DLNA_PAGE), function (err, status, text) {
+            if (err) return cb(err);
+            var r = parseBrowseReply(status, text);
+            if (r.error) return cb(new Error(r.error));
+            all = all.concat(r.entries);
+            var next = start + r.returned;
+            if (r.returned > 0 && next < r.total && next < DLNA_MAX_ENTRIES) return page(next);
+            cb(null, all);
+        });
+    })(0);
+}
+
+/* The M-SEARCH for search target `st`.  HOST names the group whichever way
+ * the packet travels; devices don't check it against the destination. */
+function ssdpSearchMessage(st) {
+    return Buffer.from('M-SEARCH * HTTP/1.1\r\nHOST: ' + SSDP_ADDR + ':' + SSDP_PORT +
+                       '\r\nMAN: "ssdp:discover"\r\nMX: 2\r\nST: ' + st + '\r\n\r\n');
+}
+
+/* Where a search goes from each interface: [{ address, netmask, broadcast,
+ * hosts }].  `hosts` is every other address on the subnet, or [] when the
+ * subnet is too wide to sweep (then multicast and broadcast have to do). */
+function ssdpSearchPlan(ifaces) {
+    return (ifaces || []).map(function (i) {
+        return { address: i.address, netmask: i.netmask,
+                 broadcast: ip4Broadcast(i.address, i.netmask),
+                 hosts: subnetHosts(i.address, i.netmask) || [] };
+    });
+}
+
+/* GET /dlna/discover */
+function handleDlnaDiscover(req, res) {
+    if (!dgram) return sendJson(res, 200, { ok: false, error: 'no UDP on this TV' });
+    var locations = [], sockets = [], sendErrors = 0, finished = false;
+    var plan = ssdpSearchPlan(localIPv4s());
+
+    function onMessage(where) {
+        return function (msg, rinfo) {
+            var h = parseSsdp(msg.toString('utf8'));
+            if (!h || !h.location || !/^https?:\/\//i.test(h.location) || locations.indexOf(h.location) >= 0) return;
+            locations.push(h.location);
+            log('DLNA_SEARCH_ANSWER', { from: (rinfo && rinfo.address) || '?', on: where,
+                                       st: h.st || h.nt || '', location: h.location });
+        };
+    }
+    function send(sock, msg, port, addr) {
+        try {
+            sock.send(msg, 0, msg.length, port, addr, function (err) {
+                if (err && sendErrors++ < 5) log('DLNA_SEND_ERR', addr + ':' + port + ' ' + err.message);
+            });
+        } catch (e) { if (sendErrors++ < 5) log('DLNA_SEND_ERR', addr + ':' + port + ' ' + e.message); }
+    }
+    /* One round of searching from `sock`: `hosts` given, a unicast M-SEARCH
+     * to each; otherwise the group, and with `iface` (its plan entry) the
+     * broadcast addresses too.  The unbound socket only asks the group. */
+    function search(sock, iface, hosts) {
+        if (hosts) {
+            var one = ssdpSearchMessage(DLNA_TARGETS[0]);
+            hosts.forEach(function (h) { send(sock, one, SSDP_PORT, h); });
+            return;
+        }
+        DLNA_TARGETS.forEach(function (st) {
+            var m = ssdpSearchMessage(st);
+            send(sock, m, SSDP_PORT, SSDP_ADDR);
+            if (!iface) return;
+            if (iface.broadcast) send(sock, m, SSDP_PORT, iface.broadcast);
+            send(sock, m, SSDP_PORT, '255.255.255.255');
+        });
+    }
+    /* A socket bound to `iface.address` (or to any address, iface null),
+     * searching as soon as it is up — the group and broadcast, or with
+     * `hosts` one slice of the unicast sweep.  A bind that fails is logged
+     * and that socket is dropped; the others carry on. */
+    function open(iface, hosts) {
+        var where = (iface ? iface.address : '*') + (hosts ? ' sweep ' + hosts[0] + '..' : ''), sock, up = false;
+        try { sock = dgram.createSocket('udp4'); }
+        catch (e) { log('DLNA_SOCKET_ERR', where + ' ' + e.message); return; }
+        sockets.push(sock);
+        sock.on('message', onMessage(where));
+        sock.on('error', function (e) {
+            log(up ? 'DLNA_SOCKET_ERR' : 'DLNA_BIND_ERR', where + ' ' + e.message);
+            try { sock.close(); } catch (x) {}
+        });
+        function ready() {
+            up = true;
+            if (iface && !hosts) { try { sock.setBroadcast(true); } catch (e) { log('DLNA_SOCKET_ERR', where + ' setBroadcast: ' + e.message); } }
+            search(sock, iface, hosts);
+            setTimeout(function () { if (!finished) search(sock, iface, hosts); }, 800);   // UDP gets lost; ask twice
+        }
+        try { if (iface) sock.bind(0, iface.address, ready); else sock.bind(ready); }
+        catch (e) { log('DLNA_BIND_ERR', where + ' ' + e.message); }
+    }
+
+    log('DLNA_SEARCH_START', plan.map(function (i) {
+        return i.address + '/' + i.netmask + ' (' + (i.hosts.length ? i.hosts.length + ' hosts' : 'multicast + broadcast only') + ')';
+    }));
+    open(null);
+    plan.forEach(function (i) {
+        open(i);
+        for (var k = 0; k < i.hosts.length; k += DLNA_SWEEP_CHUNK) open(i, i.hosts.slice(k, k + DLNA_SWEEP_CHUNK));
+    });
+    if (!sockets.length) return sendJson(res, 200, { ok: false, error: 'no UDP socket on this TV' });
+
+    setTimeout(function () {
+        finished = true;
+        sockets.forEach(function (s) { try { s.close(); } catch (e) {} });
+        log('DLNA_SEARCH_ANSWERS', locations);
+        var found = [];
+        eachLimited(locations, 8, function (loc, done) {
+            httpText(loc, 'GET', null, null, function (err, status, xml) {
+                var d = !err && status === 200 ? parseDeviceDescription(xml, loc) : null;
+                if (!d) log('DLNA_DESCRIPTION_SKIP', loc + ' ' + (err ? err.message : 'HTTP ' + status + ' / no ContentDirectory'));
+                else if (!found.some(function (f) { return f.id === d.id; })) found.push(d);
+                done();
+            });
+        }, function () {
+            /* Whatever the search could not reach, the announcements may have. */
+            found = mergeServers(found, passiveServers);
+            log('DLNA_SERVERS', found);
+            sendJson(res, 200, { ok: true, servers: found });
+        });
+    }, DLNA_SEARCH_MS);
+}
+
+/* POST /dlna/browse { control, id } — id '0' is a server's root. */
+function handleDlnaBrowse(req, res) {
+    var raw = '';
+    req.on('data', function (c) { raw += c; });
+    req.on('end', function () {
+        var q;
+        try { q = JSON.parse(raw || '{}'); } catch (e) { return sendJson(res, 400, { ok: false, error: 'bad json' }); }
+        if (!/^https?:\/\//i.test(q.control || '')) return sendJson(res, 400, { ok: false, error: 'control URL required' });
+        var id = q.id === undefined || q.id === '' ? '0' : String(q.id);
+        dlnaBrowse(q.control, id, function (err, entries) {
+            if (err) { log('DLNA_BROWSE_ERR', id + ' @ ' + q.control + ': ' + err.message); return sendJson(res, 200, { ok: false, error: err.message }); }
+            log('DLNA_BROWSE', id + ': ' + entries.length + ' entries');
+            sendJson(res, 200, { ok: true, entries: entries });
+        });
+    });
+}
+
+/* ── passive discovery (issue #131) ────────────────────────────────────────
+ * A server that only ever answers multicast is invisible to an active search
+ * whenever the client's own M-SEARCH does not survive the trip — a wireless
+ * client whose AP drops 239.x towards the wired LAN, or a switch doing IGMP
+ * snooping without a querier on that group.  The same networks still deliver
+ * the server's periodic NOTIFY announcements, which is how the TV's own DLNA
+ * browser finds it.  So keep one socket joined to the group and remember every
+ * server it hears about, and merge those with whatever a search turns up. */
+var passiveServers   = {};      // id -> { id, name, control }
+var passiveLocations = {};      // location -> when its description was last read
+var passiveIds       = {};      // id -> the location it was read from, for byebye
+var PASSIVE_RETRY_MS = 300000;  // re-read a description at most this often
+
+/* What a search found, plus what the announcements taught us, one entry per
+ * server id, by name.  A search result wins: it is the fresher description. */
+function mergeServers(found, remembered) {
+    var out = (found || []).slice();
+    Object.keys(remembered || {}).forEach(function (id) {
+        if (!out.some(function (f) { return f.id === id; })) out.push(remembered[id]);
+    });
+    return out.sort(function (a, b) { return a.name.localeCompare(b.name); });
+}
+
+/* Only a description actually read is logged: every UPnP device on the LAN
+ * announces, often, and a line per NOTIFY would push the SMB trail out of the
+ * ring buffer. */
+function passiveRemember(location, from) {
+    var now = Date.now();
+    if (passiveLocations[location] && now - passiveLocations[location] < PASSIVE_RETRY_MS) return;
+    passiveLocations[location] = now;
+    httpText(location, 'GET', null, null, function (err, status, xml) {
+        if (passiveLocations[location] !== now) return;     // said byebye while we were reading
+        var d = !err && status === 200 ? parseDeviceDescription(xml, location) : null;
+        log('DLNA_PASSIVE_READ', { from: from || '?', location: location,
+                                   server: d ? d.name : (err ? err.message : 'HTTP ' + status + ' / no ContentDirectory') });
+        if (!d) return;
+        passiveServers[d.id] = d;
+        passiveIds[d.id] = location;
+    });
+}
+
+/* ssdp:byebye names the device by USN ("uuid:…" or "uuid:…::urn:…"), which
+ * carries the description's UDN.  Drop the server and forget its location,
+ * so its next ssdp:alive is read again at once. */
+function passiveForget(usn) {
+    var id = String(usn || '').split('::')[0];
+    if (!passiveServers[id] && !passiveIds[id]) return;     // a device we never listed, or a repeat
+    log('DLNA_PASSIVE_BYEBYE', id);
+    delete passiveLocations[passiveIds[id]];
+    delete passiveIds[id];
+    delete passiveServers[id];
+}
+
+function startDlnaPassive(ifaces) {
+    if (!dgram) { log('DLNA_PASSIVE_ERR', 'no UDP on this TV'); return; }
+    var sock;
+    try { sock = dgram.createSocket({ type: 'udp4', reuseAddr: true }); }
+    catch (e) { log('DLNA_PASSIVE_ERR', 'socket: ' + (e && e.message)); return; }
+    sock.on('message', function (msg, rinfo) {
+        var h = parseSsdp(msg.toString('utf8'));
+        if (!h) return;
+        if (/ssdp:byebye/i.test(h.nts || '')) return passiveForget(h.usn);
+        if (!h.location || !/^https?:\/\//i.test(h.location)) return;
+        passiveRemember(h.location, rinfo && rinfo.address);
+    });
+    sock.on('error', function (e) { log('DLNA_PASSIVE_ERR', String(e && e.message)); });
+    try {
+        sock.bind(SSDP_PORT, function () {
+            var joined = [];
+            (ifaces || localIPv4s()).forEach(function (i) {
+                try { sock.addMembership(SSDP_ADDR, i.address); joined.push(i.address); }
+                catch (e) { log('DLNA_PASSIVE_JOIN_ERR', i.address + ' ' + (e && e.message)); }
+            });
+            log('DLNA_PASSIVE_START', joined.length ? joined.join(', ') : 'no interface joined the group');
+        });
+    } catch (e) { log('DLNA_PASSIVE_BIND_ERR', e && e.message); }
+}
+
+/* ============================================================================
+ * WebDAV servers (issue #145)
+ * ----------------------------------------------------------------------------
+ * A Nextcloud, a NAS's WebDAV server or a cloud drive is just HTTP: PROPFIND
+ * lists a folder, GET with a Range header reads a file.  The page could send
+ * those itself, but it can't accept a home server's self-signed certificate,
+ * can't hand AVPlay the credentials, and would leave the trail out of the
+ * ring-buffer log.  So the service does it, the way it does SMB:
+ *
+ *   POST /dav/connect { id, url, user, pass, insecure }
+ *                       → PROPFIND Depth 0 on the root, which proves the
+ *                         address, the credentials and the certificate;
+ *                         remembers the server under `id`
+ *   GET  /dav/list?srv=<id>&path=/Films   → { ok, entries:[{ name, isDir, size }] }
+ *   GET  /dav/stream?srv=<id>&path=/Films/a.mkv
+ *                       → the file, Range and all, for AVPlay
+ *
+ * Auth is whatever the server asks for in its 401: Basic, or Digest (Apache's
+ * mod_dav and some NAS boxes).  Nothing is sent until the server has asked,
+ * and what it asked for is remembered per server so a stream's many Range
+ * requests don't each cost a round trip.  `insecure` accepts a certificate
+ * the TV can't verify — the self-signed one on a NAS at home.
+ * ==========================================================================*/
+
+var https = require('https');
+
+var DAV_HTTP_MS      = 20000;              // PROPFIND, and a stream's headers
+var DAV_MAX_BYTES    = 8 * 1024 * 1024;    // one PROPFIND reply
+var DAV_MAX_REDIRECT = 3;
+var DAV_PROPFIND_BODY =
+    '<?xml version="1.0" encoding="utf-8"?>' +
+    '<d:propfind xmlns:d="DAV:"><d:prop>' +
+    '<d:resourcetype/><d:getcontentlength/><d:displayname/>' +
+    '</d:prop></d:propfind>';
+
+var davById = {};     // id -> { id, url, user, pass, insecure }
+var davAuth = {};     // id -> { scheme: 'basic' } | { scheme: 'digest', ch, nc }
+
+/* The server's root with one trailing slash; '' when it isn't http(s). */
+function davRoot(url) {
+    var u = String(url || '').trim();
+    if (!/^https?:\/\/[^\/\s]+/i.test(u)) return '';
+    return u.replace(/\/*$/, '/');
+}
+/* Where `path` below the root is: each segment percent-encoded, a
+ * collection with its trailing slash so no server has to redirect us to it. */
+function davUrl(server, path, isDir) {
+    var segs = String(path || '').split('/'), enc = [];
+    for (var i = 0; i < segs.length; i++) if (segs[i]) enc.push(encodeURIComponent(segs[i]));
+    return davRoot(server.url) + enc.join('/') + (isDir && enc.length ? '/' : '');
+}
+
+function md5hex(s) { return crypto.createHash('md5').update(s, 'utf8').digest('hex'); }
+
+/* The schemes a 401 offers: { basic, digest: { realm, nonce, qop, opaque,
+ * algorithm, stale } }.  Node folds repeated headers into one string. */
+function parseAuthChallenge(h) {
+    var out = { basic: false, digest: null }, text = String(h || '');
+    if (/(^|[\s,])basic(\s|$)/i.test(text)) out.basic = true;
+    var m = /(^|[\s,])digest\s+([\s\S]*)/i.exec(text);
+    if (m) {
+        var d = {}, re = /([a-z0-9_-]+)\s*=\s*(?:"((?:[^"\\]|\\.)*)"|([^\s,]+))/gi, p;
+        while ((p = re.exec(m[2]))) d[p[1].toLowerCase()] = p[2] !== undefined ? p[2].replace(/\\(.)/g, '$1') : p[3];
+        if (d.realm !== undefined && d.nonce) out.digest = d;
+    }
+    return out;
+}
+/* The Authorization value for one Digest request (RFC 7616, MD5 only —
+ * what mod_dav and the NAS boxes do).  qop=auth when offered. */
+function digestAuthorization(ch, method, uri, user, pass, nc, cnonce) {
+    var alg = String(ch.algorithm || 'MD5').toUpperCase();
+    var ha1 = md5hex(user + ':' + ch.realm + ':' + pass);
+    if (alg === 'MD5-SESS') ha1 = md5hex(ha1 + ':' + ch.nonce + ':' + cnonce);
+    var ha2 = md5hex(method + ':' + uri);
+    var qop = /(^|,)\s*auth\s*(,|$)/i.test(ch.qop || '') ? 'auth' : '';
+    var ncHex = ('00000000' + nc.toString(16)).slice(-8);
+    var resp = qop ? md5hex(ha1 + ':' + ch.nonce + ':' + ncHex + ':' + cnonce + ':' + qop + ':' + ha2)
+                   : md5hex(ha1 + ':' + ch.nonce + ':' + ha2);
+    var out = 'Digest username="' + user.replace(/"/g, '\\"') + '", realm="' + ch.realm + '", nonce="' + ch.nonce +
+              '", uri="' + uri + '", response="' + resp + '", algorithm=' + alg;
+    if (qop) out += ', qop=' + qop + ', nc=' + ncHex + ', cnonce="' + cnonce + '"';
+    if (ch.opaque) out += ', opaque="' + ch.opaque + '"';
+    return out;
+}
+function davAuthorization(server, method, uri) {
+    var a = davAuth[server.id];
+    if (!a || !server.user) return '';
+    if (a.scheme === 'basic') return 'Basic ' + Buffer.from(server.user + ':' + (server.pass || ''), 'utf8').toString('base64');
+    a.nc = (a.nc || 0) + 1;
+    return digestAuthorization(a.ch, method, uri, server.user, server.pass || '', a.nc, crypto.randomBytes(8).toString('hex'));
+}
+
+/* What went wrong, for the app: { code, error }.  code picks the text the
+ * app shows; error is the detail for the log. */
+function davError(code, text) { var e = new Error(text); e.code = code; return e; }
+function davSocketError(e) {
+    var c = (e && e.code) || '';
+    if (/CERT|SELF_SIGNED|UNABLE_TO_VERIFY|ERR_TLS/i.test(c) || /certificate/i.test(e && e.message || ''))
+        return davError('cert', c || e.message);
+    if (c === 'ENOTFOUND' || c === 'EAI_AGAIN') return davError('host', 'host not found');
+    if (c === 'ECONNREFUSED') return davError('refused', 'connection refused');
+    if (c === 'ETIMEDOUT' || c === 'EHOSTUNREACH') return davError('unreachable', c);
+    return davError('other', (e && e.message) || String(e));
+}
+
+/* One request to the server: cb(err, res, text).  With opts.stream the
+ * response is handed over unread (for piping), else its body comes as text.
+ * A 401 is answered once with what the server asked for; a redirect is
+ * followed, carrying credentials only to the same host. */
+function davRequest(server, method, target, headers, opts, cb) {
+    opts = opts || {};
+    var done = false, retried = false, hops = 0;
+    function finish(err, res, text) { if (done) return; done = true; cb(err, res, text); }
+    function attempt(url) {
+        var u = require('url').parse(url);
+        if (!u.hostname) return finish(davError('other', 'bad url'));
+        var secure = u.protocol === 'https:';
+        var h = {};
+        for (var k in headers) if (headers[k] !== undefined) h[k] = headers[k];
+        h['User-Agent'] = 'Tessel';
+        var sameHost = require('url').parse(davRoot(server.url)).host === u.host;
+        var auth = sameHost ? davAuthorization(server, method, u.path) : '';
+        if (auth) h['Authorization'] = auth;
+        var req;
+        try {
+            req = (secure ? https : http).request({
+                host: u.hostname, port: u.port || (secure ? 443 : 80), path: u.path, method: method,
+                headers: h, agent: false, rejectUnauthorized: !server.insecure
+            }, function (res) {
+                var status = res.statusCode;
+                if (status === 401 && !retried && server.user && sameHost) {
+                    retried = true;
+                    var ch = parseAuthChallenge(res.headers['www-authenticate']);
+                    res.resume();
+                    if (ch.digest) { davAuth[server.id] = { scheme: 'digest', ch: ch.digest, nc: 0 }; return attempt(url); }
+                    if (ch.basic && !(davAuth[server.id] && davAuth[server.id].scheme === 'basic')) {
+                        davAuth[server.id] = { scheme: 'basic' };
+                        return attempt(url);
+                    }
+                    return finish(davError('auth', 'HTTP 401'), res);
+                }
+                if ((status === 301 || status === 302 || status === 307 || status === 308) && res.headers.location && hops < DAV_MAX_REDIRECT) {
+                    hops++;
+                    res.resume();
+                    return attempt(require('url').resolve(url, res.headers.location));
+                }
+                if (opts.stream) return finish(null, res);
+                var chunks = [], size = 0;
+                res.on('data', function (c) {
+                    size += c.length;
+                    if (size > DAV_MAX_BYTES) { try { req.abort(); } catch (e) {} return finish(davError('other', 'reply too large')); }
+                    chunks.push(c);
+                });
+                res.on('end', function () { finish(null, res, Buffer.concat(chunks).toString('utf8')); });
+            });
+            req.setTimeout(DAV_HTTP_MS, function () { try { req.abort(); } catch (e) {} finish(davError('timeout', 'timeout')); });
+            req.on('error', function (e) { finish(davSocketError(e)); });
+            if (opts.onRequest) opts.onRequest(req);
+            req.end(opts.body || undefined);
+        } catch (e) { finish(davSocketError(e)); }
+    }
+    attempt(target);
+}
+
+/* What a status other than 207 means for a PROPFIND. */
+function davStatusError(status) {
+    if (status === 401 || status === 403) return davError('auth', 'HTTP ' + status);
+    if (status === 404 || status === 410) return davError('notfound', 'HTTP ' + status);
+    if (status === 405 || status === 501 || (status >= 200 && status < 300)) return davError('notdav', 'HTTP ' + status);
+    return davError('other', 'HTTP ' + status);
+}
+
+/* A path's decoded, trailing-slash-free form, for comparing hrefs. */
+function davPlainPath(p) {
+    var s = String(p || '');
+    try { s = decodeURIComponent(s); } catch (e) {}
+    return s.replace(/\/+$/, '');
+}
+/* A multistatus reply for the collection at `url` → its entries, itself
+ * left out: [{ name, isDir, size }], folders first. */
+function parseMultistatus(xml, url) {
+    var self = davPlainPath(require('url').parse(url).pathname);
+    var out = [];
+    xmlElements(xml, 'response').forEach(function (r) {
+        var href = xmlText(r.body, 'href');
+        if (!href) return;
+        var p = /^[a-z][a-z0-9+.-]*:\/\//i.test(href) ? require('url').parse(href).pathname : href;
+        var plain = davPlainPath(p);
+        if (plain === self) return;
+        var name = plain.split('/').pop() || xmlText(r.body, 'displayname');
+        if (!name) return;
+        var isDir = /<(?:[\w.-]+:)?collection\b/i.test(xmlText(r.body, 'resourcetype'));
+        var size = parseInt(xmlText(r.body, 'getcontentlength'), 10);
+        out.push({ name: name, isDir: isDir, size: isDir || !(size > 0) ? 0 : size });
+    });
+    out.sort(function (a, b) {
+        if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+        return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1;
+    });
+    return out;
+}
+
+/* PROPFIND on the collection at `path`: cb(err, entries). */
+function davPropfind(server, path, depth, cb) {
+    var url = davUrl(server, path, true);
+    davRequest(server, 'PROPFIND', url, {
+        'Depth': String(depth), 'Content-Type': 'application/xml; charset=utf-8',
+        'Content-Length': String(Buffer.byteLength(DAV_PROPFIND_BODY))
+    }, { body: DAV_PROPFIND_BODY }, function (err, res, text) {
+        if (err) return cb(err);
+        if (res.statusCode !== 207) return cb(davStatusError(res.statusCode));
+        if (!/<(?:[\w.-]+:)?multistatus\b/i.test(text)) return cb(davError('notdav', 'no multistatus'));
+        cb(null, parseMultistatus(text, url));
+    });
+}
+
+function davServerOf(query) { return davById[(query && query.srv) || ''] || null; }
+
+function handleDavConnect(req, res) {
+    var raw = '';
+    req.on('data', function (c) { raw += c; });
+    req.on('end', function () {
+        var b;
+        try { b = JSON.parse(raw || '{}'); } catch (e) { return sendJson(res, 400, { ok: false, error: 'bad json' }); }
+        var server = { id: String(b.id || ''), url: davRoot(b.url), user: String(b.user || ''),
+                       pass: String(b.pass || ''), insecure: !!b.insecure };
+        log('DAV_CONNECT_REQ', { id: server.id, url: server.url, user: server.user || '(none)',
+                                 pass: server.pass ? server.pass.length + ' chars' : 'none', insecure: server.insecure });
+        if (!server.url) return sendJson(res, 400, { ok: false, code: 'other', error: 'http(s) URL required' });
+        delete davAuth[server.id];   // the credentials may have changed
+        davPropfind(server, '', 0, function (err) {
+            if (err) {
+                log('DAV_CONNECT_FAIL', { code: err.code, error: err.message });
+                return sendJson(res, 502, { ok: false, code: err.code, error: err.message });
+            }
+            davById[server.id] = server;
+            log('DAV_CONNECT_OK', { id: server.id, auth: (davAuth[server.id] || {}).scheme || 'none' });
+            sendJson(res, 200, { ok: true, auth: (davAuth[server.id] || {}).scheme || 'none' });
+        });
+    });
+}
+
+function handleDavList(req, res, query) {
+    var server = davServerOf(query);
+    if (!server) return sendJson(res, 409, { ok: false, code: 'other', error: 'not connected' });
+    var path = query.path || '';
+    davPropfind(server, path, 1, function (err, entries) {
+        if (err) {
+            log('DAV_LIST_FAIL', { path: path, code: err.code, error: err.message });
+            return sendJson(res, 502, { ok: false, code: err.code, error: err.message });
+        }
+        log('DAV_LIST_OK', { path: path, entries: entries.length });
+        sendJson(res, 200, { ok: true, path: path, entries: entries });
+    });
+}
+
+/* The file at `path`, as the server sends it: its status, its Range
+ * handling, its length. */
+function handleDavStream(req, res, query) {
+    var server = davServerOf(query);
+    if (!server) { cors(res, 409, 'text/plain'); return res.end('not connected'); }
+    var path = query.path || '';
+    var headers = {};
+    if (req.headers.range) headers['Range'] = req.headers.range;
+    var upstream = null, aborted = false;
+    req.on('close', function () { aborted = true; if (upstream) try { upstream.abort(); } catch (e) {} });
+    davRequest(server, req.method === 'HEAD' ? 'HEAD' : 'GET', davUrl(server, path, false), headers,
+               { stream: true, onRequest: function (r) { upstream = r; } }, function (err, up) {
+        if (err) {
+            log('DAV_STREAM_FAIL', { path: path, code: err.code, error: err.message });
+            if (aborted) return;
+            cors(res, 502, 'text/plain'); return res.end(err.message);
+        }
+        var status = up.statusCode;
+        if (status !== 200 && status !== 206 && status !== 416) {
+            log('DAV_STREAM_FAIL', { path: path, status: status });
+            up.resume();
+            cors(res, status === 401 || status === 403 ? 403 : status === 404 ? 404 : 502, 'text/plain');
+            return res.end('HTTP ' + status);
+        }
+        var h = { 'Accept-Ranges': 'bytes' };
+        // Our type for an extension we know (a .srt reads as text, as off a
+        // share); the server's for the rest.
+        var ct = contentType(path);
+        if (ct === 'application/octet-stream') ct = up.headers['content-type'] || ct;
+        if (up.headers['content-length'] !== undefined) h['Content-Length'] = up.headers['content-length'];
+        if (up.headers['content-range']) h['Content-Range'] = up.headers['content-range'];
+        cors(res, status, ct, h);
+        if (req.method === 'HEAD') { up.resume(); return res.end(); }
+        up.on('error', function () { try { res.end(); } catch (e) {} });
+        up.pipe(res);
+    });
+}
+
+/* ── Cast from another device — LAN only ───────────────────────────────────
+ * The main service above is loopback-only, so casting gets its own listener
+ * on the LAN.  A phone opens /cast, posts a URL, and the app pulls it via
+ * /cast/poll.  No relay, no pairing code: the trust model is the same as
+ * everything else on the share — anyone on the network can reach it.
+ * ------------------------------------------------------------------------- */
+var CAST_PORT   = 8129;
+var CAST_INBOX  = '';        // newest posted URL; cleared when the TV polls it
+var CAST_ON     = true;      // the app switches this off when casting is disabled
+var CAST_PAGE = '<!doctype html><html><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>Cast to Tessel</title><style>' +
+    'body{background:#0a0a0a;color:#f4f4f4;font-family:system-ui,sans-serif;display:flex;' +
+    'min-height:100vh;align-items:center;justify-content:center;margin:0}' +
+    'form{width:min(90vw,480px)}input{width:100%;box-sizing:border-box;padding:14px 16px;' +
+    'font-size:18px;background:#1d1d1d;color:#f4f4f4;border:1px solid #2c2c2c;border-radius:10px}' +
+    'button{width:100%;margin-top:12px;padding:14px;font-size:18px;background:#f4f4f4;color:#0a0a0a;' +
+    'border:0;border-radius:10px;font-weight:600}#msg{margin-top:12px;min-height:20px;color:#8d8d8d}' +
+    '</style></head><body><form onsubmit="return send(this)">' +
+    '<input id="u" type="url" required placeholder="http(s) or rtsp link" autofocus>' +
+    '<button>Send to TV</button><div id="msg"></div></form><script>' +
+    'function send(f){var u=document.getElementById("u").value.trim();' +
+    'fetch("/cast/send",{method:"POST",headers:{"Content-Type":"application/json"},' +
+    'body:JSON.stringify({url:u})}).then(function(r){return r.json()}).then(function(j){' +
+    'document.getElementById("msg").textContent=j.ok?"Sent — check the TV":"Failed, try again"});' +
+    'return false}</script></body></html>';
+
+function handleCastSend(req, res) {
+    if (!CAST_ON) return sendJson(res, 403, { ok: false, error: 'casting is off' });
+    var body = '';
+    req.on('data', function (c) { body += c; if (body.length > 8192) req.destroy(); });
+    req.on('end', function () {
+        var url = '';
+        try { url = String((JSON.parse(body) || {}).url || '').trim(); } catch (e) {}
+        if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) {
+            return sendJson(res, 400, { ok: false, error: 'not a URL' });
+        }
+        CAST_INBOX = url;
+        log('CAST_RECEIVED', url);
+        sendJson(res, 200, { ok: true });
+    });
+}
+
+function handleCastPage(res) {
+    if (!CAST_ON) {
+        cors(res, 200, 'text/html; charset=utf-8');
+        return res.end('<!doctype html><meta charset="utf-8">' +
+            '<body style="background:#0a0a0a;color:#f4f4f4;font:16px system-ui;padding:24px">' +
+            'Casting is turned off on the TV.</body>');
+    }
+    cors(res, 200, 'text/html; charset=utf-8');
+    res.end(CAST_PAGE);
+}
+
+/* POST /cast/set { on } — loopback only, from the app's Settings toggle. */
+function handleCastSet(req, res) {
+    var body = '';
+    req.on('data', function (c) { body += c; if (body.length > 1024) req.destroy(); });
+    req.on('end', function () {
+        var on = true;
+        try { on = (JSON.parse(body) || {}).on !== false; } catch (e) {}
+        CAST_ON = !!on;
+        log('CAST_TOGGLE', CAST_ON ? 'on' : 'off');
+        sendJson(res, 200, { ok: true, on: CAST_ON });
+    });
+}
+
+/* ── Debug log page — LAN only ─────────────────────────────────────────────
+ * http://<tv-ip>:8129/debug shows the service's own log plus everything the
+ * app posts to /debug/log, newest first and self-refreshing.  Same trust
+ * model as the cast page: anyone on the network can watch it.
+ * ------------------------------------------------------------------------- */
+var DEBUG_LINES = [];        // { seq, at, tag, text }
+var DEBUG_SEQ   = 0;
+var DEBUG_MAX   = 800;
+var DEBUG_PAGE = '<!doctype html><html><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>Tessel log</title><style>' +
+    'body{background:#0a0a0a;color:#e8e8e8;font:13px/1.45 ui-monospace,Menlo,Consolas,monospace;margin:0;padding:12px}' +
+    'header{position:sticky;top:0;background:#0a0a0a;padding:6px 0;border-bottom:1px solid #2c2c2c;display:flex;gap:12px;align-items:center}' +
+    'h1{font-size:15px;margin:0;font-weight:600;flex:1}button{background:#f4f4f4;color:#0a0a0a;border:0;border-radius:8px;padding:6px 10px;font:inherit}' +
+    'div.l{padding:2px 0;border-bottom:1px solid #151515;white-space:pre-wrap;word-break:break-word}' +
+    '.t{color:#8d8d8d;margin-right:8px}.tag{color:#f4f4f4;margin-right:8px}' +
+    '</style></head><body><header><h1>Tessel log</h1>' +
+    '<span id="state">connecting…</span><button onclick="clearAll()">Clear view</button></header>' +
+    '<div id="out"></div><script>' +
+    'var since=0,view=[];' +
+    'function fmt(l){var d=new Date(l.at);return d.toLocaleTimeString()}' +
+    'function add(l){view.push(l);var el=document.createElement("div");el.className="l";' +
+    'el.innerHTML="<span class=\\"t\\">"+fmt(l)+"</span><span class=\\"tag\\">"+l.tag+"</span>"+esc(l.text);' +
+    'out.insertBefore(el,out.firstChild)}' +
+    'function esc(s){return String(s).replace(/[&<>]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c]})}' +
+    'function clearAll(){view=[];out.innerHTML=""}' +
+    'function poll(){fetch("/debug/data?since="+since).then(function(r){return r.json()}).then(function(j){' +
+    'state.textContent=j.lines.length?"live":"idle";j.lines.forEach(function(l){add(l)});' +
+    'since=j.total}).catch(function(){state.textContent="offline"}).then(function(){setTimeout(poll,1000)})}' +
+    'poll();</script></body></html>';
+
+function handleDebugPage(res) {
+    cors(res, 200, 'text/html; charset=utf-8');
+    res.end(DEBUG_PAGE);
+}
+
+function debugAppend(tag, text) {
+    DEBUG_SEQ++;
+    DEBUG_LINES.push({ seq: DEBUG_SEQ, at: Date.now(), tag: tag || 'app', text: String(text || '') });
+    if (DEBUG_LINES.length > DEBUG_MAX) DEBUG_LINES.splice(0, DEBUG_LINES.length - DEBUG_MAX);
+}
+
+function handleDebugLog(req, res) {
+    var body = '';
+    req.on('data', function (c) { body += c; if (body.length > 65536) req.destroy(); });
+    req.on('end', function () {
+        var j = null;
+        try { j = JSON.parse(body); } catch (e) {}
+        if (j && j.text) debugAppend(j.tag || 'app', j.text);
+        sendJson(res, 200, { ok: true });
+    });
+}
+
+var castServer = http.createServer(function (req, res) {
+    var u = require('url').parse(req.url, true);
+    if (req.method === 'OPTIONS') { cors(res, 204, 'text/plain'); return res.end(); }
+    if (u.pathname === '/cast')           return handleCastPage(res);
+    if (u.pathname === '/cast/send' && req.method === 'POST') return handleCastSend(req, res);
+    if (u.pathname === '/cast/poll') {
+        // One pull delivers one link; the next poll waits for a new one.
+        var url = CAST_ON ? CAST_INBOX : '';
+        CAST_INBOX = '';
+        return sendJson(res, 200, { ok: true, on: CAST_ON, url: url });
+    }
+    // Live log page for a phone or PC on the same network.
+    if (u.pathname === '/debug' || u.pathname === '/debug/') return handleDebugPage(res, u.query);
+    if (u.pathname === '/debug/log' && req.method === 'POST') return handleDebugLog(req, res);
+    if (u.pathname === '/debug/data') {
+        var since = parseInt(u.query.since, 10) || 0;
+        var lines = DEBUG_LINES.filter(function (l) { return l.seq > since; });
+        return sendJson(res, 200, { ok: true, lines: lines, total: DEBUG_SEQ });
+    }
+    cors(res, 404, 'text/plain'); res.end('Not Found');
+});
+
+var server = http.createServer(function (req, res) {
+    var u = require('url').parse(req.url, true);
+    if (req.method === 'OPTIONS') { cors(res, 204, 'text/plain'); return res.end(); }
+
+    if (u.pathname === '/smb/ping')        return sendJson(res, 200, { ok: true, connected: !!credsById[''], servers: Object.keys(credsById), dav: Object.keys(davById) });
+    if (u.pathname === '/smb/debug/logs')  return sendJson(res, 200, { logs: LOGS });
+    if (u.pathname === '/smb/connect' && req.method === 'POST') return handleConnect(req, res);
+    if (u.pathname === '/smb/shares' && req.method === 'POST')  return handleShares(req, res);
+    if (u.pathname === '/smb/list')        return handleList(req, res, u.query);
+    if (u.pathname === '/smb/write' && req.method === 'POST') return handleWrite(req, res, u.query);
+    if (u.pathname === '/smb/stream')      return handleStream(req, res, u.query);
+
+    // The loopback service tells the app where the phone page lives, and
+    // where the log page lives.
+    if (u.pathname === '/cast/set' && req.method === 'POST') return handleCastSet(req, res);
+    if (u.pathname === '/cast/info') {
+        var cip = lanAddress();
+        return sendJson(res, 200, { ok: true, on: CAST_ON,
+            address: cip ? 'http://' + cip + ':' + CAST_PORT + '/cast' : '',
+            debug:   cip ? 'http://' + cip + ':' + CAST_PORT + '/debug' : '' });
+    }
+
+    // Local relay control plane — only reachable on loopback, because the LAN
+    // listener above doesn't route these paths.
+    if (u.pathname === '/local/enable' && req.method === 'POST')  return handleLocalEnable(req, res);
+    if (u.pathname === '/local/disable' && req.method === 'POST') return handleLocalDisable(req, res);
+    if (u.pathname === '/local/status')
+        return sendJson(res, 200, { ok: true, enabled: !!localServer, url: localServer ? localURL() : '' });
+
+    // LAN discovery — replaces typing a pairing code between two screens.
+    if (u.pathname === '/discover') return handleDiscover(req, res, u.query);
+
+    // DLNA media servers (issue #131).
+    if (u.pathname === '/dlna/discover') return handleDlnaDiscover(req, res);
+    if (u.pathname === '/dlna/browse' && req.method === 'POST') return handleDlnaBrowse(req, res);
+
+    // WebDAV servers (issue #145).
+    if (u.pathname === '/dav/connect' && req.method === 'POST') return handleDavConnect(req, res);
+    if (u.pathname === '/dav/list')    return handleDavList(req, res, u.query);
+    if (u.pathname === '/dav/stream')  return handleDavStream(req, res, u.query);
+
+    cors(res, 404, 'text/plain'); res.end('Not Found');
+});
+
+server.listen(PORT, LISTEN_HOST, function () { log('SMB_PROXY_LISTENING', LISTEN_HOST + ':' + PORT); });
+castServer.listen(CAST_PORT, '0.0.0.0', function () {
+    var ip = lanAddress();
+    log('CAST_LISTENING', '0.0.0.0:' + CAST_PORT + (ip ? ' page=http://' + ip + ':' + CAST_PORT + '/cast' : ''));
+});
+/* Not under the unit-test loader: there `process` is a stub and a real socket
+ * would be bound for the lifetime of the test run. */
+if (typeof process !== 'undefined' && process && typeof process.pid === 'number') startDlnaPassive();
+
+process.on('uncaughtException', function (e) {
+    var where = (e && e.stack) ? String(e.stack).split('\n').slice(0, 4).join(' <- ') : '';
+    log('UNCAUGHT', (e && e.message) + (where ? ' | ' + where : ''));
+});

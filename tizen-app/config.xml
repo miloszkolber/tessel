@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns:tizen="http://tizen.org/ns/widgets"
+        xmlns="http://www.w3.org/ns/widgets"
+        id="https://github.com/miloszkolber/tessel"
+        version="1.27.0"
+        viewmodes="maximized">
+    <tizen:application id="tesselapp.player"
+                       package="tesselapp"
+                       required_version="4.0"/>
+    <content src="index.html"/>
+    <icon src="icon.png"/>
+    <name>Tessel</name>
+    <author>Milosz Kolber</author>
+    <description>Media player for Samsung Tizen TV — plays network streams, USB files, SMB shares, HLS, DASH and more via AVPlay.</description>
+
+    <tizen:profile name="tv-samsung"/>
+
+    <!-- Hybrid background service: a Node.js HTTP↔SMB2 proxy on localhost:8127.
+         The .wgt sandbox can't open raw TCP to port 445; this service can, and
+         re-serves files over HTTP with Range support so AVPlay can stream them.
+         Launched via tizen.application.launch('tesselapp.smbproxy'). -->
+    <tizen:service id="tesselapp.smbproxy" type="service">
+        <tizen:content src="service/service.js"/>
+        <tizen:name>smbproxy</tizen:name>
+    </tizen:service>
+
+    <!-- Access any HTTP(S)/RTSP origin for streams + raw IP cameras. -->
+    <access origin="*" subdomains="true"/>
+    <tizen:allow-navigation>*</tizen:allow-navigation>
+
+    <!-- App is a secure-context origin but talks to http://localhost for SMB. -->
+    <tizen:allow-mixed-content>true</tizen:allow-mixed-content>
+    <tizen:content-security-policy>default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src * http://127.0.0.1:8127 http://localhost:8127; media-src * http://127.0.0.1:8127 http://localhost:8127;</tizen:content-security-policy>
+
+    <!-- Open the on-screen keyboard only when the user presses OK on a text
+         field, not whenever the D-pad lands on one (issue #111; honoured on
+         2022+ TVs).  Older firmware still opens it on focus, which is why
+         the Settings sections with text fields stay collapsed. -->
+    <tizen:metadata key="http://samsung.com/tv/metadata/use.keypad.without.useraction" value="false"/>
+
+    <tizen:setting screen-orientation="landscape"
+                   context-menu="disable"
+                   background-support="disable"
+                   encryption="disable"
+                   install-location="auto"
+                   hwkey-event="enable"/>
+
+    <feature name="http://tizen.org/feature/screen.size.normal.1080.1920"/>
+
+    <!-- Privileges — internet for streams, mediastorage/externalstorage for USB
+         file enumeration, download for future remote-file caching. -->
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://developer.samsung.com/privilege/network.public"/>
+    <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
+    <tizen:privilege name="http://tizen.org/privilege/mediastorage"/>
+    <tizen:privilege name="http://tizen.org/privilege/externalstorage"/>
+    <tizen:privilege name="http://tizen.org/privilege/filesystem.read"/>
+    <tizen:privilege name="http://tizen.org/privilege/filesystem.write"/>
+    <tizen:privilege name="http://tizen.org/privilege/download"/>
+    <!-- No http://tizen.org/privilege/power here on purpose: Samsung's TV
+         privilege list doesn't have it, and Tizen 5.0 (2019) sets refuse the
+         whole package with "Security error : Invalid function parameter"
+         when it is declared. tizen.power is undefined on retail TVs anyway;
+         js/keepawake.js holds the screensaver off with a hidden clip. -->
+    <!-- Required for tizen.tvinputdevice.registerKey(); without it the TV keeps
+         Play/Pause/FF/RW and the colour keys for itself and shows a
+         "not supported" toast when they're pressed. -->
+    <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+</widget>

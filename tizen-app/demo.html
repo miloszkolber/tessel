@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Tessel — simulated demo</title>
+<body>Starting the simulator…
+<script>
+/* Tessel — standalone simulated demo.
+ *
+ * Loads the real application (its markup, CSS, scripts, translations) and
+ * swaps three things for the simulator: the decoder, the TV platform
+ * (tizen/webapis) and the background service.  Everything the user then does
+ * — browsing, playback, queue, subtitles, settings, casting, logs — runs the
+ * product's own code, so this is an end-to-end demo, not a mock-up.
+ *
+ * Serve the tizen-app directory statically and open /demo.html (a WebView app
+ * fetches its own markup, so file:// will not do).
+ *
+ * NB: every closing script tag below is escaped, or this inline block ends at
+ * the first one. */
+(function () {
+    var S_OPEN = '<' + 'script src="';
+    var S_CLOSE = '"><' + '/script>';
+    function fail(err) { document.body.textContent = 'Simulator failed: ' + err; }
+    fetch('index.html', { cache: 'no-store' }).then(function (r) {
+        if (!r.ok) throw Error(r.status);
+        return r.text();
+    }).then(function (html) {
+        html = html.replace('<title>Tessel</title>', '<title>Tessel — simulated demo</title>');
+        // Simulated decoder in place of the AVPlay/HTML5 backend.
+        html = html.replace('src="js/player.js"', 'src="demo/player.js"');
+        // The virtual world installs itself before the app looks at `tizen`.
+        html = html.replace(S_OPEN + 'js/debug.js' + S_CLOSE,
+                            S_OPEN + 'demo/world.js' + S_CLOSE + '\n' + S_OPEN + 'js/debug.js' + S_CLOSE);
+        html = html.replace('<' + '/body>', S_OPEN + 'demo/boot.js' + S_CLOSE + '<' + '/body>');
+        // Fresh copies of everything, so a reload never shows a stale mix.
+        var revision = Date.now();
+        html = html.replace(/(src|href)="((?:js|css|demo)\/[^"?]+\.(?:js|css))"/g,
+                            '$1="$2?demo=' + revision + '"');
+        var open = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function (method, url) {
+            if (typeof url === 'string' && /^i18n\//.test(url)) arguments[1] = url + '?demo=' + revision;
+            return open.apply(this, arguments);
+        };
+        document.open(); document.write(html); document.close();
+    }).catch(function (err) {
+        fail(err && err.message ? err.message : err);
+    });
+})();
+</script>
+</body>
+</html>

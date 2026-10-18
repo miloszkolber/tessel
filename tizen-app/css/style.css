@@ -1,0 +1,1656 @@
+/* ────────────────────────────────────────────────────────────────────────
+   Tessel — visual language:
+     · monochrome charcoal background (mewa_ui dark palette)
+     · white text and white focus treatment everywhere
+     · everything centred horizontally on a 1920×1080 TV viewed from 3 m
+   ──────────────────────────────────────────────────────────────────────── */
+
+:root {
+    /* Neutral surfaces follow mewa_ui's dark ramp: page 1000, card 950,
+     * hover overlays as white alpha on the page. */
+    --bg:        #0a0a0a;       /* mewa_ui neutral-1000 */
+    --bg-2:      #151515;       /* neutral-950 */
+    --bg-3:      #1d1d1d;       /* neutral-900 */
+    --bg-card:   #151515;       /* tile/card surface */
+    --bg-card-h: #2c2c2c;       /* hovered/focused card, between 900 and 800 */
+
+    --fg:        #ffffff;
+    --fg-mute:   #f4f4f4;       /* mewa_ui neutral-050 */
+    --fg-dim:    #8d8d8d;       /* between 500 and 600 */
+
+    --accent:    #ffffff;       /* monochrome: focus rings, toggles, primary fill */
+    --accent-2:  #f4f4f4;
+    --accent-soft: rgba(255,255,255,.16);
+    --danger:    #f4f4f4;       /* negative states read via their icon, not colour */
+
+    --border:    rgba(255,255,255,.08);
+    --r:         16px;
+    --r-sm:      10px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0; padding: 0;
+    width: 100%; height: 100%;
+    /* CRITICAL: body must be black/transparent so AVPlay's hardware video plane
+     * shows through the WebView.  Any opaque background here would cover the
+     * video.  Individual non-player views set their own backgrounds. */
+    background: #000;
+    color: var(--fg);
+    font-family: 'SamsungOne', 'Samsung Sans', 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 26px;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+button { font: inherit; color: inherit; cursor: pointer; background: none; border: 0; }
+button:focus { outline: none; }
+
+/* Bundled SVGs, not font glyphs: stable shapes across TV font sets. */
+.remix-icon {
+    display: inline-block; width: 1em; height: 1em; flex-shrink: 0;
+    vertical-align: middle; filter: invert(1); pointer-events: none;
+}
+.tile-icon .remix-icon { width: 44px; height: 44px; }
+.tile:focus .tile-icon .remix-icon, .tile.focused .tile-icon .remix-icon { filter: none; }
+.btn > .remix-icon { margin-right: 8px; }
+.track-warning { margin-left: 10px; }
+
+.hidden { display: none !important; }
+
+/* ── Views: full screen, vertically + horizontally centred contents ────
+ * Each non-player view paints its own opaque background — required because
+ * the body is black (for AVPlay video plane visibility) and we don't want
+ * to see black behind the home/url/browse UIs.  Flat mewa_ui dark page
+ * colour; no texture. */
+.view {
+    position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+    padding: 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: var(--bg);
+    /* On the TV everything fits 1080p; in narrow preview windows wrapped
+     * rows must stay reachable instead of spilling out of view. */
+    overflow-y: auto;
+}
+
+/* Player view stays transparent so the AVPlay hardware video plane shows
+ * through.  Without this, the body's black would be covered by this view's
+ * background and the video plane would be hidden. */
+#view-player {
+    background: transparent;
+}
+
+/* ── Brand (logo + wordmark) ──────────────────────────────────────── */
+.brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 80px;
+}
+.brand.small { margin-bottom: 48px; }
+
+.brand h1 {
+    margin: 0 0 0 24px;       /* was flex `gap`, swapped for margin for WebKit 537 */
+    font-size: 64px;
+    font-weight: 200;
+    letter-spacing: 2px;
+    color: var(--fg);
+}
+.brand.small h1 { font-size: 40px; }
+
+.brand h1 span {
+    color: var(--accent);
+    font-weight: 600;
+    margin-left: 8px;
+}
+
+/* Brand mark — uses the actual app icon so it always matches the launcher */
+.app-icon {
+    width: 96px; height: 96px;
+    border-radius: 18px;
+    flex-shrink: 0;
+}
+.brand.small .app-icon { width: 56px; height: 56px; border-radius: 12px; }
+
+/* ── Home tiles ───────────────────────────────────────────────────── */
+.home-tiles {
+    display: grid; grid-gap: 16px;   /* grid-gap, not gap: TV WebView is Chromium 63 */
+    /* Full width so auto-fit has a definite size to divide: the TV gets its
+     * 8×216 row back, narrower windows wrap rows instead of overflowing. */
+    width: 100%;
+    grid-template-columns: repeat(auto-fit, 216px);
+    justify-content: center;
+}
+/* The whole strip must never force horizontal scrolling: tiles shrink a
+ * little before wrapping becomes pointless. */
+@media (max-width: 740px) {
+    .home-tiles { grid-template-columns: repeat(auto-fit, 172px); }
+    .tile { padding: 40px 8px; }
+    .tile-icon { width: 80px; height: 80px; line-height: 76px; font-size: 30px; }
+}
+
+.tile {
+    background: var(--bg-card);
+    border: 3px solid var(--border);
+    border-radius: var(--r);
+    padding: 56px 10px;   /* eight tiles (WebDAV, #145): 216px leaves ~190px for a label */
+    text-align: center;
+    transition: transform .15s ease, border-color .15s ease, background .15s ease, box-shadow .15s ease;
+    color: var(--fg);
+}
+
+.tile:focus, .tile.focused {
+    border-color: var(--accent);
+    background: var(--bg-card-h);
+    transform: scale(1.05) translateY(-4px);
+    box-shadow: 0 0 0 6px var(--accent-soft);
+}
+
+.tile-icon {
+    font-size: 36px;
+    font-weight: 600;
+    color: var(--fg);
+    background: var(--accent-soft);
+    border: 2px solid var(--accent);
+    width: 96px; height: 96px;
+    line-height: 92px;
+    border-radius: 24px;
+    margin: 0 auto 28px;
+    letter-spacing: 1px;
+}
+.tile-icon.long { font-size: 26px; letter-spacing: 0; }   /* four letters: DLNA */
+.tile:focus .tile-icon, .tile.focused .tile-icon {
+    background: var(--accent);
+    color: #0a0a0a;
+}
+
+.tile-label {
+    font-size: 22px;          /* 26px broke "Netzwerkstream" mid-word in the 216px tile */
+    word-break: break-word;   /* a single long word (ru "Медиасерверы") wraps rather than spills */
+    font-weight: 500;
+    color: var(--fg);
+    margin-bottom: 10px;
+}
+.tile-sub {
+    font-size: 18px;
+    color: var(--fg-mute);
+    line-height: 1.4;
+}
+
+/* ── URL input view ───────────────────────────────────────────────── */
+.url-input-wrap {
+    width: 100%;
+    max-width: 1080px;
+    text-align: center;
+}
+.url-input-wrap label {
+    display: block;
+    font-size: 18px;
+    color: var(--fg-mute);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+}
+.url-input-wrap input {
+    width: 100%;
+    background: var(--bg-card);
+    color: var(--fg);
+    font: inherit;
+    font-size: 26px;
+    border: 3px solid var(--border);
+    border-radius: var(--r-sm);
+    padding: 22px 28px;
+    text-align: center;
+    transition: border-color .15s ease, background .15s ease;
+}
+.url-input-wrap input::placeholder { color: var(--fg-dim); }
+.url-input-wrap input:focus, .url-input-wrap input.focused {
+    outline: none;
+    border-color: var(--accent);
+    background: var(--bg-card-h);
+    box-shadow: 0 0 0 6px var(--accent-soft);
+}
+
+.presets {
+    margin-top: 40px;
+    width: 100%;
+    max-width: 1080px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.presets-label {
+    width: 100%;
+    font-size: 16px;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 14px;
+}
+.preset {
+    background: var(--bg-card);
+    border: 2px solid var(--border);
+    border-radius: 999px;
+    padding: 12px 28px;
+    font-size: 18px;
+    color: var(--fg-mute);
+    margin: 7px;     /* spacing instead of flex gap */
+    transition: border-color .15s, color .15s, background .15s;
+}
+.preset:focus, .preset.focused {
+    border-color: var(--accent);
+    color: var(--fg);
+    background: var(--bg-card-h);
+}
+
+/* Saved streams (issue #119): a chip that plays, and a ⋯ chip beside it for
+ * the rest.  A long list scrolls inside its own box so Play and the samples
+ * stay on screen; focusing a chip scrolls it into view. */
+.saved-streams { margin-top: 32px; }
+.saved-streams-list {
+    width: 100%;
+    max-height: 260px;
+    overflow-y: auto;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.saved-item { display: inline-flex; align-items: center; margin: 7px; }
+.saved-item .preset { margin: 0; max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.saved-item .saved-more { margin-left: 6px; padding: 12px 18px; }
+
+/* The name/URL form takes the screen while it's open. */
+.saved-edit { display: none; width: 100%; max-width: 1080px; flex-direction: column; align-items: center; }
+.saved-edit .url-input-wrap + .url-input-wrap { margin-top: 28px; }
+#view-url.editing .saved-edit { display: flex; }
+#view-url.editing > :not(.brand):not(.saved-edit) { display: none; }
+
+.actions {
+    display: flex;
+    margin-top: 48px;
+    justify-content: center;
+}
+.actions > .btn + .btn { margin-left: 24px; }
+
+.btn {
+    border: 3px solid transparent;
+    border-radius: 999px;
+    padding: 18px 56px;
+    font-size: 22px;
+    font-weight: 500;
+    transition: border-color .15s ease, background .15s ease, color .15s ease, transform .15s ease;
+}
+.btn.primary {
+    /* Resting primary: a faint tint + accent label, so it reads as the main
+     * action WITHOUT looking like the solid accent focus highlight. */
+    background: var(--accent-soft);
+    color: var(--accent-2);
+    font-weight: 600;
+}
+.btn.primary:focus, .btn.primary.focused {
+    /* Solid fill + glow only when it actually has focus. */
+    background: var(--accent);
+    color: #0a0a0a;
+    transform: scale(1.04);
+    box-shadow: 0 0 0 6px var(--accent-soft);
+}
+.btn.ghost {
+    background: var(--bg-card);
+    color: var(--fg);
+    border-color: var(--border);
+}
+.btn.ghost:focus, .btn.ghost.focused {
+    border-color: var(--accent);
+    background: var(--bg-card-h);
+    transform: scale(1.04);
+}
+
+/* ── File browser ─────────────────────────────────────────────────── */
+#view-browse {
+    /* Browser needs the full width for the list; centre the container only */
+    justify-content: flex-start;
+}
+.browse-path {
+    color: var(--fg-mute);
+    font-size: 20px;
+    margin-bottom: 16px;
+    word-break: break-all;
+    width: 100%;
+    max-width: 1400px;
+    text-align: left;
+}
+.browse-list {
+    flex: 1;
+    width: 100%;
+    max-width: 1400px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    background: var(--bg-card);
+    border-radius: var(--r);
+    border: 1px solid var(--border);
+    text-align: left;
+}
+/* File explorers present folders and files as a grid of tiles; the playlist
+ * channel list keeps the row layout.  Tiles are their own surfaces — the
+ * container only lays them out, so nothing groups them into one panel. */
+.browse-list.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 16px;
+    padding: 0;
+    align-content: start;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+}
+.browse-list.grid li {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 16px;
+    border-bottom: 0;
+    border-radius: var(--r);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    min-height: 168px;
+}
+.browse-list.grid li > * + * { margin-left: 0; }
+.browse-list.grid li.focused {
+    border-left: 0;
+    padding-left: 16px;
+    background: rgba(255,255,255,.12);
+    outline: 1px solid rgba(255,255,255,.75); outline-offset: -1px;
+}
+.browse-list.grid .icon { width: auto; flex: 0 0 auto; }
+.browse-list.grid .icon .remix-icon { width: 48px; height: 48px; }
+.browse-list.grid .name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    font-size: 20px;
+}
+.browse-list.grid .meta { margin-left: 0; }
+.browse-list.grid .fav-mark, .browse-list.grid .watched { position: absolute; top: 12px; right: 12px; }
+.browse-list.grid li { position: relative; }
+
+/* ── Carousels on the USB and Network roots ───────────────────────── */
+.strip-wrap { width: 100%; max-width: 1400px; margin-bottom: 24px; text-align: left; }
+.strip + .strip { margin-top: 20px; }
+.strip-title {
+    font-size: 18px; line-height: 1.4; color: #ccc;
+    text-transform: uppercase; letter-spacing: 2px; font-weight: 600;
+    margin: 0 0 10px;
+}
+.strip-list {
+    list-style: none; margin: 0;
+    /* Padding leaves room for the 7px focus halo and the tile lift. */
+    padding: 10px 12px 16px;
+    display: flex; flex-direction: row; gap: 20px;
+    overflow-x: auto; overflow-y: hidden;
+}
+.strip-card { flex: 0 0 240px; min-width: 0; }
+.strip-open {
+    display: flex; flex-direction: column; align-items: stretch;
+    width: 100%; padding: 0; text-align: left; color: var(--fg-mute);
+    background: transparent;
+}
+.strip-open .up-next-thumb { height: 135px; margin-bottom: 8px; }
+.strip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 20px; }
+.strip-open.focused .up-next-thumb, .strip-open:focus .up-next-thumb {
+    outline: 3px solid #fff; box-shadow: 0 0 0 7px rgba(255,255,255,.25);
+}
+.strip-open.focused, .strip-open:focus { outline: none; }
+.strip-open.focused .strip-name, .strip-open:focus .strip-name { color: var(--fg); }
+
+/* Network configuration is a centred card over a dim scrim, exactly like the
+ * player's Info modal — not a corner menu. */
+#view-network .net-config {
+    position: absolute;
+    top: 50%; right: auto; bottom: auto; left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 50;
+    width: 760px; min-width: 0; max-width: calc(100vw - 80px);
+    max-height: calc(100vh - 140px);
+    border-radius: 16px;
+    padding: 32px;
+    text-align: left;
+}
+#view-network .net-config > h2 { margin: 0 0 24px; font-size: 26px; }
+#view-network .net-config .net-form { margin: 0 0 16px; }
+#view-network .net-config .settings-row { background: var(--bg-2); }
+#view-network .net-config > .btn { align-self: center; min-width: 220px; margin-top: 8px; }
+#net-scrim { z-index: 40; }
+/* A source that is not the chosen network method reads as unavailable. */
+.tile.disabled { opacity: .45; }
+.tile.disabled .tile-label { color: var(--fg-dim); }
+
+/* The cast page's QR: say why it is missing instead of showing a blank box. */
+.qr-missing {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; height: 100%; padding: 12px; text-align: center;
+    color: #0a0a0a; font-size: 16px; line-height: 1.3;
+}
+.browse-list li {
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    transition: background .12s ease, border-left .12s ease;
+    color: var(--fg);
+    font-size: 22px;
+}
+.browse-list li > * + * { margin-left: 24px; }
+.browse-list li:last-child { border-bottom: 0; }
+.browse-list li.focused {
+    background: rgba(255,255,255,.12);
+    outline: 1px solid rgba(255,255,255,.75); outline-offset: -1px;
+    border-left: 6px solid var(--accent);
+    padding-left: 26px;
+}
+.browse-list .icon {
+    width: 36px; flex: 0 0 36px;
+    text-align: center;
+    font-size: 22px;
+    color: var(--accent);
+}
+.browse-list .name { flex: 1; }
+.browse-list .meta {
+    color: var(--fg-mute);
+    font-size: 18px;
+    flex-shrink: 0;
+}
+/* Watched indicator: a green check on already-seen items, with the row
+ * dimmed so unseen episodes stand out when scanning a series folder. */
+.browse-list .watched {
+    flex-shrink: 0;
+    color: var(--fg-mute);
+    font-size: 20px;
+    font-weight: 600;
+}
+.browse-list li.watched-item .name { color: var(--fg-mute); }
+/* Playlist filter (issue #122), above the list. */
+.playlist-filter { width: 100%; max-width: 1400px; margin-bottom: 16px; }
+.playlist-filter input {
+    width: 100%;
+    background: var(--bg-card);
+    color: var(--fg);
+    font: inherit;
+    font-size: 22px;
+    border: 2px solid var(--border);
+    border-radius: var(--r-sm);
+    padding: 14px 24px;
+}
+.playlist-filter input::placeholder { color: var(--fg-dim); }
+.playlist-filter input:focus, .playlist-filter input.focused {
+    outline: none;
+    border-color: var(--accent);
+    background: var(--bg-card-h);
+    box-shadow: 0 0 0 4px var(--accent-soft);
+}
+/* Channel logos (issue #123): a fixed box so rows don't shift when one
+ * arrives; the plain icon shows until it has loaded. */
+.browse-list .channel-icon { width: 64px; flex: 0 0 64px; height: 40px; display: flex; align-items: center; justify-content: center; }
+.browse-list .channel-icon > img { display: none; max-width: 64px; max-height: 40px; object-fit: contain; }
+.browse-list .channel-icon.has-logo > img { display: block; }
+.browse-list .channel-icon.has-logo .glyph { display: none; }
+/* A playlist channel that is on Saved streams (issue #121). */
+.browse-list .saved-mark { display: none; flex-shrink: 0; color: var(--accent); font-size: 22px; }
+.browse-list li.is-saved .saved-mark { display: inline; }
+/* A folder pinned to Favorites (issue #140). */
+.browse-list .fav-mark { display: none; flex-shrink: 0; color: var(--accent); font-size: 22px; }
+.browse-list li.is-fav .fav-mark { display: inline; }
+.browse-list li.watched-item .icon { opacity: .6; }
+
+/* ── Player ───────────────────────────────────────────────────────── */
+#player-object {
+    position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+    width: 100%; height: 100%;
+    background: transparent;  /* let video plane show; body underneath is black */
+}
+
+#html5-video {
+    position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #000;
+    display: none;  /* shown only when playing a local file */
+}
+
+/* AVPlay subtitle overlay — for embedded text/subtitle tracks selected via
+ * the CC menu.  AVPlay fires onsubtitlechange(duration, text, ...) and we
+ * paint into this element.  HTML5 <track> handles its own rendering. */
+/* Size + font come from the user's Settings via CSS custom properties set in
+ * SubtitleStyle.apply(); position + background come from the sub-pos-XXX and
+ * sub-bg classes toggled on this element.  Defaults below match the medium/
+ * sans/bottom/none preset so the overlay looks right even before apply() runs. */
+/* Cues are painted by the app: they belong to the player view and must not
+ * linger over Home when audio plays on in the background. */
+body:not(.player-view) #subtitle-overlay { display: none; }
+#subtitle-overlay {
+    position: absolute;
+    left: 8%; right: 8%;
+    bottom: 8%;
+    text-align: center;
+    color: #fff;
+    font-size: var(--sub-size, 36px);
+    font-family: var(--sub-font, 'SamsungOne', 'Samsung Sans', 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif);
+    font-weight: 500;
+    line-height: 1.3;
+    text-shadow:
+         0 0 4px rgba(0,0,0,.95),
+         2px 2px 0 rgba(0,0,0,.85),
+        -2px 2px 0 rgba(0,0,0,.85),
+         2px -2px 0 rgba(0,0,0,.85),
+        -2px -2px 0 rgba(0,0,0,.85);
+    pointer-events: none;
+    /* Above playback chrome, below menus and modal scrims. */
+    z-index: 10;
+}
+/* Position presets.  Bottom is the default; middle/top free the opposite
+ * anchor so the block grows in the right direction. */
+#subtitle-overlay.sub-pos-bottom { top: auto; bottom: 8%; transform: none; }
+#subtitle-overlay.sub-pos-top    { bottom: auto; top: 8%; transform: none; }
+#subtitle-overlay.sub-pos-middle { top: 50%; bottom: auto; transform: translateY(-50%); }
+
+/* The cue text lives in a .sub-line span so a translucent box (when enabled)
+ * hugs the text instead of spanning the full 8%-to-8% width. */
+#subtitle-overlay .sub-line {
+    /* inline-block is more reliable than inline on Tizen Chromium 63 for
+     * absolutely-positioned text-align:center containers — pure inline
+     * spans sometimes rendered invisibly there. */
+    display: inline-block;
+    white-space: pre-line;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+#subtitle-overlay.sub-bg .sub-line {
+    background: rgba(0,0,0,.65);
+    padding: .08em .35em;
+    border-radius: 6px;
+    /* Outline is redundant over a solid box — drop the heavy shadow there. */
+    text-shadow: 0 0 3px rgba(0,0,0,.8);
+}
+@supports ((backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px))) {
+    #subtitle-overlay.sub-bg .sub-line {
+        background: rgba(0,0,0,.45);
+        -webkit-backdrop-filter: blur(8px);
+        backdrop-filter: blur(8px);
+    }
+}
+
+#view-player {
+    padding: 0;
+    pointer-events: none;
+    align-items: stretch;
+    justify-content: stretch;
+}
+
+.osd {
+    position: absolute; left: 0; right: 0;
+    color: var(--fg);
+    pointer-events: auto;
+    opacity: 1; transform: translateY(0); visibility: visible;
+    transition: opacity .18s ease-out, transform .18s ease-out, visibility 0s;
+}
+/* Keep OSDs laid out for a reversible fade/slide, not a display toggle. */
+.osd.hidden {
+    display: block !important; opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity .18s ease-out, transform .18s ease-out, visibility 0s .18s;
+}
+.osd-top.hidden { transform: translateY(-12px); }
+.osd-bottom.hidden { transform: translateY(18px); }
+@media (prefers-reduced-motion: reduce) {
+    .osd, .osd.hidden { transition: none; transform: none; }
+}
+.osd-top {
+    top: 0;
+    padding: 32px 60px 100px;
+    background: linear-gradient(180deg, rgba(0,0,0,.85), rgba(0,0,0,0));
+    text-align: left;
+}
+.osd-bottom {
+    bottom: 0;
+    padding: 100px 60px 48px;
+    background: linear-gradient(0deg, rgba(0,0,0,.92), rgba(0,0,0,0));
+}
+/* Without the queue below (single file, audio) the transport can sit
+ * closer to the bottom edge. */
+body:not(.has-queue) .osd-bottom { padding-bottom: 24px; }
+
+#osd-title {
+    font-size: 28px;
+    font-weight: 500;
+}
+
+.time {
+    direction: ltr;
+    display: flex;
+    align-items: center;
+    margin-bottom: 32px;
+    font-variant-numeric: tabular-nums;
+    font-size: 22px;
+    color: var(--fg);
+}
+.time > * + * { margin-left: 24px; }
+.progress-track {
+    position: relative;
+    flex: 1;
+    height: 6px;
+    background: rgba(255,255,255,.18);
+    border-radius: 3px;
+}
+.progress-fill {
+    position: relative;
+    height: 100%; width: 0%;
+    background: var(--accent);
+    border-radius: 3px;
+    transition: width .25s linear;
+}
+/* Position dot at the fill tip so the current spot reads at a glance. */
+.progress-fill::after {
+    content: '';
+    position: absolute; right: -9px; top: 50%;
+    transform: translateY(-50%);
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: #fff;
+}
+/* Scrub mode: the fill previews the seek destination, so it must track key
+ * repeats instantly (no easing) and read as "not the real position yet". */
+.progress-fill.scrubbing {
+    transition: none;
+    background: #fff;
+}
+/* Rides above the track at the preview tip while scrubbing: absolutely
+ * positioned so showing/hiding it never resizes the time row. */
+.scrub-delta {
+    position: absolute;
+    bottom: 34px;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    color: #0e0e0e;
+    background: #fff;
+    border: none;
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 20px;
+    line-height: 1.3;
+    font-variant-numeric: tabular-nums;
+    font-weight: 400;
+}
+
+.controls {
+    direction: ltr;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.transport-controls { display: flex; align-items: center; justify-content: center; }
+.transport-controls > * + * { margin-left: 20px; }
+.controls .ctrl { flex-shrink: 0; }
+.ctrl img { width: 28px; height: 28px; filter: invert(1); pointer-events: none; }
+.ctrl.big img { width: 40px; height: 40px; }
+.controls .more-control { position: absolute; right: 0; }
+.controls .control-left { position: absolute; left: 0; }
+/* Active toggles (shuffle / repeat) read as "on" by weight, not colour. */
+#osd-bottom .ctrl.repeat-on, #osd-bottom .ctrl.shuffle-on {
+    background: rgba(255,255,255,.34);
+    border-color: #fff;
+}
+/* Up Next: the queue carousel under the transport controls. No container
+ * card — thumbnail tiles sit directly on the OSD gradient, artwork on
+ * top, title underneath, progress drawn over the picture. The strip sits
+ * partially hidden until a card takes focus. */
+.up-next {
+    margin-top: 24px; text-align: left;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0 4px;
+    max-height: 480px;
+    overflow: hidden;
+    opacity: 1;
+    transition: opacity .18s ease-out, max-height .18s ease-out;
+}
+.up-next-title {
+    font-size: 18px; line-height: 1.4; color: #bbb;
+    text-transform: uppercase; letter-spacing: 2px;
+    font-weight: 600;
+    margin: 0 8px 12px;
+}
+#up-next-list {
+    direction: ltr;
+    list-style: none; margin: 0;
+    /* Room for the focus ring halo (8px) and the 2px lift so rings and
+     * tiles never clip against the scroll box. */
+    padding: 12px 12px 18px;
+    display: flex; flex-direction: row; gap: 24px;
+    overflow-x: auto; overflow-y: hidden;
+}
+.up-next-card { flex: 0 0 300px; min-width: 0; }
+#up-next-list button {
+    display: flex; flex-direction: column; align-items: stretch;
+    width: 100%; padding: 0;
+    text-align: left;
+    background: transparent; color: var(--fg-mute);
+    font-size: 22px; line-height: 1.35;
+    transition: transform .15s ease, color .15s ease;
+}
+.up-next-thumb {
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; height: 166px; margin-bottom: 10px;
+    border-radius: 12px; overflow: hidden;
+    background: var(--bg-3);
+    transition: box-shadow .15s ease, transform .15s ease;
+}
+.up-next-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.up-next-glyph .remix-icon { width: 56px; height: 56px; opacity: .6; }
+/* Progress drawn over the thumbnail's lower edge. */
+.up-next-progress {
+    position: absolute; left: 12px; right: 12px; bottom: 10px;
+    display: block; height: 4px;
+    background: rgba(255,255,255,.28); border-radius: 3px; overflow: hidden;
+    box-shadow: 0 0 4px rgba(0,0,0,.5);
+}
+.up-next-progress .up-next-fill { display: block; height: 100%; width: 0; background: #fff; }
+.up-next-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Playing now: a steady white ring. */
+#up-next-list button.active .up-next-thumb { box-shadow: 0 0 0 3px #fff; }
+#up-next-list button.active { color: #fff; }
+#up-next-list button.active .up-next-name { font-weight: 600; }
+/* Cursor: brighter ring, a soft glow, and the tile lifted slightly. */
+#up-next-list button .up-next-thumb { outline: none; }
+#up-next-list button.focused .up-next-thumb,
+#up-next-list button:focus .up-next-thumb {
+    box-shadow: 0 0 0 3px #fff, 0 0 0 8px rgba(255,255,255,.28);
+    transform: scale(1.04);
+}
+#up-next-list button.focused, #up-next-list button:focus { outline: none; }
+#up-next-list button.focused .up-next-name,
+#up-next-list button:focus .up-next-name { color: #fff; }
+/* Collapsed until focused: the title and a sliver of the cards show. */
+.up-next:not(:focus-within) { max-height: 78px; opacity: .55; }
+@media (prefers-reduced-motion: reduce) {
+    .up-next { transition: none; }
+}
+.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 260px; }
+/* The queue strip below the transport is part of the OSD: lift cues above
+ * it too, higher still while a card holds focus and the strip is tall. */
+body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 430px; }
+body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 520px; }
+.more-option {
+    display: flex; align-items: center;
+    width: 100%; padding: 14px 18px;
+    text-align: left; border-radius: 8px;
+    white-space: nowrap;
+}
+.more-option .more-label { flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.more-option .more-value { flex: 0 1 auto; min-width: 0; max-width: 60%; margin-left: 24px; color: var(--fg-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.more-option .chevron { flex: 0 0 auto; width: 24px; height: 24px; margin-left: 16px; filter: invert(1); }
+.more-option.focused, .more-option:focus {
+    background: rgba(255,255,255,.12);
+    outline: 1px solid rgba(255,255,255,.75); outline-offset: -1px;
+}
+/* Playback cards never show a browser focus ring: focus is the row fill. */
+#view-player .more-option:focus, #view-player .more-option:focus-visible,
+#view-player .track-section li:focus, #view-player .track-section li:focus-visible,
+.player-view #picker li:focus, .player-view #picker li:focus-visible { outline: none; }
+.more-icon { flex: 0 0 auto; width: 26px; height: 26px; margin-right: 14px; filter: invert(1); pointer-events: none; }
+.sync-control {
+    direction: ltr;
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; min-height: 60px; padding: 14px 18px; margin-bottom: 8px;
+    background: rgba(255,255,255,.08); border-radius: 8px;
+    font-size: 26px; line-height: 1.25; font-variant-numeric: tabular-nums;
+}
+.sync-control img { width: 24px; height: 24px; filter: invert(1); pointer-events: none; }
+.sync-control.focused, .sync-control:focus {
+    background: rgba(255,255,255,.12);
+    outline: 1px solid rgba(255,255,255,.75); outline-offset: -1px;
+}
+#view-player #track-level-sync button.focused, #view-player #track-level-sync button:focus {
+    outline: 1px solid rgba(255,255,255,.75); outline-offset: -1px;
+}
+/* Settings subsections inside the subtitle panel: sync and appearance
+ * rows separated from the track list, More-row styling. */
+.track-subsection { margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.12); }
+.track-subsection-title {
+    margin: 0 0 8px; padding: 4px 18px 8px;
+    font-size: 18px; line-height: 1.4; color: #ccc;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+/* Monochrome playback: every control, popup, spinner, error treatment
+ * inherit monochrome values. */
+#view-player {
+    --accent: #fff; --accent-2: #fff; --accent-soft: rgba(255,255,255,.2);
+}
+#view-player .track-menu, .player-view #picker {
+    --accent: #fff;
+    --accent-2: #fff;
+    --accent-soft: rgba(255,255,255,.18);
+    --bg-card: rgba(255,255,255,.08);
+    --bg-card-h: rgba(255,255,255,.18);
+    --bg-3: rgba(255,255,255,.24);
+    --fg-mute: #ccc;
+    background: rgba(21,21,21,.78);
+    border: 1px solid rgba(255,255,255,.12);
+}
+#player-timeline:focus, #player-timeline.focused { outline: none; }
+/* Focus lands on the position dot, not the whole time row. */
+#player-timeline:focus .progress-fill::after,
+#player-timeline.focused .progress-fill::after {
+    width: 22px; height: 22px;
+    box-shadow: 0 0 0 8px rgba(255,255,255,.28);
+}
+#osd-bottom .ctrl.big { background: rgba(255,255,255,.2); color: white; }
+#osd-bottom .ctrl.big.focused, #osd-bottom .ctrl.big:focus { background: rgba(255,255,255,.35); }
+/* Round controls blur the picture behind them, like the menus do. */
+@supports ((backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px))) {
+    #osd-bottom .ctrl {
+        -webkit-backdrop-filter: blur(20px);
+        backdrop-filter: blur(20px);
+    }
+}
+@media (max-width: 700px) {
+    .osd-bottom { padding-left: 24px; padding-right: 24px; }
+    .transport-controls > * + * { margin-left: 8px; }
+    .controls .ctrl { width: 44px; height: 44px; }
+    .controls .ctrl.big { width: 60px; height: 60px; }
+    .up-next-card { flex-basis: 200px; }
+    .up-next-thumb { height: 110px; }
+}
+@media (max-width: 1060px) and (min-width: 701px) {
+    .transport-controls > * + * { margin-left: 12px; }
+    .controls .ctrl.big { width: 86px; height: 86px; }
+    .up-next-card { flex-basis: 220px; }
+    .up-next-thumb { height: 122px; }
+}
+
+/* Visual separator pushes Stop apart from the playback / track controls so
+ * an accidental over-press from play-pause can't land on it. */
+.ctrl-sep {
+    display: inline-block;
+    width: 1px;
+    height: 56px;
+    margin: 0 28px;
+    background: rgba(255,255,255,.12);
+}
+.ctrl {
+    position: relative;
+    background: rgba(255,255,255,.08);
+    /* A subtle semi-transparent rim so the round buttons read against the
+     * picture even before focus. */
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 50%;
+    width: 64px; height: 64px;
+    font-size: 24px;
+    color: var(--fg);
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color .15s ease, background .15s ease, transform .15s;
+}
+.ctrl.big {
+    width: 96px; height: 96px;
+    font-size: 36px;
+    background: var(--accent);
+    color: #0a0a0a;
+}
+.ctrl:focus, .ctrl.focused {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    transform: scale(1.06);
+}
+.ctrl.big:focus, .ctrl.big.focused {
+    background: var(--accent-2);
+    border-color: var(--accent-2);
+}
+/* Prev/Next greyed out when there's no sibling in that direction.  Stays
+ * focusable so the remote doesn't get stuck skipping over it. */
+.ctrl.disabled { opacity: .35; }
+
+/* ── Spinner ──────────────────────────────────────────────────────── */
+.spinner {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    pointer-events: auto;
+}
+.spinner-ring {
+    width: 80px; height: 80px;
+    border: 6px solid rgba(255,255,255,.15);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    margin: 0 auto 24px;
+    animation: spin 1s linear infinite;
+}
+.spinner-text { font-size: 24px; color: var(--fg-mute); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Error overlay ────────────────────────────────────────────────── */
+.error-overlay {
+    position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+    background: rgba(10,20,35,.96);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 80px;
+    pointer-events: auto;
+    text-align: center;
+    z-index: 100;  /* keep above OSDs so the "Back" button is clickable */
+}
+.error-overlay > * + * { margin-top: 24px; }
+
+/* Big yellow warning icon for visibility, white message text for readability,
+ * muted secondary line for the codec hint.  Red on navy was too low contrast. */
+.error-icon {
+    width: 96px; height: 96px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    border: 4px solid var(--accent);
+    color: var(--accent);
+    font-size: 56px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1;
+}
+.error-title {
+    font-size: 36px;
+    font-weight: 500;
+    color: var(--fg);
+    max-width: 1200px;
+}
+.error-hint {
+    font-size: 20px;
+    color: var(--fg-mute);
+    max-width: 1000px;
+    line-height: 1.5;
+    white-space: pre-line;  /* respect \n in the hint text so ffmpeg cmds are on their own lines */
+    text-align: left;
+}
+/* Legacy — kept in case any pre-update DOM still references it */
+.error-msg {
+    font-size: 26px;
+    color: var(--fg);
+    max-width: 1100px;
+    line-height: 1.4;
+}
+
+/* ── Track menu ───────────────────────────────────────────────────── */
+.track-menu {
+    z-index: 20;
+    position: absolute; right: 60px; bottom: 240px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 24px;
+    min-width: 480px;
+    max-width: 600px;
+    /* Grows upward from bottom:240px, so cap it well short of the top of
+     * the screen.  Rips with 20+ subtitle tracks used to push the first
+     * entries off-screen where the D-pad could reach them but nothing was
+     * visible; the list now scrolls inside .track-menu-body instead. */
+    max-height: calc(100vh - 320px);
+    display: flex;
+    flex-direction: column;
+    pointer-events: auto;
+    text-align: left;
+}
+.track-menu-body {
+    flex: 1 1 auto;
+    min-height: 0;              /* required for a flex child to actually scroll */
+    overflow-y: auto;
+    padding: 0;
+    margin: 0;
+}
+/* The scrollbar is decoration on a TV — nobody drags it — but a visible
+ * track is the only cue that there's more list below. */
+.track-menu-body::-webkit-scrollbar { width: 8px; }
+.track-menu-body::-webkit-scrollbar-thumb {
+    background: var(--bg-3);
+    border-radius: 4px;
+}
+.track-menu h2 {
+    margin: 0 0 20px;
+    font-size: 24px;
+    font-weight: 500;
+}
+.track-section { margin-bottom: 24px; }
+.track-section h3 {
+    margin: 0 0 12px;
+    font-size: 16px;
+    color: var(--fg-mute);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+}
+.track-section ul { list-style: none; margin: 0; padding: 0; }
+.track-section li {
+    padding: 12px 18px;
+    border-radius: 8px;
+    transition: background .12s ease;
+    color: var(--fg);
+}
+.track-section li.focused {
+    background: rgba(255,255,255,.12);
+    outline: 1px solid rgba(255,255,255,.75); outline-offset: -1px;
+}
+.track-section li.active::before {
+    content: ''; display: inline-block; width: 24px; height: 24px; margin-right: 8px;
+    vertical-align: middle; background: url('../assets/remix/check-line.svg') center / contain no-repeat; filter: invert(1);
+}
+.track-section li.muted { color: var(--fg-dim); font-style: italic; }
+
+/* Dim layer behind the file-info card modal. Plain element, no focusables. */
+.modal-scrim {
+    position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+    background: rgba(0,0,0,.55);
+    z-index: 40;
+}
+/* INFO panel (issue #128): label / value rows in the track menu's box. */
+.file-info dl {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 12px 28px;
+    margin: 0 0 8px;
+    font-size: 20px;
+}
+.file-info dt { color: var(--fg-mute); }
+.file-info dd { margin: 0; }
+.file-info dd.warn { color: var(--fg); font-weight: 600; }
+/* INFO is a card modal in the player, styled like the playback menus.
+ * Two classes outrank the shared .track-menu surface and its blur rule. */
+#view-player .track-menu.file-info {
+    z-index: 50;
+    top: 50%; right: auto; bottom: auto; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 760px; min-width: 0; max-width: calc(100vw - 80px);
+    max-height: calc(100vh - 140px);
+    border-radius: 16px;
+    padding: 32px;
+    align-items: stretch; justify-content: flex-start;
+    text-align: left;
+}
+#view-player .track-menu.file-info > h2 { font-size: 26px; min-height: 0; margin: 0 0 24px; padding: 0; }
+#view-player .file-info .track-menu-body {
+    flex: 0 1 auto; width: 100%; overflow-y: auto;
+    padding: 0; margin: 0;
+}
+#view-player .file-info dl {
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 14px 40px; margin: 0;
+    font-size: 24px; text-align: left;
+}
+#view-player .file-info dd { min-width: 0; overflow-wrap: break-word; word-break: break-word; }
+#view-player .file-info > .btn.ghost {
+    flex-shrink: 0; width: 100%; margin-top: 24px;
+    padding: 14px 18px; font-size: 26px; line-height: 1.25;
+    border-radius: 8px; transform: none;
+    background: rgba(255,255,255,.08); border: 2px solid rgba(255,255,255,.12);
+}
+#view-player .file-info > .btn.ghost.focused, #view-player .file-info > .btn.ghost:focus {
+    background: rgba(255,255,255,.18); border-color: rgba(255,255,255,.65);
+}
+
+/* ── Hints / footer ───────────────────────────────────────────────── */
+.hint {
+    margin-top: 48px;
+    color: var(--fg-mute);
+    font-size: 18px;
+}
+.key {
+    display: inline-block;
+    background: var(--bg-3);
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-family: 'Consolas', monospace;
+    color: var(--fg);
+    font-size: 16px;
+    margin: 0 4px;
+}
+
+/* Word/percentage labels ("Fit", "125%") in the round OSD buttons need a
+ * smaller type size than the glyph controls to stay inside the circle. */
+.ctrl.ctrl-text { font-size: 18px; }
+
+/* ── Repeat / shuffle / aspect buttons (active state highlight) ──── */
+.ctrl.repeat-on,
+.ctrl.shuffle-on,
+.ctrl.aspect-on {
+    color: var(--accent);
+    background: var(--accent-soft);
+}
+.ctrl.repeat-one::after {
+    content: '1';
+    position: absolute;
+    top: -2px; right: -2px;
+    width: 18px; height: 18px;
+    line-height: 18px;
+    text-align: center;
+    background: var(--accent);
+    color: var(--bg);
+    font-size: 12px; font-weight: 600;
+    border-radius: 50%;
+}
+.ctrl { position: relative; }   /* needed for the badge above */
+
+/* ── Settings view ───────────────────────────────────────────────── */
+#view-settings {
+    justify-content: flex-start;
+    align-items: flex-start;
+}
+.settings-content {
+    width: 100%;
+    max-width: 1100px;
+    text-align: left;
+    overflow-y: auto;
+    padding-bottom: 80px;
+    /* Hard-cap the scroll-region height so the TV-info panel always overflows
+     * and the Down-arrow scroll handler has something to scroll into.  Tuned
+     * for 1080p (window.innerHeight = 1080) but works fine on smaller too.
+     * flex-basis instead of height: inside the flex column the box must be
+     * allowed to shrink, or the last row scrolls out of reach. */
+    height: calc(100vh - 260px);
+    min-height: 0;
+    flex: 0 1 auto;
+    /* Hide the native scrollbar — we navigate via remote, not pointer. */
+    scrollbar-width: none;
+}
+.settings-content::-webkit-scrollbar { display: none; }
+.settings-group {
+    margin-bottom: 40px;
+}
+.settings-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 22px 28px;
+    margin-bottom: 12px;
+    background: var(--bg-card);
+    border: 3px solid var(--border);
+    border-radius: var(--r);
+    color: var(--fg);
+    text-align: left;
+    transition: border-color .15s ease, background .15s ease;
+}
+.settings-row:focus, .settings-row.focused {
+    border-color: rgba(255,255,255,.75);
+    background: rgba(255,255,255,.12);
+    box-shadow: none;
+}
+.settings-label { font-size: 24px; }
+
+/* SMB text fields: stack the label above a full-width input so the focusable
+ * <input> shares the same horizontal centre as the full-width button rows.
+ * The D-pad nav is geometric and penalises horizontal offset, so a narrow
+ * right-aligned input gets skipped over — a centred, full-width one doesn't. */
+.settings-row-input {
+    flex-direction: column;
+    align-items: stretch;
+}
+.settings-row-input .settings-label { margin-bottom: 12px; }
+.settings-row-input input {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 22px;
+    padding: 12px 16px;
+    background: var(--bg);
+    border: 2px solid var(--border);
+    border-radius: var(--r-sm);
+    color: var(--fg);
+}
+.settings-row-input:focus-within,
+.settings-row-input input:focus,
+.settings-row-input input.focused {
+    border-color: var(--accent);
+    outline: none;
+}
+.settings-value {
+    font-size: 20px;
+    color: var(--accent);
+    font-weight: 500;
+}
+.settings-switch {
+    display: inline-block;
+    position: relative;
+    width: 64px;
+    height: 36px;
+    border-radius: 24px;
+    background: #2c2c2c;
+    flex: 0 0 auto;
+}
+.settings-switch::after {
+    content: '';
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    top: 5px;
+    inset-inline-start: 5px;
+    background: #f4f4f4;
+}
+.settings-switch.on { background: #f4f4f4; }
+.settings-switch.on::after { inset-inline-start: 33px; background: #151515; }
+.page-heading { text-align: start; margin: 64px 0 48px; }
+.page-heading h1 { margin: 0 0 12px; font-size: 52px; font-weight: 600; }
+.page-heading p { margin: 0; color: var(--fg-dim); font-size: 28px; }
+#view-settings .settings-content { max-width: 1430px; width: 100%; margin: 0; }
+#view-settings .settings-group { margin-bottom: 16px; }
+#view-settings .settings-row { border-radius: 8px; min-height: 80px; }
+#view-settings .settings-row.focused { outline: none; box-shadow: inset 0 0 0 2px #f4f4f4; }
+#view-settings .tvinfo { margin-top: 48px; }
+.settings-row .settings-value {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+}
+.settings-section-title {
+    margin: 20px 0 16px;
+    font-size: 22px;
+    color: var(--fg-mute);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-weight: 500;
+}
+
+/* Collapsible section header — looks like the bare h2 above, but is a
+ * focusable button so D-pad navigation can expand the group on press.
+ * Sections containing text-input rows (SMB, Debug logging) are collapsed
+ * by default so passing them with the D-pad doesn't pop the on-screen
+ * keyboard for every input on the way past — that was the trigger for
+ * the lag / crash described in issue #28. */
+.settings-section-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    margin: 20px 0 16px;
+    background: transparent;
+    border: 2px solid transparent;
+    border-radius: var(--r);
+    color: var(--fg-mute);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+.settings-section-toggle .settings-section-title { margin: 0; }
+.settings-section-toggle:focus,
+.settings-section-toggle.focused {
+    border-color: var(--accent);
+    background: var(--bg-card);
+    color: var(--fg);
+    outline: none;
+    box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.settings-section-chev {
+    font-size: 20px;
+    color: var(--fg-dim);
+    transition: transform .15s ease;
+    margin-left: 16px;
+}
+/* Expanded state (default rendering of an open <button aria-expanded="true">) */
+.settings-section-toggle[aria-expanded="true"] .settings-section-chev {
+    transform: rotate(90deg);
+}
+
+/* Hide the collapsed group entirely.  display:none means descendants have
+ * offsetParent === null, which the UI focus filter (ui.js:48) treats as
+ * non-focusable — exactly what we want, the keyboard never gets a chance
+ * to pop for hidden inputs. */
+.settings-group.is-collapsed { display: none; }
+
+/* TV info table */
+.tvinfo {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 24px 28px;
+    font-size: 19px;
+    line-height: 1.6;
+}
+.tvinfo .row {
+    display: flex;
+    align-items: baseline;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+}
+.tvinfo .row:last-child { border-bottom: 0; }
+.tvinfo .k { flex: 0 0 220px; color: var(--fg-mute); }
+.tvinfo .v { flex: 1; color: var(--fg); word-break: break-all; }
+.tvinfo h3 {
+    margin: 18px 0 8px;
+    font-size: 18px;
+    color: var(--fg-mute);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-weight: 500;
+}
+/* 2-column grid for the codec list — twice the density so everything fits
+ * on a 1080p screen without needing to scroll. */
+.tvinfo .codecs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-column-gap: 28px;   /* grid-column-gap for Chromium 63 */
+}
+.tvinfo .codec {
+    display: flex;
+    padding: 4px 0;
+    font-size: 18px;
+}
+.tvinfo .codec .name { flex: 0 0 160px; color: var(--fg-mute); }
+.tvinfo .codec .status.ok    { color: #6ad06a; }
+.tvinfo .codec .status.maybe { color: var(--accent-2); }
+.tvinfo .codec .status.no    { color: var(--danger); }
+
+/* "Support this app" Ko-fi block */
+.support-block {
+    display: flex;
+    align-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 24px 28px;
+    margin-bottom: 24px;
+}
+.support-qr {
+    flex: 0 0 200px;
+    width: 200px;
+    height: 200px;
+    background: #fff;       /* keep QR readable on dark surfaces */
+    padding: 10px;
+    border-radius: 12px;
+    image-rendering: pixelated;
+    margin-right: 32px;     /* flex `gap` is unsupported on the TV WebView (Chromium 63) */
+}
+.support-text { flex: 1; }
+.support-headline {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--fg);
+    margin-bottom: 6px;
+}
+.support-hint {
+    font-size: 18px;
+    color: var(--fg-mute);
+    line-height: 1.5;
+}
+
+/* ── Picker overlay (settings options, modal) ────────────────────── */
+.picker {
+    position: fixed;
+    top: 10%; left: 50%;
+    transform: translateX(-50%);
+    width: 600px; max-width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    background: var(--bg-card);
+    border: 2px solid var(--border);
+    border-radius: var(--r);
+    padding: 32px;
+    z-index: 200;
+    text-align: left;
+}
+.picker h2 {
+    margin: 0 0 20px;
+    font-size: 24px;
+    font-weight: 500;
+    color: var(--fg);
+}
+.picker ul {
+    list-style: none; margin: 0 0 20px; padding: 0;
+}
+.picker li {
+    padding: 14px 18px;
+    border-radius: 8px;
+    color: var(--fg);
+    transition: background .12s ease;
+    cursor: pointer;
+}
+.picker li.focused {
+    background: rgba(255,255,255,.12);
+    outline: 1px solid rgba(255,255,255,.75); outline-offset: -1px;
+}
+.picker li.active::before {
+    content: ''; display: inline-block; width: 24px; height: 24px; margin-right: 8px;
+    vertical-align: middle; background: url('../assets/remix/check-line.svg') center / contain no-repeat; filter: invert(1);
+}
+
+/* Player popups share one anchor and row rhythm. Back replaces footer actions. */
+.player-view #picker {
+    top: auto; left: auto; right: 60px; bottom: 240px;
+    transform: none;
+    width: 480px; max-width: calc(100vw - 48px);
+    max-height: calc(100vh - 320px);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+}
+#view-player .track-menu { min-width: 0; width: 540px; max-width: calc(100vw - 48px); }
+.player-view #picker ul { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-bottom: 0; }
+#view-player .track-section li, #view-player .more-option, .player-view #picker li,
+#view-player .track-level li {
+    min-height: 56px; padding: 14px 18px; border-radius: 8px;
+    font-size: 26px; line-height: 1.25;
+}
+/* A level is a plain option list inside the same card: same rows, same
+ * focus fill, no bullets and no browser focus ring. */
+#view-player .track-level ul { list-style: none; margin: 0; padding: 0; }
+#view-player .track-level li, #view-player .track-section li, .player-view #picker li {
+    position: relative; padding-right: 56px; color: var(--fg); cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#view-player .track-level li.focused, #view-player .track-level li:focus,
+#view-player .track-section li.focused, #view-player .track-section li:focus,
+.player-view #picker li.focused, .player-view #picker li:focus {
+    background: rgba(255,255,255,.12);
+    outline: 1px solid rgba(255,255,255,.75); outline-offset: -1px;
+}
+/* The selected row keeps its outline when the cursor is elsewhere, so the
+ * choice stays visible at a glance. */
+#view-player .track-level li.active, #view-player .track-section li.active,
+.player-view #picker li.active {
+    outline: 1px solid rgba(255,255,255,.4); outline-offset: -1px;
+}
+#view-player .track-section li.muted { color: var(--fg-dim); }
+#view-player .track-section li::before, .player-view #picker li::before {
+    content: none;
+}
+#view-player .track-level li.active::after,
+#view-player .track-section li.active::after, .player-view #picker li.active::after {
+    content: ''; position: absolute; right: 18px; top: 50%; transform: translateY(-50%);
+    width: 24px; height: 24px;
+    background: url('../assets/remix/check-line.svg') center / contain no-repeat;
+    filter: invert(1);
+}
+#view-player .track-section:last-child { margin-bottom: 0; }
+.player-view #picker > .btn.ghost { display: none; }
+/* A level replaces its card's own rows: the next level of the same modal. */
+.track-level { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.track-level > h2, #view-player .track-menu > h2 {
+    display: block; margin: 0 0 16px; padding: 4px 18px;
+    font-size: 26px; line-height: 1.25; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* The playback toast sits just above the scrub bar. */
+.player-view .toast {
+    bottom: 240px; background: rgba(24,24,24,.9); color: #fff;
+    border-color: rgba(255,255,255,.35);
+    max-width: calc(100vw - 80px); text-align: center;
+}
+/* Mirror labels and row affordances, not transport or numeric controls. */
+[dir="rtl"] #view-player .track-menu { text-align: right; }
+[dir="rtl"] #view-player .more-option { text-align: right; }
+[dir="rtl"] #view-player .more-icon { margin-right: 0; margin-left: 14px; }
+[dir="rtl"] #view-player .more-value { margin-left: 0; margin-right: 24px; }
+[dir="rtl"] #view-player .chevron { margin-left: 0; margin-right: 16px; transform: rotate(180deg); }
+[dir="rtl"] #view-player .track-section li,
+[dir="rtl"] #view-player .track-level li { padding-right: 18px; padding-left: 56px; }
+[dir="rtl"] #view-player .track-section li.active::after,
+[dir="rtl"] #view-player .track-level li.active::after { right: auto; left: 18px; }
+[dir="rtl"] #view-player .file-info dl { text-align: right; }
+#view-player .more-value { direction: ltr; unicode-bidi: isolate; }
+@supports ((backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px))) {
+    #view-player .track-menu, .player-view #picker {
+        background: rgba(24,24,24,.62);
+        -webkit-backdrop-filter: blur(20px);
+        backdrop-filter: blur(20px);
+    }
+}
+
+/* ── Toast ────────────────────────────────────────────────────────── */
+.toast {
+    position: fixed;
+    bottom: 60px; left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-3);
+    color: var(--fg);
+    padding: 16px 36px;
+    border-radius: 999px;
+    font-size: 20px;
+    z-index: 1000;
+    border: 1px solid var(--border);
+}
+
+/* ── URL-drop pairing hint (network view) ───────────────────────────── */
+.url-drop-hint {
+    margin: 14px 2px 0;
+    color: #8499b3;
+    font-size: 17px;
+    line-height: 1.5;
+}
+.url-drop-hint b { color: var(--fg); font-weight: 600; word-break: break-all; }
+.url-drop-hint:empty { display: none; }
+
+/* ── Pairing block (Settings → Cast from another device) ─────────────── */
+.cast-hint {
+    font-size: 22px;
+    color: var(--fg-mute);
+    line-height: 1.7;       /* doubles as spacing between the two lines */
+}
+.pair-emph {
+    color: var(--accent);
+    font-family: 'Consolas', monospace;
+    word-break: break-all;
+}
+#pair-qr { display: flex; align-items: center; justify-content: center; }
+#pair-qr img { display: block; border-radius: 4px; }
+
+/* ── Picture viewer ───────────────────────────────────────────────── */
+#view-image {
+    background: #000;
+    padding: 0;
+}
+#image-el {
+    max-width: 100%;
+    max-height: 100%;
+    transition: transform .2s ease;
+}
+/* Turned a quarter, the picture's width runs up the screen. */
+#image-el.sideways {
+    max-width: 100vh;
+    max-height: 100vw;
+}
+#image-el.loading { visibility: hidden; }
+.image-status {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--fg-mute);
+    font-size: 26px;
+}
+.image-bar {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 28px 60px 36px;
+    background: linear-gradient(to top, rgba(0,0,0,.85), rgba(0,0,0,0));
+    text-align: left;
+}
+.image-caption { font-size: 26px; margin-bottom: 12px; }
+.image-info { color: var(--fg-mute); font-size: 20px; margin-left: 24px; }
+.image-keys { color: var(--fg-mute); font-size: 18px; }
+
+/* ── Text viewer ──────────────────────────────────────────────────── */
+#view-text {
+    justify-content: flex-start;
+    padding: 48px 60px 36px;
+}
+.text-head {
+    width: 100%;
+    max-width: 1700px;
+    display: flex;
+    align-items: baseline;
+    margin-bottom: 16px;
+    text-align: left;
+}
+.text-name { flex: 1; font-size: 28px; word-break: break-all; }
+.text-info { color: var(--fg-mute); font-size: 18px; margin-left: 24px; flex-shrink: 0; }
+.text-body {
+    flex: 1;
+    width: 100%;
+    max-width: 1700px;
+    overflow: hidden;           /* scrolled by the remote, not a scrollbar */
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    text-align: left;
+}
+#text-pre {
+    margin: 0;
+    padding: 24px 32px;
+    font-family: 'Consolas', 'DejaVu Sans Mono', monospace;
+    font-size: 24px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: var(--fg);
+    user-select: text;
+}
+#text-pre.muted { color: var(--fg-mute); }
+#view-text .hint { margin-top: 20px; }
+
+/* ── Audio-only playback ──────────────────────────────────────────── */
+.audio-card {
+    position: absolute; left: 50%; top: 42%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    max-width: 70%;            /* leaves room for the drift below */
+    animation: audio-drift 900s ease-in-out infinite;
+}
+/* Music can play for hours with no key pressed, and AVPlay keeps the TV's
+ * own screensaver away while it plays, so the cover and text would sit
+ * still on an OLED panel (issue #115).  Drift them slowly round the
+ * screen instead — about 2px a second, too slow to notice.  The range
+ * keeps the card clear of the screen edges and the bottom OSD. */
+@keyframes audio-drift {
+    0%, 100% { transform: translate(-50%, -50%) translate(0, 0); }
+    20%      { transform: translate(-50%, -50%) translate(-240px, -70px); }
+    40%      { transform: translate(-50%, -50%) translate(160px, 20px); }
+    60%      { transform: translate(-50%, -50%) translate(240px, -40px); }
+    80%      { transform: translate(-50%, -50%) translate(-180px, 25px); }
+}
+.audio-note {
+    display: flex; align-items: center; justify-content: center;
+    width: 280px; height: 280px;
+    margin: 0 auto 36px;
+    border-radius: 16px;
+    background: linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.02));
+}
+.audio-note .remix-icon { width: 96px; height: 96px; opacity: .6; }
+.audio-title { font-size: 34px; color: var(--fg); word-break: break-word; }
+.audio-art {
+    display: block;
+    width: 360px; height: 360px;
+    margin: 0 auto 36px;
+    object-fit: cover;
+    border-radius: var(--r);
+}
+.audio-sub { margin-top: 12px; font-size: 26px; color: var(--fg-mute); word-break: break-word; }
+
+/* Listed, but nothing in the app opens it. */
+.browse-list li.unopenable .name,
+.browse-list li.unopenable .icon { opacity: .55; }

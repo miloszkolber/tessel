@@ -1,0 +1,11 @@
+schema: spec-driven
+context: |
+  Tessel is an independent Samsung Tizen TV media player derived from MIT-licensed code.
+  Browser modules retain ES5-style syntax for older TV WebViews.
+  Keep current contracts in specs and undelivered mockup requirements in the active change.
+  The browser simulator uses production markup and controllers, but cannot prove AVPlay behavior.
+rules:
+  proposal:
+    - Identify preserved behavior and consequential unknowns.
+  tasks:
+    - Check tasks only after recording actual verification.
