@@ -2,7 +2,7 @@
    Tessel — visual language:
      · monochrome charcoal background (mewa_ui dark palette)
      · white text and white focus treatment everywhere
-     · everything centred horizontally on a 1920×1080 TV viewed from 3 m
+     · five-column content cards with a shared 16:9 silhouette
    ──────────────────────────────────────────────────────────────────────── */
 
 :root {
@@ -26,6 +26,13 @@
     --border:    rgba(255,255,255,.08);
     --r:         16px;
     --r-sm:      10px;
+    --page-inset: 60px;
+    --card-gap: 24px;
+    /* Explicit dimensions also work on TV engines without aspect-ratio. */
+    --card-width: calc((100vw - 120px - 96px) / 5);
+    --card-height: calc((100vw - 120px - 96px) / 80 * 9);
+    --motion: 240ms;
+    --ease: cubic-bezier(.22, .61, .36, 1);
 }
 
 * { box-sizing: border-box; }
@@ -66,42 +73,49 @@ button:focus { outline: none; }
     padding-bottom: 130px; scroll-padding-top: 24px; scroll-padding-bottom: 130px;
 }
 .page-heading { flex: 0 0 auto; }
-.library-row { margin: 0 0 32px; min-width: 0; }
+.library-row { flex: 0 0 auto; margin: 0 0 24px; min-width: 0; }
 .library-row h2, .row-heading, .presets-label {
     margin: 0 0 20px; font-size: 22px; font-weight: 500; text-transform: uppercase; color: #aaa;
 }
-.card-row { display: flex; overflow-x: auto; gap: 24px; padding: 8px; margin: -8px; scrollbar-width: none; }
+.card-row { display: flex; flex: 0 0 auto; overflow-x: auto; gap: var(--card-gap); padding: 12px; margin: -12px; scrollbar-width: none; scroll-padding: 12px; scroll-snap-type: x mandatory; }
 .card-row::-webkit-scrollbar { display: none; }
 .media-card { position: relative; display: flex; flex-direction: column; align-items: stretch; text-align: start;
-    flex: 0 0 338px; width: 338px; min-height: 170px; padding: 18px; border: 2px solid #303030;
-    border-radius: 12px; background: var(--bg-card); overflow: hidden; }
-.card-picture { display: flex; align-items: center; justify-content: center; position: relative; height: 80px; }
+    flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); min-height: 0; padding: 18px; border: 1px solid #303030;
+    border-radius: 12px; background: var(--bg-card); overflow: hidden; scroll-snap-align: start; }
+.card-picture { display: flex; flex: 1 1 0; min-height: 0; align-items: center; justify-content: center; position: relative; }
 .card-picture > .remix-icon { width: 48px; height: 48px; opacity: .85; }
 .card-art { position: absolute; inset: 0; height: 100%; width: 100%; object-fit: cover; }
-.card-title { font-size: 24px; font-weight: 500; margin-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card-description { font-size: 18px; color: var(--fg-dim); margin-top: 6px; }
-.media-card.focused, .media-card:focus, #view-home .tile.focused { outline: 3px solid #f4f4f4; outline-offset: -3px; border-color: #6a6a6a; background: #242424; box-shadow: none; transform: none; }
+.card-title { flex: 0 0 auto; font-size: 24px; font-weight: 500; margin-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-description { flex: 0 0 auto; min-height: 1.2em; font-size: 18px; color: var(--fg-dim); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.media-card.focused, .media-card:focus, #view-home .tile.focused, #view-home .tile:focus { outline: 2px solid #f4f4f4; outline-offset: -2px; border-color: #f4f4f4; background: #242424; box-shadow: none; transform: translateY(-2px); }
 .missing-source { position: absolute; top: 0; right: 0; border-radius: 50%; padding: 8px; background: #0a0a0a; z-index: 1; }
 .missing-source .remix-icon { width: 24px; height: 24px; }
 .card-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: #444; border-radius: 3px; overflow: hidden; z-index: 1; }
 .card-progress > span { display: block; height: 100%; background: #eee; }
 .add-card { border-style: dashed; }
-#view-home .home-tiles { display: flex; flex: 0 0 auto; gap: 24px; justify-content: flex-start; width: 100%; overflow-x: auto; padding: 8px; margin: -8px; scrollbar-width: none; }
-#view-home .tile { flex: 0 0 338px; width: 338px; min-height: 170px; padding: 20px; border-radius: 12px; }
+#view-home .home-tiles { display: flex; flex: 0 0 auto; gap: var(--card-gap); justify-content: flex-start; width: calc(100% + 24px); overflow-x: auto; padding: 12px; margin: -12px; scrollbar-width: none; scroll-padding: 12px; scroll-snap-type: x mandatory; }
+#view-home .home-tiles::-webkit-scrollbar { display: none; }
+#view-home .tile { display: flex; flex-direction: column; justify-content: center; align-items: center; flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); min-height: 0; padding: 18px; border: 1px solid #303030; border-radius: 12px; scroll-snap-align: start; }
 #view-home .tile-sub { display: none; }
-#view-home .tile-icon { display: flex; align-items: center; justify-content: center; width: 64px; height: 64px; line-height: normal; margin-bottom: 12px; border-radius: 50%; }
+#view-home .tile-icon { display: flex; align-items: center; justify-content: center; width: 80px; height: 80px; line-height: normal; margin-bottom: 12px; border: 0; background: #242424; border-radius: 50%; }
+#view-home .tile.focused .tile-icon, #view-home .tile:focus .tile-icon { background: #f4f4f4; }
 #view-home .tile-icon .remix-icon { width: 38px; height: 38px; }
-#view-home .tile-label { font-size: 24px; }
-#view-url .url-input-wrap { max-width: 1430px; width: 100%; margin: 0 0 24px; }
+#view-home .tile-label { font-size: 24px; margin: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#view-url .url-input-wrap { max-width: none; width: 100%; margin: 0 0 24px; }
+#view-url .url-input-wrap input { text-align: start; border-width: 1px; }
+#view-url .url-input-wrap input.focused, #view-url .url-input-wrap input:focus { box-shadow: inset 0 0 0 1px #fff; }
 #view-url .url-input-wrap > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
-#view-url .actions { display: flex; gap: 24px; justify-content: flex-start; margin-bottom: 48px; width: 100%; }
-#view-url .actions > button { width: 338px; min-height: 64px; margin: 0; border-radius: 12px; }
+#view-url .actions { display: flex; flex: 0 0 auto; gap: 24px; justify-content: flex-start; margin: 0 0 36px; width: 100%; }
+#view-url .actions > button { display: flex; align-items: center; justify-content: center; gap: 8px; width: var(--card-width); min-height: 64px; margin: 0; padding: 12px; border-width: 1px; border-radius: 12px; }
+#view-url .actions > button > .remix-icon { margin: 0; }
 #view-url .saved-streams { width: 100%; max-width: none; }
 .dialog-scrim { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; padding: 40px; }
 .dialog-card { width: 680px; max-width: 100%; max-height: calc(100vh - 80px); display: flex; flex-direction: column;
     background: #151515; border: 1px solid #303030; border-radius: 16px; padding: 32px; text-align: start; }
 .dialog-card h2 { font-size: 28px; font-weight: 600; margin: 0 0 32px; }
+.dialog-card:focus { outline: none; }
 .dialog-body { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.dialog-body .btn { border-width: 1px; border-radius: 8px; }
 .dialog-body input { width: 100%; min-height: 64px; padding: 14px 18px; background: #0a0a0a; border: 2px solid #303030; border-radius: 8px; color: white; font: inherit; }
 .dialog-option { min-height: 80px; flex-shrink: 0; padding: 18px 24px; text-align: start; border: 2px solid #303030; border-radius: 8px; background: #151515; }
 .dialog-option:disabled { opacity: .45; }
@@ -111,29 +125,41 @@ button:focus { outline: none; }
 .dialog-body .settings-row-input input { max-width: none; text-align: start; }
 .dialog-body .settings-row { font-size: 24px; }
 .receive-body { align-items: center; text-align: center; }
+.receive-card { padding: 48px; }
+.receive-body > h2 { margin: 16px 0 0; font-size: 32px; }
+.receive-body > p { margin: 0; line-height: 1.5; }
+.receive-body > .muted:last-child { margin-top: 32px; }
 .receive-qr img { width: 320px; max-width: 100%; height: auto; border-radius: 12px; }
 .receive-address { overflow-wrap: anywhere; font-family: monospace; font-size: 20px; }
 .muted { color: #aaa; font-size: 22px; }
-.info-panel { background: #151515; border: 2px solid #303030; border-radius: 12px; padding: 28px; margin-bottom: 32px; }
+.info-panel { background: #151515; border: 1px solid #303030; border-radius: 12px; padding: 28px; margin-bottom: 32px; }
 .info-panel.focused { outline: none; border-color: #f4f4f4; }
 .info-panel h3 { margin-top: 0; }
-.browse-list.grid.device-roots { display: flex; gap: 24px; }
-.browse-list.grid.device-roots li { flex: 0 0 338px; width: 338px; min-height: 190px; padding: 24px; border: 2px solid #303030; border-radius: 12px; align-items: center; }
-.browse-list.grid.device-roots li.focused { outline: 3px solid #f4f4f4; outline-offset: -3px; box-shadow: none; background: #242424; }
-.browse-list.grid.device-roots .name { font-size: 24px; }
+.browse-list.grid.device-roots { display: flex; flex: 0 0 auto; gap: var(--card-gap); overflow-x: auto; padding: 12px; margin: -12px; width: calc(100% + 24px); scroll-padding: 12px; scroll-snap-type: x mandatory; }
+.browse-list.grid.device-roots::-webkit-scrollbar { display: none; }
+.browse-list.grid.device-roots li { flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); min-height: 0; padding: 18px; border: 1px solid #303030; border-radius: 12px; align-items: center; justify-content: center; scroll-snap-align: start; }
+.browse-list.grid.device-roots li.focused { outline: 2px solid #f4f4f4; outline-offset: -2px; box-shadow: none; background: #242424; transform: translateY(-2px); }
+.browse-list.grid.device-roots .name { flex: 0 0 auto; font-size: 24px; }
 .browse-list.grid.device-roots .meta { display: none; }
-.browse-list.grid.device-roots .icon { display: flex; justify-content: center; align-items: center; height: 90px; }
+.browse-list.grid.device-roots .icon { display: flex; justify-content: center; align-items: center; width: 80px; height: 80px; border-radius: 50%; background: #242424; }
+.browse-list.grid.device-roots li.focused .icon { background: #f4f4f4; }
+.browse-list.grid.device-roots li.focused .icon .remix-icon { filter: none; }
+.browse-list.grid.device-roots.empty-devices .icon { background: transparent; }
+#network-cards .media-card { align-items: center; justify-content: center; text-align: center; }
+#network-cards .card-picture { flex: 0 0 auto; width: 80px; height: 80px; border-radius: 50%; background: #242424; }
+#network-cards .media-card.focused .card-picture, #network-cards .media-card:focus .card-picture { background: #f4f4f4; }
+#network-cards .media-card.focused .card-picture > .remix-icon, #network-cards .media-card:focus .card-picture > .remix-icon { filter: none; }
+#network-cards .card-title { max-width: 100%; }
+#network-cards .card-description:empty { display: none; }
 .browse-list.grid.device-roots.empty-devices { justify-content: center; padding-top: 100px; }
-.browse-list.grid.device-roots.empty-devices li { width: 600px; flex-basis: 600px; border: none; text-align: center; background: transparent; }
+.browse-list.grid.device-roots.empty-devices li { width: 600px; flex-basis: 600px; max-width: 100%; height: auto; border: none; text-align: center; background: transparent; }
 .browse-list.grid.device-roots.empty-devices li.focused { outline: none; }
 .empty-storage .browse-actions, .empty-storage #hint-fav, .empty-storage #hint-save { display: none !important; }
+.storage-root .browse-media-action { display: none; }
+.device-heading { display: none; }
+.storage-root:not(.empty-storage) .device-heading { display: block; }
 .hint { position: fixed; bottom: 0; left: 0; right: 0; padding: 36px 60px; margin: 0 !important; z-index: 30;
-    background: linear-gradient(transparent, #0a0a0a 45%); text-align: end; pointer-events: none; }
-@media (max-width: 1000px) {
-    .media-card, #view-home .tile { flex-basis: 280px; width: 280px; }
-    #view-url .actions { flex-wrap: wrap; }
-    .page-heading h1 { font-size: 42px; }
-}
+    background: var(--bg); text-align: end; pointer-events: none; }
 
 /* ── Views: full screen, vertically + horizontally centred contents ────
  * Each non-player view paints its own opaque background — required because
@@ -142,7 +168,7 @@ button:focus { outline: none; }
  * colour; no texture. */
 .view {
     position: absolute; top: 0; right: 0; bottom: 0; left: 0;
-    padding: 60px;
+    padding: var(--page-inset);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -159,6 +185,8 @@ button:focus { outline: none; }
  * background and the video plane would be hidden. */
 #view-player {
     background: transparent;
+    /* OSD exit transforms must not create a scrollbar or shrink the plane. */
+    overflow: hidden;
 }
 
 /* ── Brand (logo + wordmark) ──────────────────────────────────────── */
@@ -418,8 +446,8 @@ button:focus { outline: none; }
  * container only lays them out, so nothing groups them into one panel. */
 .browse-list.grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: var(--card-gap);
     padding: 0;
     align-content: start;
     background: transparent;
@@ -436,7 +464,8 @@ button:focus { outline: none; }
     background: var(--bg-card);
     border: 1px solid var(--border);
     overflow: hidden;
-    min-height: 168px;
+    min-height: 0;
+    height: var(--card-height);
 }
 .browse-list.grid li > * + * { margin-left: 0; }
 .browse-list.grid li.focused {
@@ -645,12 +674,12 @@ body:not(.player-view) #subtitle-overlay { display: none; }
     color: var(--fg);
     pointer-events: auto;
     opacity: 1; transform: translateY(0); visibility: visible;
-    transition: opacity .18s ease-out, transform .18s ease-out, visibility 0s;
+    transition: opacity var(--motion) var(--ease), transform var(--motion) var(--ease), visibility 0s;
 }
 /* Keep OSDs laid out for a reversible fade/slide, not a display toggle. */
 .osd.hidden {
     display: block !important; opacity: 0; visibility: hidden; pointer-events: none;
-    transition: opacity .18s ease-out, transform .18s ease-out, visibility 0s .18s;
+    transition: opacity var(--motion) var(--ease), transform var(--motion) var(--ease), visibility 0s var(--motion);
 }
 .osd-top.hidden { transform: translateY(-12px); }
 .osd-bottom.hidden { transform: translateY(18px); }
@@ -660,13 +689,13 @@ body:not(.player-view) #subtitle-overlay { display: none; }
 .osd-top {
     top: 0;
     padding: 32px 60px 100px;
-    background: linear-gradient(180deg, rgba(0,0,0,.85), rgba(0,0,0,0));
+    background: linear-gradient(180deg, rgba(0,0,0,.72), rgba(0,0,0,.3) 55%, rgba(0,0,0,0));
     text-align: left;
 }
 .osd-bottom {
     bottom: 0;
     padding: 100px 60px 48px;
-    background: linear-gradient(0deg, rgba(0,0,0,.92), rgba(0,0,0,0));
+    background: linear-gradient(0deg, rgba(0,0,0,.8), rgba(0,0,0,.4) 55%, rgba(0,0,0,0));
 }
 /* Without the queue below (single file, audio) the transport can sit
  * closer to the bottom edge. */
@@ -756,17 +785,16 @@ body:not(.has-queue) .osd-bottom { padding-bottom: 24px; }
 /* Up Next: the queue carousel under the transport controls. No container
  * card — thumbnail tiles sit directly on the OSD gradient, artwork on
  * top, title underneath, progress drawn over the picture. The strip sits
- * partially hidden until a card takes focus. */
+ * fully visible whenever the OSD is visible. */
 .up-next {
     margin-top: 24px; text-align: left;
     background: transparent;
     border: none;
     border-radius: 0;
-    padding: 0 4px;
-    max-height: 480px;
-    overflow: hidden;
+    padding: 0;
+    overflow: visible;
     opacity: 1;
-    transition: opacity .18s ease-out, max-height .18s ease-out;
+    transition: opacity var(--motion) var(--ease);
 }
 .up-next-title {
     font-size: 18px; line-height: 1.4; color: #bbb;
@@ -779,23 +807,27 @@ body:not(.has-queue) .osd-bottom { padding-bottom: 24px; }
     list-style: none; margin: 0;
     /* Room for the focus ring halo (8px) and the 2px lift so rings and
      * tiles never clip against the scroll box. */
-    padding: 12px 12px 18px;
+    padding: 12px;
+    margin: -12px;
     display: flex; flex-direction: row; gap: 24px;
     overflow-x: auto; overflow-y: hidden;
+    scroll-padding: 12px; scroll-snap-type: x mandatory;
+    scrollbar-width: none;
 }
-.up-next-card { flex: 0 0 300px; min-width: 0; }
+#up-next-list::-webkit-scrollbar { display: none; }
+.up-next-card { flex: 0 0 var(--card-width); min-width: 0; scroll-snap-align: start; }
 #up-next-list button {
     display: flex; flex-direction: column; align-items: stretch;
-    width: 100%; padding: 0;
+    width: 100%; height: var(--card-height); padding: 14px;
     text-align: left;
-    background: transparent; color: var(--fg-mute);
+    background: rgba(21,21,21,.94); color: var(--fg-mute); border-radius: 12px; border: 1px solid #303030;
     font-size: 22px; line-height: 1.35;
     transition: transform .15s ease, color .15s ease;
 }
 .up-next-thumb {
     position: relative;
     display: flex; align-items: center; justify-content: center;
-    width: 100%; height: 166px; margin-bottom: 10px;
+    width: 100%; flex: 1 1 0; min-height: 0; height: auto; margin-bottom: 10px;
     border-radius: 12px; overflow: hidden;
     background: var(--bg-3);
     transition: box-shadow .15s ease, transform .15s ease;
@@ -812,29 +844,28 @@ body:not(.has-queue) .osd-bottom { padding-bottom: 24px; }
 .up-next-progress .up-next-fill { display: block; height: 100%; width: 0; background: #fff; }
 .up-next-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Playing now: a steady white ring. */
-#up-next-list button.active .up-next-thumb { box-shadow: 0 0 0 3px #fff; }
+#up-next-list button.active { border-color: #aaa; }
 #up-next-list button.active { color: #fff; }
 #up-next-list button.active .up-next-name { font-weight: 600; }
 /* Cursor: brighter ring, a soft glow, and the tile lifted slightly. */
 #up-next-list button .up-next-thumb { outline: none; }
-#up-next-list button.focused .up-next-thumb,
-#up-next-list button:focus .up-next-thumb {
-    box-shadow: 0 0 0 3px #fff, 0 0 0 8px rgba(255,255,255,.28);
-    transform: scale(1.04);
+#up-next-list button.focused, #up-next-list button:focus {
+    box-shadow: inset 0 0 0 2px #fff;
+    transform: translateY(-2px);
 }
 #up-next-list button.focused, #up-next-list button:focus { outline: none; }
 #up-next-list button.focused .up-next-name,
 #up-next-list button:focus .up-next-name { color: #fff; }
-/* Collapsed until focused: the title and a sliver of the cards show. */
-.up-next:not(:focus-within) { max-height: 78px; opacity: .55; }
+/* Do not collapse to a cropped sliver when focus returns to transport. */
+.up-next:not(:focus-within) { opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
     .up-next { transition: none; }
 }
 .player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 260px; }
-/* The queue strip below the transport is part of the OSD: lift cues above
- * it too, higher still while a card holds focus and the strip is tall. */
-body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 430px; }
-body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 520px; }
+/* The complete queue is part of the OSD. Keep cues above the timeline
+ * whether focus is on a card or back on the transport controls. */
+body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom,
+body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: calc(var(--card-height) + 320px); }
 .more-option {
     display: flex; align-items: center;
     width: 100%; padding: 14px 18px;
@@ -914,14 +945,10 @@ body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 
     .transport-controls > * + * { margin-left: 8px; }
     .controls .ctrl { width: 44px; height: 44px; }
     .controls .ctrl.big { width: 60px; height: 60px; }
-    .up-next-card { flex-basis: 200px; }
-    .up-next-thumb { height: 110px; }
 }
 @media (max-width: 1060px) and (min-width: 701px) {
     .transport-controls > * + * { margin-left: 12px; }
     .controls .ctrl.big { width: 86px; height: 86px; }
-    .up-next-card { flex-basis: 220px; }
-    .up-next-thumb { height: 122px; }
 }
 
 /* Visual separator pushes Stop apart from the playback / track controls so
@@ -1190,21 +1217,19 @@ body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 
 #view-settings {
     justify-content: flex-start;
     align-items: flex-start;
+    overflow: hidden;
+    padding-bottom: 130px;
 }
 .settings-content {
     width: 100%;
     max-width: 1100px;
     text-align: left;
     overflow-y: auto;
-    padding-bottom: 80px;
-    /* Hard-cap the scroll-region height so the TV-info panel always overflows
-     * and the Down-arrow scroll handler has something to scroll into.  Tuned
-     * for 1080p (window.innerHeight = 1080) but works fine on smaller too.
-     * flex-basis instead of height: inside the flex column the box must be
-     * allowed to shrink, or the last row scrolls out of reach. */
-    height: calc(100vh - 260px);
+    padding-bottom: 24px;
+    scroll-padding: 12px 0 24px;
+    /* One scroll owner bounded above the fixed remote-hint footer. */
     min-height: 0;
-    flex: 0 1 auto;
+    flex: 1 1 auto;
     /* Hide the native scrollbar — we navigate via remote, not pointer. */
     scrollbar-width: none;
 }
@@ -1284,12 +1309,12 @@ body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 
 }
 .settings-switch.on { background: #f4f4f4; }
 .settings-switch.on::after { inset-inline-start: 33px; background: #151515; }
-.page-heading { text-align: start; margin: 24px 0 36px; }
+.page-heading { text-align: start; margin: 12px 0 28px; }
 .page-heading h1 { margin: 0 0 12px; font-size: 42px; font-weight: 600; }
 .page-heading p { margin: 0; color: var(--fg-dim); font-size: 24px; }
-#view-settings .settings-content { max-width: 1430px; width: 100%; margin: 0; }
+#view-settings .settings-content { max-width: calc(var(--card-width) * 4 + 72px); width: 100%; margin: 0; }
 #view-settings .settings-group { margin-bottom: 16px; }
-#view-settings .settings-row { border-radius: 8px; min-height: 80px; }
+#view-settings .settings-row { border-width: 1px; border-radius: 12px; min-height: 80px; }
 #view-settings .settings-row.focused { outline: none; box-shadow: inset 0 0 0 2px #f4f4f4; }
 #view-settings .tvinfo { margin-top: 48px; padding: 0; border: none; background: transparent; }
 #view-settings .tvinfo .codec .status { color: var(--fg-dim); }
@@ -1685,7 +1710,7 @@ body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 
     width: 280px; height: 280px;
     margin: 0 auto 36px;
     border-radius: 16px;
-    background: linear-gradient(145deg, rgba(255,255,255,.09), rgba(255,255,255,.02));
+    background: rgba(255,255,255,.06);
 }
 .audio-note .remix-icon { width: 96px; height: 96px; opacity: .6; }
 .audio-title { font-size: 34px; color: var(--fg); word-break: break-word; }
@@ -1701,3 +1726,37 @@ body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 
 /* Listed, but nothing in the app opens it. */
 .browse-list li.unopenable .name,
 .browse-list li.unopenable .icon { opacity: .55; }
+
+/* Shared motion avoids different timing on cards, forms and remote focus. */
+.media-card, #view-home .tile, .browse-list li, .btn, .ctrl, .preset,
+.dialog-option, .dialog-body input, .settings-row, .info-panel, .more-option,
+#up-next-list button {
+    transition: background-color var(--motion) var(--ease), border-color var(--motion) var(--ease),
+        color var(--motion) var(--ease), box-shadow var(--motion) var(--ease), transform var(--motion) var(--ease);
+}
+/* Keep the view's opaque backdrop intact above the native video plane. */
+.view:not(.hidden):not(#view-player) > :not(.hint) { animation: view-enter var(--motion) var(--ease); }
+.dialog-scrim { animation: view-enter var(--motion) var(--ease); }
+.dialog-card { animation: dialog-enter var(--motion) var(--ease); }
+@keyframes view-enter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dialog-enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Keep five columns at the portrait review size without oversized contents. */
+@media (max-width: 1400px) {
+    .media-card, #view-home .tile, .browse-list.grid.device-roots li { padding: 12px; }
+    .card-title, #view-home .tile-label, .browse-list.grid.device-roots .name { font-size: 18px; }
+    .card-title { margin-top: 8px; }
+    .card-description { font-size: 14px; margin-top: 4px; }
+    .card-picture > .remix-icon, .browse-list.grid .icon .remix-icon { width: 32px; height: 32px; }
+    #view-home .tile-icon { width: 40px; height: 40px; margin-bottom: 8px; }
+    #network-cards .card-picture, .browse-list.grid.device-roots .icon { width: 40px; height: 40px; }
+    #view-home .tile-icon .remix-icon { width: 24px; height: 24px; }
+    .missing-source { padding: 4px; }
+    .missing-source .remix-icon { width: 18px; height: 18px; }
+    #view-url .actions > button { font-size: 18px; padding: 10px; }
+    #up-next-list button { padding: 10px; font-size: 18px; }
+    .up-next-glyph .remix-icon { width: 32px; height: 32px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

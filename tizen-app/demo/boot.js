@@ -36,7 +36,8 @@
             Browser.listDir(dir, function (err, entries) {
                 if (err || revision !== UI.viewRevision) return;
                 var list = entries.filter(function (e) { return e.kind === (audio ? 'audio' : 'video'); }).map(function (e) {
-                    return { uri: e.uri, title: e.name, file: e.file, subtitles: e.subtitles };
+                    return { uri: e.uri, title: e.name, file: e.file, subtitles: e.subtitles,
+                        source: { kind: 'usb', path: dir.fullPath, root: 'removable1', rootPath: '/removable1' } };
                 });
                 VlcApp.play('browse', list, 0, dir);
             });

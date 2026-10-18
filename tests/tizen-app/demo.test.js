@@ -53,6 +53,16 @@ test('the virtual USB drive lists folders, media and sidecar subtitles', functio
     assert.deepEqual(Array.from(entries), ['Series', 'Films', 'Music', 'channels.m3u']);
 });
 
+test('direct folder shortcuts retain the same USB identity as browsing from the root', function () {
+    var w = world(), filesystem = w.context.window.tizen.filesystem, direct, browsed;
+    filesystem.resolve('/removable1/Films', function (dir) { dir.listFiles(function (items) { direct = items[0].toURI(); }); });
+    filesystem.resolve('removable1', function (root) {
+        root.listFiles(function (dirs) { dirs.filter(function (d) { return d.name === 'Films'; })[0].listFiles(function (items) { browsed = items[0].toURI(); }); });
+    });
+    assert.equal(direct, browsed);
+    assert.ok(direct.startsWith('file:///removable1/Films/'));
+});
+
 test('a virtual file reads like a Tizen file: node-style size, ranged bytes, text stream', function () {
     var w = world(), music = null;
     w.context.window.tizen.filesystem.resolve('removable1/Music', function (dir) {

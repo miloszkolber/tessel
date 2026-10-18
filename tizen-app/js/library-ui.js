@@ -96,7 +96,7 @@ var LibraryUI = (function () {
         var warning = el('span', 'missing-source hidden'); warning.appendChild(icon('error-warning-line')); warning.title = t('source.unavailable'); image.appendChild(warning);
         if (item.dur && item.pos) { var bar = el('span', 'card-progress'), fill = el('span'); fill.style.width = Math.min(100, item.pos / item.dur * 100) + '%'; bar.appendChild(fill); image.appendChild(bar); }
         b.appendChild(image); b.appendChild(el('span', 'card-title', item.title || item.name));
-        if (item.subtitle) b.appendChild(el('span', 'card-description', item.subtitle));
+        b.appendChild(el('span', 'card-description', item.subtitle || ''));
         b.addEventListener('click', run);
         if (context) bind(b, context);
         if (item.source || item.kind) decorateAvailability(b, item.source || item);
@@ -260,8 +260,10 @@ var LibraryUI = (function () {
         var seq = ++castSequence;
         var d = Dialog.open(t('cast.headline'), { dispose: function () { castSequence++; clearTimeout(castTimer); } });
         d.body.classList.add('receive-body');
+        d.body.parentNode.classList.add('receive-card');
         var qr = el('div', 'receive-qr'), address = el('p', 'receive-address', t('common.loading')), state = el('p', 'muted', t('cast.waiting'));
-        d.body.appendChild(qr); d.body.appendChild(el('p', 'muted', t('cast.scan'))); d.body.appendChild(address); d.body.appendChild(state); d.focus();
+        var heading = d.body.parentNode.querySelector('h2');
+        d.body.appendChild(qr); d.body.appendChild(heading); d.body.appendChild(el('p', 'muted', t('cast.scan'))); d.body.appendChild(address); d.body.appendChild(state); d.focus();
         SMB.ensureService(function (err) {
             if (seq !== castSequence) return;
             if (err) { state.textContent = t('url.serviceDown'); return; }

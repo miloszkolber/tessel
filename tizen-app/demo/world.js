@@ -232,7 +232,7 @@ var Simulator = (function () {
                     if (!found) { err(new Error('not found: ' + target)); return; }
                     var drive = makeFile({ name: ROOTS[target] ? 'USB Drive' : (target.split('/').pop() || 'USB Drive'),
                                            children: found.node.children || [], size: 0 }, '', null);
-                    drive.fullPath = found.path || '/removable1';
+                    drive.fullPath = '/removable1' + found.path;
                     drive.isDirectory = true;
                     ok(drive);
                 }, 30);

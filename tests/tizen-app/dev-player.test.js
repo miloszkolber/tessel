@@ -59,19 +59,19 @@ test('video preview retains multiple audio tracks, subtitles and video metadata'
 });
 
 test('laid-out descendants of an exiting OSD are excluded from remote focus', function () {
-    var focused = null;
+    var focused = null, focusOptions, scrollOptions;
     function element(hidden) {
         return {
             tagName: 'BUTTON', offsetParent: {},
             closest: function () { return hidden ? {} : null; },
             classList: { contains: function () { return false; }, add: function () {}, remove: function () {} },
-            focus: function () { focused = this; }, scrollIntoView: function () {}
+            focus: function (options) { focused = this; focusOptions = options; }, scrollIntoView: function (options) { scrollOptions = options; }
         };
     }
     var hidden = element(true), visible = element(false);
     var view = element(false);
     view.querySelectorAll = function (selector) { return selector === '[data-focus]' ? [] : [hidden, visible]; };
-    var context = { document: {
+    var context = { window: { matchMedia: function () { return { matches: true }; } }, document: {
         activeElement: null,
         body: { classList: { toggle: function () {} } },
         getElementById: function (id) { return id === 'view-player' ? view : null; },
@@ -81,4 +81,24 @@ test('laid-out descendants of an exiting OSD are excluded from remote focus', fu
     vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/ui.js'), 'utf8'), context);
     context.UI.showView('view-player');
     assert.equal(focused, visible);
+    assert.equal(focusOptions.preventScroll, true, 'native focus must not jump before smooth scrolling');
+    assert.equal(scrollOptions.inline, 'nearest');
+    assert.equal(scrollOptions.behavior, 'auto', 'reduced motion also disables smooth focus scrolling');
+});
+
+test('simulator uses production markup without painting an unsupported AVPlay plugin', async function () {
+    var entry = fs.readFileSync(path.join(ROOT, 'demo.html'), 'utf8');
+    var production = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    var written, complete;
+    var ready = new Promise(function (resolve) { complete = resolve; });
+    var scope = { fetch: async function () { return { ok: true, text: async function () { return production; } }; },
+        XMLHttpRequest: function () {}, document: { body: {}, open: function () {},
+            write: function (html) { written = html; }, close: complete } };
+    scope.XMLHttpRequest.prototype.open = function () {};
+    vm.runInNewContext(entry.slice(entry.indexOf('<script>') + 8, entry.lastIndexOf('</script>')), scope);
+    await ready;
+    assert.ok(production.includes('<object id="player-object"'), 'installed application retains its native target');
+    assert.ok(!written.includes('<object id="player-object"'), 'simulator must not display Chromium plugin failure UI');
+    assert.ok(written.includes('src="demo/player.js?demo='));
+    assert.ok(written.includes('id="home-library"'), 'production library markup is retained');
 });

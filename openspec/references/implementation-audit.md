@@ -34,6 +34,8 @@ Retained binary parser and network protocol tests. Removed five obsolete USB/Net
 
 ## Quality-of-life follow-ups
 
+The visual correction and remaining acceptance limits are tracked in tasks 17.1–17.3 of the active change. All thirteen supplied SVGs were rendered directly. Equal 16:9 content cards and five-column sizing replace the earlier fixed-width/min-height approximations. Source cards use the references' centered circular glyph treatment, and receipt uses their QR-first hierarchy. The full queue replaces its intentionally cropped idle preview. Repaired Settings footer overlap, player scrollbar-induced width changes, subtitle/timeline overlap and simulator-only unsupported-plugin rendering. Original library, source identity, long-OK, casting cancellation and stop-and-return contracts remain in force. The new visual requirements stay in the active delta until final acceptance is complete.
+
 - A per-source Retry command could expose the existing reconnect behavior more directly. It is not required to open an available source or reconnect at launch.
 - Full translations of the new library copy should be reviewed by native speakers. Missing entries currently use the established English fallback rather than showing raw keys. Other-script glyph and RTL visual acceptance remain separate checks.
 - Source credentials remain in the application's private local storage under the existing contract. Do not expose them in pins, queue snapshots or logs.

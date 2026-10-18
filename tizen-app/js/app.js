@@ -701,6 +701,7 @@
         document.getElementById('browse-description').textContent = I18n.t('usb.description');
         setBrowseGrid(true);
         document.getElementById('browse-list').classList.add('device-roots');
+        document.getElementById('view-browse').classList.add('storage-root');
         document.getElementById('browse-path').textContent = '/';
 
         Browser.listRoots(function (err, roots) {
@@ -910,6 +911,7 @@
         var list = document.getElementById('browse-list');
         if (list) { list.classList.remove('device-roots'); list.classList.remove('empty-devices'); }
         document.getElementById('view-browse').classList.remove('empty-storage');
+        document.getElementById('view-browse').classList.remove('storage-root');
         var description = document.getElementById('browse-description');
         if (description) description.textContent = I18n.t(name === 'network' ? 'network.description' : 'usb.description');
     }

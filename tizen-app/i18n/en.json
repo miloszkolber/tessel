@@ -40,7 +40,7 @@
   "hint.exit": "exit app",
   "url.label": "Stream URL or file path",
   "common.play": "Play",
-  "url.fromDevice": "Get URL from device",
+  "url.fromDevice": "Get from device",
   "common.cancel": "Cancel",
   "common.close": "Close",
   "sync.title": "Synchronization",

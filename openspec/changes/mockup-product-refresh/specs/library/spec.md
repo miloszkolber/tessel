@@ -46,3 +46,30 @@ Settings SHALL show compact switches for casting and logging, with the correspon
 #### Scenario: Inspect capability panels
 - **WHEN** the viewer navigates down from the Settings controls
 - **THEN** each information panel can receive focus and scroll into view using the remote
+
+## ADDED Requirements
+
+### Requirement: Shared content-card geometry
+Home, Stream, Network, USB device roots and playback queue cards SHALL share a 16:9 outer rectangle. Rows SHALL use five equal columns inside the page insets at 1920×1080 and 1153×1297. Optional secondary labels SHALL NOT change card height. Form controls, information panels and empty-state messages are not content cards.
+
+#### Scenario: Overflowing carousel
+- **GIVEN** more than five cards in a row
+- **WHEN** remote focus moves to the first or last card
+- **THEN** the complete focused card and focus treatment fit inside the carousel
+- **AND** idle rows settle on whole-card boundaries
+
+### Requirement: Complete playback queue
+The queue SHALL remain fully visible whenever the OSD is visible, including when focus returns to transport controls. Bottom-positioned subtitles SHALL remain above the timeline and complete queue. Hiding the OSD SHALL NOT introduce a page scrollbar or shrink playback controls.
+
+#### Scenario: Return focus to transport
+- **WHEN** the viewer navigates from the queue to transport controls
+- **THEN** queue cards are not vertically cropped to a sliver
+- **AND** bottom subtitles remain clear of the timeline
+
+### Requirement: Restrained motion
+Card and control transitions SHALL use a consistent eased cadence. Library surfaces SHALL NOT depend on decorative gradients. Reduced-motion preference SHALL disable decorative animations and smooth focus scrolling. View transitions SHALL preserve the opaque non-player background above the native video plane.
+
+#### Scenario: Reduced-motion focus
+- **GIVEN** reduced motion is enabled
+- **WHEN** remote focus moves to an offscreen card
+- **THEN** scrolling brings the card into view without animated movement

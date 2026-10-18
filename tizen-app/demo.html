@@ -29,6 +29,8 @@
         html = html.replace('<title>Tessel</title>', '<title>Tessel — simulated demo</title>');
         // Simulated decoder in place of the AVPlay/HTML5 backend.
         html = html.replace('src="js/player.js"', 'src="demo/player.js"');
+        // Desktop Chromium must not paint an unsupported AVPlay plugin panel.
+        html = html.replace('<object id="player-object" type="application/avplayer"></object>', '');
         // The virtual world installs itself before the app looks at `tizen`.
         html = html.replace(S_OPEN + 'js/debug.js' + S_CLOSE,
                             S_OPEN + 'demo/world.js' + S_CLOSE + '\n' + S_OPEN + 'js/debug.js' + S_CLOSE);

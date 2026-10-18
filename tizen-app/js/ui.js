@@ -97,13 +97,14 @@ var UI = (function () {
         if (active && active !== el && active.tagName === 'INPUT') {
             try { active.blur(); } catch (e) {}
         }
-        el.focus({ preventScroll: false });
+        el.focus({ preventScroll: true });
         focusIdx = focusable.indexOf(el);
         if (focusIdx < 0) focusIdx = 0;
 
         // Generic "scroll into view" so settings rows / picker items / browse
         // list entries / etc. always stay visible when navigated to.
-        try { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
+        var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        try { el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: reduced ? 'auto' : 'smooth' }); } catch (e) {}
     }
 
     /* Geometric next-element search by direction.  Returns true if focus

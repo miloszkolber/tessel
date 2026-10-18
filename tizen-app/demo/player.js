@@ -3,7 +3,7 @@
  * Stands in for js/player.js: same interface the app calls, no AVPlay and no
  * real media.  It keeps a real clock and a real state machine (READY →
  * PLAYING → PAUSED → IDLE), reports tracks and subtitles, and paces itself so
- * the OSD, queue, seeking, speed and the mini-player behave as they do on a
+ * the OSD, queue, seeking and speed behave as they do on a
  * TV. ES5, like the app. */
 var Player = (function () {
     'use strict';
