@@ -33,7 +33,7 @@
     /* The queue strip: a peek at the bottom of the OSD until it takes
      * focus, then the full cards. */
     --queue-peek: 150px;
-    --queue-open: 251px;
+    --queue-open: 255px;
     --r:         16px;
     --r-sm:      10px;
     --page-inset: 65px;
@@ -820,9 +820,9 @@ body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-open)); }
 }
 .up-next:focus-within { max-height: var(--queue-open); }
 .up-next-title {
-    font-size: 18px; line-height: 1.4; color: #bbb;
-    text-transform: uppercase; letter-spacing: 2px;
-    font-weight: 600;
+    font-size: 22px; line-height: 1.3; color: var(--fg-soft);
+    text-transform: uppercase;
+    font-weight: 500;
     margin: 0 8px 12px;
 }
 #up-next-list {
@@ -844,7 +844,7 @@ body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-open)); }
     width: 100%; height: var(--card-height); padding: 14px;
     text-align: left;
     background: rgba(21,21,21,.94); color: var(--fg-mute); border-radius: 12px; border: 2px solid var(--surface-border);
-    font-size: 22px; line-height: 1.35;
+    font-size: 24px; line-height: 1.35;
     transition: transform var(--motion) var(--ease), color var(--motion) var(--ease);
 }
 .up-next-thumb {
