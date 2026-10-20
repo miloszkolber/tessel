@@ -28,6 +28,7 @@
     --surface-border: #303030;            /* card, row and option outline */
     --input-border:   #464646;            /* input and secondary button outline */
     --focus-ring:  #f4f4f4;               /* the one focus colour */
+    --focus-fill:  rgba(255,255,255,.045); /* the one focus fill, #202020 on a card */
     --focus-outer: 0px;                   /* ring drawn outside the border */
     --r:         16px;
     --r-sm:      10px;
@@ -810,7 +811,7 @@ body:not(.has-queue) .osd-bottom { padding-bottom: 24px; }
     display: flex; flex-direction: column; align-items: stretch;
     width: 100%; height: var(--card-height); padding: 14px;
     text-align: left;
-    background: rgba(21,21,21,.94); color: var(--fg-mute); border-radius: 12px; border: 1px solid #303030;
+    background: rgba(21,21,21,.94); color: var(--fg-mute); border-radius: 12px; border: 2px solid var(--surface-border);
     font-size: 22px; line-height: 1.35;
     transition: transform var(--motion) var(--ease), color var(--motion) var(--ease);
 }
@@ -840,10 +841,12 @@ body:not(.has-queue) .osd-bottom { padding-bottom: 24px; }
 /* Cursor: brighter ring, a soft glow, and the tile lifted slightly. */
 #up-next-list button .up-next-thumb { outline: none; }
 #up-next-list button.focused, #up-next-list button:focus {
-    box-shadow: inset 0 0 0 2px #fff;
-    transform: translateY(-2px);
+    outline: none;
+    border-color: var(--focus-ring);
+    background: rgba(32,32,32,.94);
+    box-shadow: inset 0 0 0 2px var(--focus-ring);
+    transform: none;
 }
-#up-next-list button.focused, #up-next-list button:focus { outline: none; }
 #up-next-list button.focused .up-next-name,
 #up-next-list button:focus .up-next-name { color: #fff; }
 /* Do not collapse to a cropped sliver when focus returns to transport. */
@@ -866,8 +869,9 @@ body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 
 .more-option .more-value { flex: 0 1 auto; min-width: 0; max-width: 60%; margin-left: 24px; color: var(--fg-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .more-option .chevron { flex: 0 0 auto; width: 24px; height: 24px; margin-left: 16px; filter: invert(1); }
 .more-option.focused, .more-option:focus {
-    background: rgba(255,255,255,.12);
-    outline: 1px solid rgba(255,255,255,.75); outline-offset: -1px;
+    background: var(--focus-fill);
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--focus-ring);
 }
 /* Playback cards never show a browser focus ring: focus is the row fill. */
 #view-player .more-option:focus, #view-player .more-option:focus-visible,
@@ -883,11 +887,13 @@ body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 
 }
 .sync-control img { width: 24px; height: 24px; filter: invert(1); pointer-events: none; }
 .sync-control.focused, .sync-control:focus {
-    background: rgba(255,255,255,.12);
-    outline: 1px solid rgba(255,255,255,.75); outline-offset: -1px;
+    background: var(--focus-fill);
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--focus-ring);
 }
 #view-player #track-level-sync button.focused, #view-player #track-level-sync button:focus {
-    outline: 1px solid rgba(255,255,255,.75); outline-offset: -1px;
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--focus-ring);
 }
 /* Settings subsections inside the subtitle panel: sync and appearance
  * rows separated from the track list, More-row styling. */
@@ -1101,8 +1107,9 @@ body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 
     color: var(--fg);
 }
 .track-section li.focused {
-    background: rgba(255,255,255,.12);
-    outline: 1px solid rgba(255,255,255,.75); outline-offset: -1px;
+    background: var(--focus-fill);
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--focus-ring);
 }
 .track-section li.active::before {
     content: ''; display: inline-block; width: 24px; height: 24px; margin-right: 8px;
@@ -1497,8 +1504,9 @@ body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 
     cursor: pointer;
 }
 .picker li.focused {
-    background: rgba(255,255,255,.12);
-    outline: 1px solid rgba(255,255,255,.75); outline-offset: -1px;
+    background: var(--focus-fill);
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--focus-ring);
 }
 .picker li.active::before {
     content: ''; display: inline-block; width: 24px; height: 24px; margin-right: 8px;
@@ -1531,14 +1539,16 @@ body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 
 #view-player .track-level li.focused, #view-player .track-level li:focus,
 #view-player .track-section li.focused, #view-player .track-section li:focus,
 .player-view #picker li.focused, .player-view #picker li:focus {
-    background: rgba(255,255,255,.12);
-    outline: 1px solid rgba(255,255,255,.75); outline-offset: -1px;
+    background: var(--focus-fill);
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--focus-ring);
 }
 /* The selected row keeps its outline when the cursor is elsewhere, so the
  * choice stays visible at a glance. */
 #view-player .track-level li.active, #view-player .track-section li.active,
 .player-view #picker li.active {
-    outline: 1px solid rgba(255,255,255,.4); outline-offset: -1px;
+    outline: none;
+    box-shadow: inset 0 0 0 2px rgba(244,244,244,.4);
 }
 #view-player .track-section li.muted { color: var(--fg-dim); }
 #view-player .track-section li::before, .player-view #picker li::before {
