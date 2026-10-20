@@ -30,6 +30,10 @@
     --focus-ring:  #f4f4f4;               /* the one focus colour */
     --focus-fill:  rgba(255,255,255,.045); /* the one focus fill, #202020 on a card */
     --focus-outer: 0px;                   /* ring drawn outside the border */
+    /* The queue strip: a peek at the bottom of the OSD until it takes
+     * focus, then the full cards. */
+    --queue-peek: 150px;
+    --queue-open: 251px;
     --r:         16px;
     --r-sm:      10px;
     --page-inset: 65px;
@@ -85,12 +89,27 @@ button:focus { outline: none; }
     margin: 0 0 25px; font-size: 22px; line-height: 30px; font-weight: 500; text-transform: uppercase; color: var(--fg-soft);
 }
 .card-row { display: flex; flex: 0 0 auto; overflow-x: auto; gap: var(--card-gap); padding: 12px; margin: -12px; scrollbar-width: none; scroll-padding: 12px; scroll-snap-type: x mandatory; }
+/* An empty section keeps the space a row of cards would take and says why
+ * it is empty, so the sections below never move. */
+.card-row.empty { min-height: calc(var(--card-height) + 24px); align-items: flex-start; }
+.card-row.empty::after { content: attr(data-empty); color: var(--fg-dim); font-size: 24px; padding: 12px 4px 0; }
 .card-row::-webkit-scrollbar { display: none; }
 .media-card { position: relative; display: flex; flex-direction: column; align-items: stretch; text-align: start;
     flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); min-height: 0; padding: 18px; border: 2px solid var(--surface-border);
     border-radius: 12px; background: var(--bg-card); overflow: hidden; scroll-snap-align: start; }
 .card-picture { display: flex; flex: 1 1 0; min-height: 0; align-items: center; justify-content: center; position: relative; }
-.card-picture > .remix-icon { width: 48px; height: 48px; opacity: .85; }
+/* One icon disc: every glyph that stands for a card or a source sits in the
+ * same 80px circle, and a focused card inverts it.  Poster art replaces
+ * the disc when a file carries artwork. */
+.card-picture::before {
+    content: ''; position: absolute; width: 80px; height: 80px;
+    border-radius: 50%; background: #212121;
+}
+.card-picture > .remix-icon { position: relative; width: 38px; height: 38px; opacity: 1; }
+.media-card.focused .card-picture::before,
+.media-card:focus .card-picture::before { background: var(--focus-ring); }
+.media-card.focused .card-picture > .remix-icon,
+.media-card:focus .card-picture > .remix-icon { filter: none; }
 .card-art { position: absolute; inset: 0; height: 100%; width: 100%; object-fit: cover; }
 .card-title { flex: 0 0 auto; font-size: 24px; font-weight: 500; margin-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card-description { flex: 0 0 auto; min-height: 1.2em; font-size: 18px; color: var(--fg-dim); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -167,9 +186,7 @@ button:focus { outline: none; }
 .browse-list.grid.device-roots li.focused .icon .remix-icon { filter: none; }
 .browse-list.grid.device-roots.empty-devices .icon { background: transparent; }
 #network-cards .media-card { align-items: center; justify-content: center; text-align: center; }
-#network-cards .card-picture { flex: 0 0 auto; width: 80px; height: 80px; border-radius: 50%; background: #212121; }
-#network-cards .media-card.focused .card-picture, #network-cards .media-card:focus .card-picture { background: var(--focus-ring); }
-#network-cards .media-card.focused .card-picture > .remix-icon, #network-cards .media-card:focus .card-picture > .remix-icon { filter: none; }
+#network-cards .card-picture { flex: 0 0 auto; width: 80px; height: 80px; }
 #network-cards .card-title { max-width: 100%; }
 #network-cards .card-description:empty { display: none; }
 .browse-list.grid.device-roots.empty-devices { justify-content: center; padding-top: 100px; }
@@ -448,8 +465,8 @@ button:focus { outline: none; }
 .browse-list.grid li {
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
-    padding: 18px;
+    gap: 6px;
+    padding: 14px 18px;
     border-bottom: 0;
     border-radius: 12px;
     background: var(--bg-card);
@@ -466,16 +483,23 @@ button:focus { outline: none; }
     outline: none;
     transform: none;
 }
-.browse-list.grid .icon { width: auto; flex: 0 0 auto; }
-.browse-list.grid .icon .remix-icon { width: 48px; height: 48px; }
+.browse-list.grid .icon {
+    display: flex; align-items: center; justify-content: center;
+    width: 80px; height: 80px; flex: 0 0 auto;
+    border-radius: 50%; background: #212121;
+}
+.browse-list.grid .icon .remix-icon { width: 38px; height: 38px; }
+.browse-list.grid li.focused .icon { background: var(--focus-ring); }
+.browse-list.grid li.focused .icon .remix-icon { filter: none; }
 .browse-list.grid .name {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
+    flex: 0 0 auto;
     font-size: 24px;
 }
-.browse-list.grid .meta { margin-left: 0; }
+.browse-list.grid .meta { margin-left: 0; flex: 0 0 auto; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .browse-list.grid .fav-mark, .browse-list.grid .watched { position: absolute; top: 12px; right: 12px; }
 .browse-list.grid li { position: relative; }
 
@@ -689,8 +713,12 @@ body:not(.player-view) #subtitle-overlay { display: none; }
     background: linear-gradient(0deg, rgba(0,0,0,.8), rgba(0,0,0,.4) 55%, rgba(0,0,0,0));
 }
 /* Without the queue below (single file, audio) the transport can sit
- * closer to the bottom edge. */
+ *  closer to the bottom edge. */
 body:not(.has-queue) .osd-bottom { padding-bottom: 24px; }
+/* The queue strip is out of the flow, so the OSD reserves its height and
+ * the transport controls keep the same place whether the strip is a peek
+ * or fully open. */
+body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-open)); }
 
 #osd-title {
     font-size: 28px;
@@ -775,18 +803,22 @@ body:not(.has-queue) .osd-bottom { padding-bottom: 24px; }
 }
 /* Up Next: the queue carousel under the transport controls. No container
  * card — thumbnail tiles sit directly on the OSD gradient, artwork on
- * top, title underneath, progress drawn over the picture. The strip sits
- * fully visible whenever the OSD is visible. */
+ * top, title underneath, progress drawn over the picture.  The strip is
+ * positioned out of the flow and clipped to a peek, so the transport
+ * controls never move; it grows to the full cards when the D-pad enters
+ * it and shows the tops of the cards until then. */
 .up-next {
-    margin-top: 24px; text-align: left;
+    position: absolute; left: 60px; right: 60px; bottom: 12px;
+    margin: 0; padding: 0; text-align: left;
     background: transparent;
     border: none;
     border-radius: 0;
-    padding: 0;
-    overflow: visible;
+    overflow: hidden;
+    max-height: var(--queue-peek);
     opacity: 1;
-    transition: opacity var(--motion) var(--ease);
+    transition: max-height var(--motion) var(--ease);
 }
+.up-next:focus-within { max-height: var(--queue-open); }
 .up-next-title {
     font-size: 18px; line-height: 1.4; color: #bbb;
     text-transform: uppercase; letter-spacing: 2px;
@@ -857,8 +889,7 @@ body:not(.has-queue) .osd-bottom { padding-bottom: 24px; }
 .player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 260px; }
 /* The complete queue is part of the OSD. Keep cues above the timeline
  * whether focus is on a card or back on the transport controls. */
-body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom,
-body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: calc(var(--card-height) + 320px); }
+body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: calc(var(--card-height) + 320px); }
 .more-option {
     display: flex; align-items: center;
     width: 100%; padding: 14px 18px;
@@ -1706,24 +1737,16 @@ body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 
 #view-text .hint { margin-top: 20px; }
 
 /* ── Audio-only playback ──────────────────────────────────────────── */
+/* The music card is a centred column: cover, title and album.  It used to
+ * drift slowly around the screen to avoid an OLED burn-in (issue #115), but
+ * a card that moves is a layout shift and reads as a mis-centred album, so
+ * it now sits still on the screen's centre line. */
 .audio-card {
     position: absolute; left: 50%; top: 42%;
     transform: translate(-50%, -50%);
+    display: flex; flex-direction: column; align-items: center;
     text-align: center;
-    max-width: 70%;            /* leaves room for the drift below */
-    animation: audio-drift 900s ease-in-out infinite;
-}
-/* Music can play for hours with no key pressed, and AVPlay keeps the TV's
- * own screensaver away while it plays, so the cover and text would sit
- * still on an OLED panel (issue #115).  Drift them slowly round the
- * screen instead — about 2px a second, too slow to notice.  The range
- * keeps the card clear of the screen edges and the bottom OSD. */
-@keyframes audio-drift {
-    0%, 100% { transform: translate(-50%, -50%) translate(0, 0); }
-    20%      { transform: translate(-50%, -50%) translate(-240px, -70px); }
-    40%      { transform: translate(-50%, -50%) translate(160px, 20px); }
-    60%      { transform: translate(-50%, -50%) translate(240px, -40px); }
-    80%      { transform: translate(-50%, -50%) translate(-180px, 25px); }
+    width: 320px;
 }
 .audio-note {
     display: flex; align-items: center; justify-content: center;

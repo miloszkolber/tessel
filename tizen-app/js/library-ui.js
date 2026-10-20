@@ -111,10 +111,14 @@ var LibraryUI = (function () {
         if (item.source || item.kind) decorateAvailability(b, item.source || item);
         return b;
     }
-    function row(host, title, items, render) {
-        if (!items.length) return;
+    /* A section keeps its place whether or not it has items: the row stays
+     * on the page and says so, so the rows below never jump up and down as
+     * the library changes. */
+    function row(host, title, items, render, emptyText) {
         var section = el('section', 'library-row'); section.appendChild(el('h2', '', title));
-        var list = el('div', 'card-row'); items.forEach(function (item) { list.appendChild(render(item)); });
+        var list = el('div', 'card-row');
+        if (!items.length) { list.classList.add('empty'); list.dataset.empty = emptyText || ''; }
+        else items.forEach(function (item) { list.appendChild(render(item)); });
         section.appendChild(list); host.appendChild(section);
     }
     function pinAction(s, after) {
@@ -140,13 +144,13 @@ var LibraryUI = (function () {
                 function () { launch(r); }, function (node) {
                     Dialog.menu(r.title, [{ name: t('library.removeContinue'), run: function () { Library.dismiss(r.key, r.uri); home(resume, watched); restore(focus); } }], node);
                 });
-        });
+        }, t('library.noContinue'));
         row(host, t('library.pinned'), Favorites.list(), function (s) {
             return card(s, function () { openPin(s); }, function (node) {
                 Dialog.menu(s.name, [{ name: t('pin.unpin'), run: function () { Favorites.remove(s.id); VlcApp.refreshHome(); restore(focus); } },
                     { name: t('library.rename'), run: function () { Dialog.rename(t('library.rename'), s.name, function (name) { Favorites.rename(s.id, name); VlcApp.refreshHome(); restore(focus); }, node); } }], node);
             });
-        });
+        }, t('library.noPinned'));
         UI.refreshFocusables();
         if (focus && !Dialog.isOpen()) restore(focus);
         else if (!Dialog.isOpen() && !document.getElementById('view-home').classList.contains('hidden') &&
@@ -259,13 +263,20 @@ var LibraryUI = (function () {
             host.appendChild(card({ key: 'saved:' + s.id, title: s.name, kind: 'url', path: s.url, icon: info.icon, subtitle: info.subtitle },
                 function () { VlcApp.openStream(s.url, s.name); }, function (node) { streamMenu(s, node, false); }));
         });
-        document.getElementById('saved-streams').classList.toggle('hidden', !host.children.length);
+        /* Both sections keep their place so the page does not jump when the
+         * library changes; an empty one says so instead of disappearing. */
+        var saved = document.getElementById('saved-streams');
+        saved.classList.remove('hidden');
+        host.classList.toggle('empty', !host.children.length);
+        host.dataset.empty = t('saved.noSaved');
         var recent = document.getElementById('recent-streams-list'); recent.innerHTML = '';
         Library.recents().forEach(function (s) {
             var info = streamInfo(s.url);
             recent.appendChild(card({ key: 'recent:' + s.url, title: s.name, kind: 'url', path: s.url, icon: info.icon, subtitle: info.subtitle }, function () { VlcApp.openStream(s.url, s.name); }, function (node) { streamMenu(s, node, true); }));
         });
-        document.getElementById('recent-streams').classList.toggle('hidden', !recent.children.length);
+        document.getElementById('recent-streams').classList.remove('hidden');
+        recent.classList.toggle('empty', !recent.children.length);
+        recent.dataset.empty = t('stream.noRecent');
         UI.refreshFocusables(); if (focus) restore(focus);
     }
     function streamMenu(s, node, recent) {
@@ -296,13 +307,6 @@ var LibraryUI = (function () {
                 address.textContent = url;
                 var code = qrcode(0, 'M'); code.addData(url); code.make();
                 var img = el('img'); img.src = code.createDataURL(6, 8); img.alt = t('cast.qrAlt'); qr.appendChild(img);
-                if (window.Simulator) {
-                    address.textContent = t('cast.simulated');
-                    var input = el('input'); input.type = 'url'; input.placeholder = 'https://example.com/film.mp4'; input.setAttribute('aria-label', t('url.label'));
-                    var send = el('button', 'btn ghost', t('cast.simulateSend'));
-                    send.addEventListener('click', function () { if (validUrl(input.value)) Simulator.castSend(input.value.trim()); });
-                    d.body.appendChild(input); d.body.appendChild(send); UI.refreshFocusables();
-                }
                 poll();
             });
         });

@@ -11,13 +11,35 @@ var Simulator = (function () {
     'use strict';
 
     /* ── generated media ──────────────────────────────────────────────── */
-    /* An MP3 with a real ID3v2 tag: title, artist, album, and a 1×1 PNG as
-     * cover art.  The app's own tag reader parses it, so the music card shows
-     * what it would show on a TV. */
+    /* An MP3 with a real ID3v2 tag: title, artist, album, and a PNG as cover
+     * art.  The app's own tag reader parses it, so the music card shows what
+     * it would show on a TV. */
     function id3Png() {
-        // 8×8 dark-grey PNG.
-        return 'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAJUlEQVR4nGP8//8/AzGAiShV' +
-               'o1ChYqGChQoWKliIYkGKBQEA1+QH/2kZ1cQAAAAASUVORK5CYII=';
+        // 96×96 cover: a soft disc on a dark plate.
+        return 'iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAIAAABt+uBvAAAGCUlEQVR42u2d6W7jMAyE9RKb3m1633ff/9l2gFkQBCnR'
+               + '8pE03RLgj0WiOtbn4ZC2bG9Zrf5kBFESQQJKQAkoASWgMPb2Vq34pYACInH8z4DMVPf398bGt8Aq2+Ti53xwsN8TMayf'
+               + 'CqiKRk/78PBAx9HRoQ7zbZXXFjCVjaLxXAyO4+MjxsnJsQ/51iALSO06oBYaA4XzPz09OTs7RazXZ63gAIwUZBrWFjCV'
+               + 'zdExaMiFUDDz8/P1xcX68vIccXV1cX196QOfcwBGYjx5ERZJeUyLMyrL0jFoRDLChVAw85ubq9vb67u7m/v724eHO8Tj'
+               + '470OfohvMQYjMZ68sAUhpQXlMe0KIJ9TohqRDI4/5gZREApxPD8/vrw8IV5fn9/eXnzgcw7ASCIjLGwHW8M2RVBaTSbj'
+               + 'vhlQSziiGkyDeiGXp6cHIfL+/vrx8Yb4/HxvBQdgpPDCFkiKmhJMknTLSqksSEd7jagG00CaUC+YIaFw8l9fHyaES+sr'
+               + 'wsJ2qClsGdsXNWlvWopRWZwODiY8ggmF44xp4LBTL2byRiM+tL7MX1FT2DK2j19h0uF3jZTmMyoL0hHhQPlwCiQCjjOm'
+               + 'wUl6ITBrmDgY6YPJqPNRw+J28BVG4rfwi5Jx4krzGZU5dMR0JK1QYnAwoXw4BRPKzEeOPGaFMbpa+ZDqhpHkpUnJZpl0'
+               + 'GIM/wa9jHyTdtCVNY1Tma0enFRzBC8d4B11W6jdLOEM6IPmEA6QbICntZV5KdCVJt5k6KgvSwUzoOFo43lalr5FuMA5B'
+               + 'JqSM5Wsp0ZUwcilGowHFdLDT1QMraAwXNsqDYUhpTF6q2IdBRhsBVHVlT8ccT922jOUSkDKNldGsYVT17IUBaWPWNatK'
+               + 'h8Kh2nGo2fsGaIL8ijFhy5QS/VvvgGbk61p/opUJ1sN+hzULR7JKh36phdMPpROWkZKkm2GEAaxr7I/GmlGZIB9aDzoO'
+               + '7B/2DEevSqclHG/Ag9HCpKVUZYR9w+cYgL01ZrQYoGpyIbGxZ5A39knyv0qnE43UdR39mKqM6IP4BPuJMd6MehiVCZVL'
+               + 'rAcGib2RCtJJJ4bSCo8pZqT3CvspZjS2opWx8tHJJdYjNatKJ0bDVjCITkyaka5rNCOdaKNEVPrloysXfNEklz5vDOi0'
+               + 'uOAPfbRIxYzkDNkkGj7XFa1TRGWCfFi5RMa0Hp4KyXW/gE7Mhf1kQGqQES+wMP2FEf7NijZWRGVU8QJ+erM/Pj65Yjqa'
+               + 'SBweU8DImJHRON3aONEsQD3yYbvRSi5Pp4qGJ+4mAkyeUTXRtEvGIhoNqCof7T6mjlaTq0WnxcVcsfek+hkx0bSIjBN1'
+               + 'iqj02zP6CClesXx66HgorTCYehi1RCTlTHqiQasu/fmFhp29j1w8HZRPTEdTwGZ9VFeBWowGRcQdZk+EuXRmWRcgnV/a'
+               + 'nlm8YvkM0tFE5GJrFVPAKBCR7mZp1a0sGwHIGJCcW5j80p3hoHw8Hc/Fh8FkGMUi0n2jyTI58xi0odJpQL5+VfMrlo+n'
+               + 'o6/P+zCY/IrroIh0lvla1mNDA4CMAZlfCvKrJR9PRxPhGoYsqGpMhlGPiKpZxuNqbGgioNiA5IqUyS9TvFry0XSEiw/D'
+               + 'qCUiU85MlrGWTbOhEYB0Ay1ngFyNqgIalI+h4xfmDaNBEXlAskInxV5a6umAfIsYOHSPAXlAfl2QIWuqBlNVRAEgY0OB'
+               + 'Tw+2i6WzhLFF7HToIL+q8tFodGhARkRBlvX4tG4XZwHSPXR/CRsFSLTDlXgJ0dEmAGELvp9eDJDuoeMSpgEF+SW3Kui7'
+               + 'XryIqlk2CIhL4bqf3i1APQakAeml6h5Aeqn2RwL6jQpKD8oqln3QnD4oO+k8F1voXCzP5vN60IzrQXlFMa9Jz7gmnasa'
+               + 'uS62xLpYrqzm2vyMtfm8uyPvD5oNKO8wy3sUZ9+jmHe55n3Sq7zTfsN32uezGvm0Tz4vtoXnxfKJw3xmNZ963sJTz/nc'
+               + 'fL55Id/dkW9/2ZW3v+T7g/INVPkOs3wLXr5H8Ue9RzHfxJnvcs23Aef7pPON5PlO+/xfEfJ/RUhACSgBZfyLvxdsAQGj'
+               + 'NZ3qAAAAAElFTkSuQmCC';
     }
     function u32(n) {
         return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];

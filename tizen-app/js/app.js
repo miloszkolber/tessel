@@ -389,6 +389,13 @@
             upNextBox.addEventListener('focusout', function (ev) {
                 if (!upNextBox.contains(ev.relatedTarget)) document.body.classList.remove('up-next-open');
             });
+            /* The strip is clipped while it is a peek, so bringing the
+             * focused card into view can scroll the clip a few pixels and
+             * hide the queue heading.  The strip never scrolls on its own,
+             * so keep it pinned to its top edge. */
+            upNextBox.addEventListener('scroll', function () {
+                if (upNextBox.scrollTop) upNextBox.scrollTop = 0;
+            });
         }
         updateRepeatButton();        // reflect saved repeat preference on OSD
         updateShuffleButton();       // reflect saved shuffle preference on OSD
@@ -805,16 +812,17 @@
                 if (watched) li.classList.add('watched-item');
                 if (e.kind === 'other') li.classList.add('unopenable');
                 var watchedBadge = watched ? '<span class="watched" title="' + escapeHtml(I18n.t('browse.watched')) + '"><img class="remix-icon" src="assets/remix/check-line.svg" alt=""></span>' : '';
-                var subBadge = (e.subtitles && e.subtitles.length)
-                    ? '<span class="meta">CC ×' + e.subtitles.length + '</span>'
-                    : '';
+                /* One meta line: the subtitle count and the size belong to the
+                 * same row, otherwise the name is squeezed out of the tile. */
+                var meta = [];
+                if (e.subtitles && e.subtitles.length) meta.push('CC ×' + e.subtitles.length);
+                if (!e.isDir) meta.push(Browser.humanSize(e.size));
                 li.innerHTML =
                     '<span class="icon">' + FileTypes.icon(e.kind) + '</span>' +
                     '<span class="name">' + escapeHtml(e.name) + '</span>' +
                     watchedBadge +
-                    subBadge +
-                    (e.isDir ? '<span class="fav-mark"><img class="remix-icon" src="assets/remix/pushpin-2-fill.svg" alt=""></span>' :
-                        '<span class="meta">' + Browser.humanSize(e.size) + '</span>');
+                    (meta.length ? '<span class="meta">' + escapeHtml(meta.join(' · ')) + '</span>' : '') +
+                    (e.isDir ? '<span class="fav-mark"><img class="remix-icon" src="assets/remix/pushpin-2-fill.svg" alt=""></span>' : '');
                 if (e.isDir) markFavoriteRow(li, usbFavorite(e.file, e.name));
                 li.addEventListener('click', function () {
                     switch (e.kind) {

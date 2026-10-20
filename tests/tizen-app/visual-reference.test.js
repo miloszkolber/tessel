@@ -88,3 +88,37 @@ test('the receipt dialog waits with a ring, like the reference', function () {
     assert.ok(source.indexOf("el('span', 'spinner-ring')") >= 0, 'waiting ring');
     assert.ok(css().indexOf('.receive-state .spinner-ring') >= 0, 'ring styling');
 });
+
+test('the receipt dialog carries no simulator form', function () {
+    var source = read('js/library-ui.js');
+    assert.ok(source.indexOf('Simulator.castSend') < 0, 'the app does not build a send form');
+    assert.ok(source.indexOf("'input'") < 0, 'the receipt dialog has no input');
+    var demo = read('demo/boot.js');
+    assert.ok(demo.indexOf('Simulator.castSend') >= 0, 'the simulator phone sends instead');
+});
+
+test('the music card sits still on the centre line', function () {
+    var source = css();
+    assert.ok(source.indexOf('audio-drift') < 0, 'the cover does not drift');
+    var card = rule(source, '.audio-card {', 400);
+    assert.ok(card.indexOf('left: 50%') >= 0, 'centred horizontally');
+    assert.ok(card.indexOf('translate(-50%, -50%)') >= 0, 'centred vertically');
+});
+
+test('the queue is a peek until it holds focus', function () {
+    var source = css();
+    var up = rule(source, '.up-next {', 600);
+    assert.ok(up.indexOf('position: absolute') >= 0, 'out of the transport flow');
+    assert.ok(up.indexOf('max-height: var(--queue-peek)') >= 0, 'peek by default');
+    assert.ok(source.indexOf('.up-next:focus-within { max-height: var(--queue-open); }') >= 0, 'opens on focus');
+    assert.ok(source.indexOf('body.has-queue .osd-bottom') >= 0, 'the OSD reserves the strip height');
+});
+
+test('an empty section keeps its place on the page', function () {
+    var source = css();
+    assert.ok(source.indexOf('.card-row.empty') >= 0, 'empty row styling');
+    assert.ok(source.indexOf('min-height: calc(var(--card-height) + 24px)') >= 0, 'same height as a filled row');
+    var ui = read('js/library-ui.js');
+    assert.ok(ui.indexOf("list.classList.add('empty')") >= 0, 'the row says it is empty');
+    assert.ok(ui.indexOf('saved.noSaved') >= 0, 'the saved section names its empty state');
+});

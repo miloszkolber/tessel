@@ -59,12 +59,32 @@ Home, Stream, Network, USB device roots and playback queue cards SHALL share a 1
 - **AND** idle rows settle on whole-card boundaries
 
 ### Requirement: Complete playback queue
-The queue SHALL remain fully visible whenever the OSD is visible, including when focus returns to transport controls. Bottom-positioned subtitles SHALL remain above the timeline and complete queue. Hiding the OSD SHALL NOT introduce a page scrollbar or shrink playback controls.
+The queue SHALL remain fully visible whenever the OSD is visible and it holds focus, including when focus returns to transport controls. While the queue does not hold focus it SHALL show a peek of the cards at the bottom of the OSD, and the transport controls SHALL keep their place in both states. Bottom-positioned subtitles SHALL remain above the timeline and complete queue. Hiding the OSD SHALL NOT introduce a page scrollbar or shrink playback controls.
 
 #### Scenario: Return focus to transport
 - **WHEN** the viewer navigates from the queue to transport controls
-- **THEN** queue cards are not vertically cropped to a sliver
+- **THEN** the transport controls stay where they were
+- **AND** the queue shows the top of its cards rather than a cropped sliver of its titles
 - **AND** bottom subtitles remain clear of the timeline
+
+#### Scenario: Enter the queue
+- **WHEN** the viewer moves focus onto a queue card
+- **THEN** the strip grows to the full cards
+- **AND** the queue heading stays visible at the top of the strip
+
+### Requirement: Stable page rhythm
+A section that has no items SHALL keep its place on the page and name its empty state instead of disappearing. The music card SHALL sit still on the screen's centre line.
+
+#### Scenario: Empty library section
+- **GIVEN** a library with no pins
+- **WHEN** Home renders
+- **THEN** the Pinned heading and its empty row keep the same height as a filled one
+- **AND** the sections below do not move
+
+#### Scenario: Music playback
+- **WHEN** an audio file plays without cover art
+- **THEN** the cover, the title and the album share the screen's centre line
+- **AND** the card does not drift over time
 
 ### Requirement: Restrained motion
 Card and control transitions SHALL use a consistent eased cadence. Content surfaces SHALL NOT carry decorative gradients. Reduced-motion preference SHALL disable decorative animations and smooth focus scrolling. View transitions SHALL preserve the opaque non-player background above the native video plane.
@@ -99,3 +119,11 @@ Library pages SHALL paint the baked halftone field over the #0A0A0A page colour 
 - **WHEN** a source configuration dialog opens
 - **THEN** the panel keeps its action button at the bottom
 - **AND** the list of discovered sources stays at the top
+
+### Requirement: One icon disc
+Every glyph that stands for a card, a source or a file SHALL sit in the same 80px disc, and a focused card SHALL invert it. Poster art replaces the disc when a file carries artwork.
+
+#### Scenario: Focused card glyph
+- **WHEN** a content card takes focus
+- **THEN** its glyph disc turns light and the glyph turns dark
+- **AND** the disc is the same size as the one on the source and device tiles

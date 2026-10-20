@@ -77,9 +77,36 @@
         });
         history.replaceState(null, '', '?page=' + page + '&state=' + (remembered[page] || 'default'));
     }
+    /* The simulated phone lives beside the app, not inside it: the receipt
+     * dialog keeps the reference hierarchy (QR, title, address, waiting
+     * state) and the simulator sends a URL from here. */
+    function phone() {
+        var panel = document.createElement('div');
+        panel.className = 'demo-phone';
+        panel.innerHTML = '<label>Simulated phone</label>' +
+            '<input type="url" placeholder="https://example.com/film.mp4">' +
+            '<button type="button">Send simulated URL</button>';
+        panel.querySelector('button').addEventListener('click', function () {
+            var input = panel.querySelector('input');
+            if (input.value) Simulator.castSend(input.value.trim());
+        });
+        document.body.appendChild(panel);
+        function sync() {
+            var open = !!document.getElementById('library-modal');
+            panel.classList.toggle('open', open);
+        }
+        sync();
+        new MutationObserver(sync).observe(document.body, { childList: true, subtree: true });
+        return panel;
+    }
     document.addEventListener('DOMContentLoaded', function () {
         seed();
-        var css = document.createElement('style'); css.textContent = '.demo-note{position:fixed;right:24px;top:14px;z-index:1000;font:14px/1.5 system-ui;text-align:right;background:#0a0a0acc;padding:8px;border-radius:8px}.demo-note a{color:#aaa;margin-left:12px;text-decoration:none}.demo-note a[aria-current]{color:white;text-decoration:underline}.demo-note small{color:#aaa}'; document.head.appendChild(css);
+        var css = document.createElement('style'); css.textContent = '.demo-note{position:fixed;right:24px;top:14px;z-index:1000;font:14px/1.5 system-ui;text-align:right;background:#0a0a0acc;padding:8px;border-radius:8px}.demo-note a{color:#aaa;margin-left:12px;text-decoration:none}.demo-note a[aria-current]{color:white;text-decoration:underline}.demo-note small{color:#aaa}' +
+            '.demo-phone{position:fixed;left:24px;bottom:24px;z-index:1000;display:none;flex-direction:column;gap:8px;width:340px;padding:14px;border-radius:12px;background:#151515e6;border:2px solid #303030;font:14px/1.4 system-ui;color:#f4f4f4}' +
+            '.demo-phone.open{display:flex}.demo-phone label{color:#b3b3b3;font-size:12px;text-transform:uppercase;letter-spacing:1px}' +
+            '.demo-phone input{height:44px;padding:0 12px;border:2px solid #464646;border-radius:8px;background:#202020;color:#fff;font:16px system-ui}' +
+            '.demo-phone button{height:44px;border:2px solid #f4f4f4;border-radius:8px;background:#f4f4f4;color:#151515;font:16px system-ui;cursor:pointer}'; document.head.appendChild(css);
+        phone();
         note = document.createElement('div'); note.className = 'demo-note';
         var caption = document.createElement('small'); caption.textContent = 'Simulated demo · arrows / Enter · hold Enter for menu · Escape = Back'; note.appendChild(caption);
         var links = document.createElement('div'); Object.keys(states).forEach(function (page) {
