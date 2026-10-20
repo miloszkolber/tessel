@@ -1794,8 +1794,16 @@ body.player-osd-visible .audio-card { top: 22%; }
     .card-title { margin-top: 8px; }
     .card-description { font-size: 14px; margin-top: 4px; }
     .card-picture > .remix-icon, .browse-list.grid .icon .remix-icon { width: 32px; height: 32px; }
+    /* The narrow card is 55% of the reference size: it cannot hold a disc, a
+     * title and a second line, so the second line goes and the disc shrinks. */
+    .card-description { display: none; }
+    .card-picture::before { width: 40px; height: 40px; }
+    .card-picture > .remix-icon { width: 24px; height: 24px; }
     #view-home .tile-icon { width: 40px; height: 40px; margin-bottom: 8px; }
     #network-cards .card-picture, .browse-list.grid.device-roots .icon { width: 40px; height: 40px; }
+    .browse-list.grid .icon { width: 40px; height: 40px; }
+    .browse-list.grid .icon .remix-icon { width: 24px; height: 24px; }
+    .browse-list.grid .meta { display: none; }
     #view-home .tile-icon .remix-icon { width: 24px; height: 24px; }
     .missing-source { padding: 4px; }
     .missing-source .remix-icon { width: 18px; height: 18px; }

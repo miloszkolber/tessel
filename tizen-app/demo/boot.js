@@ -92,8 +92,9 @@
         });
         document.body.appendChild(panel);
         function sync() {
-            var open = !!document.getElementById('library-modal');
-            panel.classList.toggle('open', open);
+            /* Only the receipt dialog needs the phone. */
+            var modal = document.getElementById('library-modal');
+            panel.classList.toggle('open', !!(modal && modal.querySelector('.receive-qr')));
         }
         sync();
         new MutationObserver(sync).observe(document.body, { childList: true, subtree: true });
