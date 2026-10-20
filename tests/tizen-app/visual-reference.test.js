@@ -122,3 +122,33 @@ test('an empty section keeps its place on the page', function () {
     assert.ok(ui.indexOf("list.classList.add('empty')") >= 0, 'the row says it is empty');
     assert.ok(ui.indexOf('saved.noSaved') >= 0, 'the saved section names its empty state');
 });
+
+test('one button component, not a pill with a scale', function () {
+    var source = css();
+    var btn = rule(source, '.btn {', 500);
+    assert.ok(btn.indexOf('border: 2px solid var(--input-border)') >= 0, 'the reference outline');
+    assert.ok(btn.indexOf('border-radius: 8px') >= 0, 'the reference radius');
+    assert.ok(btn.indexOf('min-height: 62px') >= 0, 'the reference height');
+    assert.ok(source.indexOf('transform: scale(') < 0, 'no scale on focus');
+    assert.ok(rule(source, '.btn.primary {', 200).indexOf('background: var(--focus-ring)') >= 0, 'the primary fills with the focus colour');
+});
+
+test('the picker is a modal whose action stays at the bottom', function () {
+    var source = css();
+    var picker = rule(source, '.picker {', 700);
+    assert.ok(picker.indexOf('width: 678px') >= 0, 'the reference modal width');
+    assert.ok(picker.indexOf('border: 2px solid var(--surface-border)') >= 0, 'the surface outline');
+    assert.ok(picker.indexOf('display: flex; flex-direction: column') >= 0, 'the panel is a column');
+    assert.ok(rule(source, '.picker ul {', 300).indexOf('overflow-y: auto') >= 0, 'the list scrolls');
+    assert.ok(rule(source, '.picker li {', 300).indexOf('min-height: 78px') >= 0, 'the reference row height');
+});
+
+test('the removed duplicate surfaces are gone', function () {
+    var source = css();
+    assert.ok(source.indexOf('.brand') < 0, 'the brand block is gone');
+    assert.ok(source.indexOf('.support-block') < 0, 'the cast support block is gone');
+    assert.ok(source.indexOf('.presets') < 0, 'the preset chips are gone');
+    assert.ok(source.indexOf('#view-image') < 0, 'the picture viewer is gone');
+    assert.ok(source.indexOf('#view-text') < 0, 'the text viewer is gone');
+    assert.ok(read('index.html').indexOf('view-cast') < 0, 'the cast page is gone');
+});

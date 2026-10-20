@@ -913,10 +913,11 @@ body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: cal
     background: var(--accent);
     color: #0a0a0a;
 }
+/* The round transport buttons sit over the picture, so their focus is a
+ * brighter fill and rim rather than the ring the flat surfaces use. */
 .ctrl:focus, .ctrl.focused {
     border-color: var(--accent);
     background: var(--accent-soft);
-    transform: scale(1.06);
 }
 .ctrl.big:focus, .ctrl.big.focused {
     background: var(--accent-2);
