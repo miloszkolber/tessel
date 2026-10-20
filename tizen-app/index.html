@@ -67,11 +67,9 @@
     <h2 class="row-heading" id="network-heading" data-i18n="library.devices">Devices</h2>
     <nav class="card-row" id="network-cards"></nav>
 
-    <!-- The two configuration forms, as a modal over this page. -->
-    <div class="modal-scrim hidden" id="net-scrim"></div>
-    <div class="track-menu net-config hidden" id="net-config">
-        <h2 id="net-config-title">SMB</h2>
-        <div class="track-menu-body" id="net-config-body">
+    <!-- The two configuration forms.  They are moved into their dialog when
+         the viewer opens one, and parked here the rest of the time. -->
+    <div class="net-forms" id="net-config">
         <div class="settings-group net-form" id="grp-smb">
             <label class="settings-row settings-row-input"><span class="settings-label" data-i18n="smb.host">Server (IP/host)</span><input id="smb-host"   type="text"     placeholder="192.168.1.10"></label>
             <label class="settings-row settings-row-input"><span class="settings-label" data-i18n="smb.port">Port</span><input id="smb-port"   type="text"     inputmode="numeric" placeholder="445"></label>
@@ -94,8 +92,6 @@
             <button id="dav-save" class="settings-row"><span class="settings-label" data-i18n="dav.save">Save WebDAV server</span></button>
             <button id="dav-remove" class="settings-row"><span class="settings-label" data-i18n="smb.removeServer">Remove this server</span></button>
         </div>
-        </div>
-        <button class="btn ghost" data-action="close-net-config" data-i18n="common.close">Close</button>
     </div>
 
     <footer class="hint">
@@ -106,27 +102,8 @@
     </footer>
 </section>
 
-<!-- ── Cast page: QR and address for a phone on the same network ─────── -->
-<section id="view-cast" class="view hidden">
-    <header class="brand small">
-        <h1 data-i18n="cast.section">Cast from another device</h1>
-    </header>
-
-    <div class="support-block">
-        <div class="support-qr" id="pair-qr"></div>
-        <div class="support-text">
-            <div class="support-headline" data-i18n="cast.headline">Cast a link to your TV</div>
-            <div class="cast-hint">
-                <span data-i18n="cast.scan">Everything stays on your local network — nothing is sent to the internet.</span><br>
-                <span data-i18n-fmt="cast.address">Or open <span class="pair-emph" id="pair-url" data-slot="0">…</span> on a phone or computer.</span>
-            </div>
-        </div>
-    </div>
-
-    <footer class="hint">
-        <span class="key">RETURN</span> <span data-i18n="hint.back">back</span>
-    </footer>
-</section>
+<!-- The receipt dialog is the one cast surface: a QR, the address and the
+     waiting state.  It replaced this page, which had its own layout. -->
 
 <!-- ── URL input view ────────────────────────────────────────────────── -->
 <section id="view-url" class="view hidden">

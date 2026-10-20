@@ -428,11 +428,9 @@
             case 'browse-dlna':        openNetworkSource('dlna'); break;
             case 'browse-webdav':      openNetworkSource('webdav'); break;
             case 'browse-network':    openNetwork(); break;
-            case 'open-cast':          openCast(); break;
             case 'toggle-debug':       toggleDebug(); break;
             case 'open-smb-config':    openNetConfig('smb'); break;
             case 'open-dav-config':    openNetConfig('dav'); break;
-            case 'close-net-config':   closeNetConfig(true); break;
             case 'toggle-cast':        toggleCast(); break;
             case 'open-settings':      openSettings(); break;
             case 'open-current-url': {
@@ -636,39 +634,18 @@
         LibraryUI.receive();
     }
 
-    /* Pairing block in Settings: the TV's own LAN address plus a locally-
-     * generated QR encoding it. Everything stays on the local network —
-     * the page, the POSTed link and the poll all live on the TV's own
-     * service, so no relay or pairing code is involved. */
+    /* The TV's own LAN address, so Settings can offer it when casting or
+     * logging is switched on.  Everything stays on the local network — the
+     * page, the POSTed link and the poll all live on the TV's own service,
+     * so no relay or pairing code is involved. */
     function renderPairingBlock() {
         if (typeof UrlDrop === 'undefined') return;
-        var urlEl = document.getElementById('pair-url');
-        if (urlEl) urlEl.textContent = '…';
-
         UrlDrop.pageUrl(function (err, address) {
-            if (urlEl) urlEl.textContent = address || I18n.t('cast.unavailable');
-            state.castPageUrl = address || '';
+            state.castPageUrl = err ? '' : (address || '');
             state.debugPageUrl = UrlDrop.debugPageUrl || '';
             paintCastRow();
             paintDebugRow();
             fillNetworkRows();
-            var qrEl = document.getElementById('pair-qr');
-            if (!qrEl) return;
-            if (err || !address || typeof qrcode === 'undefined') {
-                qrEl.innerHTML = '<div class="qr-missing">' + escapeHtml(I18n.t('cast.unavailable')) + '</div>';
-                return;
-            }
-            try {
-                var qr = qrcode(0, 'M');
-                qr.addData(address);
-                qr.make();
-                qrEl.innerHTML = '<img alt="' + escapeHtml(I18n.t('cast.qrAlt')) + '" ' +
-                    'style="width:100%;height:100%;image-rendering:pixelated" src="' +
-                    qr.createDataURL(8, 8) + '">';
-            } catch (e) {
-                if (typeof Debug !== 'undefined') Debug.error('pair-qr: ' + e);
-                qrEl.innerHTML = '<div class="qr-missing">' + escapeHtml(I18n.t('cast.unavailable')) + '</div>';
-            }
         });
     }
     function urlBaseName(url) {
@@ -935,7 +912,7 @@
             if (id === 'view-player')   return state.playingIsAudio ? 'audio' : 'video';
             if (id === 'view-url')      return 'stream';
             if (id === 'view-network')  return 'network';
-            if (id === 'view-settings' || id === 'view-cast') return 'settings';
+            if (id === 'view-settings') return 'settings';
         }
         return state.view;
     }
@@ -990,7 +967,6 @@
         releaseBrowsers();
         UI.showView('view-network');
         state.view = 'network';
-        closeNetConfig(false);
         fillNetworkRows();
         LibraryUI.network();
     }
@@ -1001,15 +977,6 @@
     function networkSourceBack() {
         showNetworkPicker();
         return true;
-    }
-
-    /* ── Cast page: the QR and address a phone scans ──────────────────────
-     * The block used to sit inside Settings; it is its own page now. */
-    function openCast() {
-        releaseBrowsers();
-        UI.showView('view-cast');
-        state.view = 'cast';
-        renderPairingBlock();
     }
 
     /* Activating a source: the chosen and configured one browses; anything
@@ -1043,13 +1010,6 @@
      * looks for the pinned server so its page is populated on the way in. */
     function connectNetwork() {
         LibraryUI.refreshConnections();
-    }
-    function closeNetConfig(restore) {
-        document.getElementById('net-config').classList.add('hidden');
-        document.getElementById('net-scrim').classList.add('hidden');
-        UI.refreshFocusables();
-        if (restore && state.view === 'network')
-            UI.focusOn(document.getElementById('tile-smb'));
     }
     /* Casting can be switched off entirely: the service stops accepting
      * links and the app stops polling for them. */
@@ -3325,10 +3285,6 @@
                 if (state.view === 'player' && scrub.active) { cancelScrub(true); return true; }
                 if (state.view === 'player')    { exitPlayer();      return true; }
                 if (state.view === 'url')       { backToHome();      return true; }
-                if (!document.getElementById('net-config').classList.contains('hidden')) {
-                    closeNetConfig(true); return true;
-                }
-                if (state.view === 'cast')      { openSettings();    return true; }
                 if (state.view === 'network')   { backToHome();      return true; }
                 if (state.view === 'settings')  { backToHome();      return true; }
                 /* Home view: explicitly exit the app rather than trusting the
@@ -3646,7 +3602,6 @@
         browseUsbRoot: openBrowserAtRoot,
         openNetConfig: openNetConfig,
         openUrlView: openUrlView,
-        openCast: openCast,
         openPicker: openPicker,
         // The scrub acceleration curve and the option stepper, exposed for
         // the Node tests. Both are pure.

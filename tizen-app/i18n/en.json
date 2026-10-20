@@ -258,7 +258,6 @@
   "playlist.filter": "Filter channels…",
   "playlist.noMatches": "No channels match “{0}”",
   "repeat.all": "Repeat all",
-  "cast.address": "Or open {0} on a phone or computer.",
   "cast.unavailable": "TV service not running — is the app installed and started?",
   "err.legacyHint": "The container opened but your TV's hardware decoder doesn't recognise the codec inside.  {0} files from the late-90s / 2000s usually carry DivX, Xvid, WMV9 or similar — Samsung TVs only decode H.264, HEVC and a handful of others natively.\n\nTwo ways to play these:\n  1. Stream via Plex or Jellyfin if you already run one — they transcode server-side, just hand the URL to Open Network Stream.\n  2. Re-encode once with HandBrake or ffmpeg:\n       {1}",
   "err.mkvHint": "The MKV container itself is fine on this TV — the problem is a track inside it.  Most often that's DTS or TrueHD audio, which Samsung TVs can't decode (they only pass those through to an AVR over HDMI).  Sometimes it's AV1 or 10-bit HEVC video.\n\nTry, in order:\n  1. Open the CC / tracks menu and pick another audio track (many releases carry an AC3 or AAC track alongside the DTS one).\n  2. Play the file through Plex or Jellyfin, which transcode the audio server-side.\n  3. Re-encode once with HandBrake or ffmpeg:\n       {0}",
