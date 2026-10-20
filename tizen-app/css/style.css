@@ -6,16 +6,17 @@
    ──────────────────────────────────────────────────────────────────────── */
 
 :root {
-    /* Neutral surfaces follow mewa_ui's dark ramp: page 1000, card 950,
-     * hover overlays as white alpha on the page. */
+    /* Surfaces follow the reference mockup: page #0A0A0A, card #151515,
+     * focused card #202020.  Every focusable surface shares one ring. */
     --bg:        #0a0a0a;       /* mewa_ui neutral-1000 */
     --bg-2:      #151515;       /* neutral-950 */
     --bg-3:      #1d1d1d;       /* neutral-900 */
     --bg-card:   #151515;       /* tile/card surface */
-    --bg-card-h: #2c2c2c;       /* hovered/focused card, between 900 and 800 */
+    --bg-card-h: #202020;       /* focused card surface */
 
     --fg:        #ffffff;
-    --fg-mute:   #f4f4f4;       /* mewa_ui neutral-050 */
+    --fg-mute:   #f4f4f4;       /* mewa_ui neutral-050 — headings and labels */
+    --fg-soft:   #b3b3b3;       /* descriptions and section labels */
     --fg-dim:    #8d8d8d;       /* between 500 and 600 */
 
     --accent:    #ffffff;       /* monochrome: focus rings, toggles, primary fill */
@@ -23,7 +24,11 @@
     --accent-soft: rgba(255,255,255,.16);
     --danger:    #f4f4f4;       /* negative states read via their icon, not colour */
 
-    --border:    rgba(255,255,255,.08);
+    --border:    rgba(255,255,255,.08);   /* hairline separators */
+    --surface-border: #303030;            /* card, row and option outline */
+    --input-border:   #464646;            /* input and secondary button outline */
+    --focus-ring:  #f4f4f4;               /* the one focus colour */
+    --focus-outer: 0px;                   /* ring drawn outside the border */
     --r:         16px;
     --r-sm:      10px;
     --page-inset: 65px;
@@ -32,7 +37,6 @@
     --card-width: calc((100vw - 130px - 104px) / 5);
     --card-height: calc((100vw - 130px - 104px) / 80 * 9);
     --form-width: calc(var(--card-width) * 4 + 78px);
-    --focus-halo: 0 0 0 6px rgba(255,255,255,.16);
     --motion: 240ms;
     --ease: cubic-bezier(.22, .61, .36, 1);
 }
@@ -62,7 +66,7 @@ button:focus { outline: none; }
     display: inline-block; width: 1em; height: 1em; flex-shrink: 0;
     vertical-align: middle; filter: invert(1); pointer-events: none;
 }
-.tile-icon .remix-icon { width: 44px; height: 44px; }
+.tile-icon .remix-icon { width: 38px; height: 38px; }
 .tile:focus .tile-icon .remix-icon, .tile.focused .tile-icon .remix-icon { filter: none; }
 .btn > .remix-icon { margin-right: 8px; }
 .track-warning { margin-left: 10px; }
@@ -75,21 +79,23 @@ button:focus { outline: none; }
     padding-bottom: 130px; scroll-padding-top: 24px; scroll-padding-bottom: 130px;
 }
 .page-heading { flex: 0 0 auto; }
-.library-row { flex: 0 0 auto; margin: 0 0 24px; min-width: 0; }
+.library-row { flex: 0 0 auto; margin: 0 0 54px; min-width: 0; }
 .library-row h2, .row-heading, .presets-label {
-    margin: 0 0 26px; font-size: 22px; line-height: 30px; font-weight: 500; text-transform: uppercase; color: #aaa;
+    margin: 0 0 25px; font-size: 22px; line-height: 30px; font-weight: 500; text-transform: uppercase; color: var(--fg-soft);
 }
 .card-row { display: flex; flex: 0 0 auto; overflow-x: auto; gap: var(--card-gap); padding: 12px; margin: -12px; scrollbar-width: none; scroll-padding: 12px; scroll-snap-type: x mandatory; }
 .card-row::-webkit-scrollbar { display: none; }
 .media-card { position: relative; display: flex; flex-direction: column; align-items: stretch; text-align: start;
-    flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); min-height: 0; padding: 18px; border: 1px solid #303030;
+    flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); min-height: 0; padding: 18px; border: 2px solid var(--surface-border);
     border-radius: 12px; background: var(--bg-card); overflow: hidden; scroll-snap-align: start; }
 .card-picture { display: flex; flex: 1 1 0; min-height: 0; align-items: center; justify-content: center; position: relative; }
 .card-picture > .remix-icon { width: 48px; height: 48px; opacity: .85; }
 .card-art { position: absolute; inset: 0; height: 100%; width: 100%; object-fit: cover; }
 .card-title { flex: 0 0 auto; font-size: 24px; font-weight: 500; margin-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card-description { flex: 0 0 auto; min-height: 1.2em; font-size: 18px; color: var(--fg-dim); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.media-card.focused, .media-card:focus, #view-home .tile.focused, #view-home .tile:focus { outline: 2px solid #f4f4f4; outline-offset: -2px; border-color: #f4f4f4; background: #202020; box-shadow: var(--focus-halo); transform: none; }
+/* Focus: a 2px light border plus a 2px ring drawn outside it — the same
+ * treatment on every card, tile and source shortcut. */
+.media-card.focused, .media-card:focus { border-color: var(--focus-ring); background: var(--bg-card-h); box-shadow: 0 0 0 2px var(--focus-ring); transform: none; }
 .missing-source { position: absolute; top: 0; right: 0; border-radius: 50%; padding: 8px; background: #0a0a0a; z-index: 1; }
 .missing-source .remix-icon { width: 24px; height: 24px; }
 .card-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: #444; border-radius: 3px; overflow: hidden; z-index: 1; }
@@ -97,41 +103,35 @@ button:focus { outline: none; }
 .add-card { border-style: dashed; }
 #view-home .home-tiles { display: flex; flex: 0 0 auto; gap: var(--card-gap); justify-content: flex-start; width: calc(100% + 24px); overflow-x: auto; padding: 12px; margin: -12px; scrollbar-width: none; scroll-padding: 12px; scroll-snap-type: x mandatory; }
 #view-home .home-tiles::-webkit-scrollbar { display: none; }
-#view-home .tile { display: flex; flex-direction: column; justify-content: center; align-items: center; flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); min-height: 0; padding: 18px; border: 1px solid #303030; border-radius: 12px; scroll-snap-align: start; }
-#view-home .tile-sub { display: none; }
-#view-home .tile-icon { display: flex; align-items: center; justify-content: center; width: 80px; height: 80px; line-height: normal; margin-bottom: 12px; border: 0; background: #242424; border-radius: 50%; }
-#view-home .tile.focused .tile-icon, #view-home .tile:focus .tile-icon { background: #f4f4f4; }
-#view-home .tile-icon .remix-icon { width: 38px; height: 38px; }
-#view-home .tile-label { font-size: 24px; margin: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #view-url .url-input-wrap { max-width: var(--form-width); width: 100%; margin: 0 0 24px; }
-#view-url .url-input-wrap input { height: 78px; text-align: start; border-width: 1px; border-radius: 8px; font-size: 24px; }
-#view-url .url-input-wrap input.focused, #view-url .url-input-wrap input:focus { border-color: #f4f4f4; box-shadow: var(--focus-halo); }
+#view-url .url-input-wrap input { height: 78px; padding: 0 24px; text-align: start; border: 2px solid var(--input-border); border-radius: 8px; background: var(--bg-card-h); font-size: 24px; }
+#view-url .url-input-wrap input.focused, #view-url .url-input-wrap input:focus { border-color: var(--focus-ring); background: var(--bg-card-h); box-shadow: 0 0 0 1px var(--bg-card-h); }
 #view-url .url-input-wrap > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
-#view-url .actions { display: flex; flex: 0 0 auto; gap: 26px; justify-content: flex-start; margin: 0 0 32px; width: 100%; }
-#view-url .actions > button { display: flex; align-items: center; justify-content: center; gap: 8px; width: var(--card-width); min-height: 62px; margin: 0; padding: 12px; border-width: 1px; border-radius: 8px; }
+#view-url .actions { display: flex; flex: 0 0 auto; gap: 26px; justify-content: flex-start; margin: 0 0 52px; width: 100%; }
+#view-url .actions > button { display: flex; align-items: center; justify-content: center; gap: 8px; width: var(--card-width); min-height: 62px; margin: 0; padding: 12px; border: 2px solid var(--input-border); border-radius: 8px; background: var(--bg-card); }
 #view-url .actions > button > .remix-icon { margin: 0; }
-#view-url .actions > .primary { background: #f4f4f4; color: #151515; }
+#view-url .actions > .primary { background: var(--focus-ring); color: #151515; border-color: var(--focus-ring); }
 #view-url .actions > .primary .remix-icon { filter: none; }
-#view-url .actions > button.focused, #view-url .actions > button:focus { box-shadow: var(--focus-halo); border-color: #f4f4f4; transform: none; }
-#view-url .library-row { margin-bottom: 32px; }
-#view-home .library-row h2, #view-home > .row-heading, #view-url .library-row h2 { margin-bottom: 16px; }
+#view-url .actions > button.focused, #view-url .actions > button:focus { border-color: var(--focus-ring); background: var(--bg-card-h); box-shadow: 0 0 0 2px var(--focus-ring); transform: none; }
+#view-url .actions > button.primary.focused, #view-url .actions > button.primary:focus { background: var(--focus-ring); color: #151515; }
 #view-url .saved-streams { width: 100%; max-width: none; }
-.dialog-scrim { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; padding: 40px; }
-.dialog-card { width: 614px; max-width: 100%; max-height: calc(100vh - 80px); display: flex; flex-direction: column;
-    background: #151515; border: 1px solid #303030; border-radius: 16px; padding: 32px; text-align: start; }
+.dialog-scrim { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; padding: 40px; }
+.dialog-card { width: 678px; max-width: 100%; max-height: calc(100vh - 80px); display: flex; flex-direction: column;
+    background: var(--bg-card); border: 2px solid var(--surface-border); border-radius: 16px; padding: 32px; text-align: start;
+    box-shadow: 0 24px 64px rgba(0,0,0,.6); }
 .dialog-card h2 { font-size: 28px; font-weight: 600; margin: 0 0 32px; }
 .dialog-card:focus { outline: none; }
-.dialog-body { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
-.dialog-body .btn { border-width: 1px; border-radius: 8px; }
+.dialog-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.dialog-body .btn { border-width: 2px; border-radius: 8px; }
 .dialog-footer { display: flex; flex: 0 0 auto; gap: 16px; margin-top: 24px; }
 .dialog-footer:empty { display: none; }
-.dialog-footer > button { width: 100%; min-height: 64px; padding: 14px 24px; border: 2px solid #303030; border-radius: 8px; font-size: 22px; }
-.dialog-footer > .primary, .dialog-footer > .settings-row { background: #f4f4f4; color: #151515; font-weight: 600; }
-.dialog-footer > button.focused, .dialog-footer > button:focus { border-color: #f4f4f4; box-shadow: var(--focus-halo); }
-.dialog-body input { width: 100%; min-height: 64px; padding: 14px 18px; background: #0a0a0a; border: 2px solid #303030; border-radius: 8px; color: white; font: inherit; }
-.dialog-option { min-height: 80px; flex-shrink: 0; padding: 18px 24px; text-align: start; border: 2px solid #303030; border-radius: 8px; background: #151515; }
+.dialog-footer > button { width: 100%; min-height: 78px; padding: 14px 24px; border: 2px solid var(--surface-border); border-radius: 8px; font-size: 22px; }
+.dialog-footer > .primary, .dialog-footer > .settings-row { background: var(--focus-ring); color: #151515; font-weight: 600; }
+.dialog-footer > button.focused, .dialog-footer > button:focus { border-color: var(--focus-ring); background: var(--bg-card-h); box-shadow: 0 0 0 2px var(--focus-ring); }
+.dialog-body input { width: 100%; min-height: 64px; padding: 14px 18px; background: var(--bg); border: 2px solid var(--surface-border); border-radius: 8px; color: white; font: inherit; }
+.dialog-option { min-height: 78px; flex-shrink: 0; padding: 18px 24px; text-align: start; border: 2px solid var(--surface-border); border-radius: 8px; background: var(--bg-card); }
 .dialog-option:disabled { opacity: .45; }
-.dialog-option.focused, .dialog-body input.focused, .dialog-body .settings-row.focused { outline: none; border-color: #f4f4f4; background: #242424; }
+.dialog-option.focused, .dialog-body input.focused, .dialog-body .settings-row.focused { outline: none; border-color: var(--focus-ring); background: var(--bg-card-h); }
 .dialog-body .settings-group { margin: 0; }
 .dialog-body .settings-row-input { display: flex; flex-direction: column; align-items: stretch; padding: 0; border: none; background: none; gap: 10px; margin-bottom: 20px; }
 .dialog-body .settings-row-input input { max-width: none; text-align: start; }
@@ -148,23 +148,26 @@ button:focus { outline: none; }
 .receive-body > .muted:last-child { margin-top: 32px; }
 .receive-qr img { width: 320px; max-width: 100%; height: auto; border-radius: 12px; }
 .receive-address { overflow-wrap: anywhere; font-family: monospace; font-size: 20px; }
+/* The waiting line carries a small ring, like the reference receipt dialog. */
+.receive-state { display: inline-flex; align-items: center; gap: 14px; margin-top: 32px; }
+.receive-state .spinner-ring { width: 32px; height: 32px; border-width: 3px; margin: 0; }
 .muted { color: #aaa; font-size: 22px; }
-.info-panel { background: #151515; border: 1px solid #303030; border-radius: 12px; padding: 28px; margin-bottom: 32px; }
-.info-panel.focused { outline: none; border-color: #f4f4f4; }
+.info-panel { background: var(--bg-card); border: 2px solid var(--surface-border); border-radius: 12px; padding: 28px; margin-bottom: 32px; }
+.info-panel.focused { outline: none; border-color: var(--focus-ring); }
 .info-panel h3 { margin-top: 0; }
 .browse-list.grid.device-roots { display: flex; flex: 0 0 auto; gap: var(--card-gap); overflow-x: auto; padding: 12px; margin: -12px; width: calc(100% + 24px); scroll-padding: 12px; scroll-snap-type: x mandatory; }
 .browse-list.grid.device-roots::-webkit-scrollbar { display: none; }
-.browse-list.grid.device-roots li { flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); min-height: 0; padding: 18px; border: 1px solid #303030; border-radius: 12px; align-items: center; justify-content: center; scroll-snap-align: start; }
-.browse-list.grid.device-roots li.focused { outline: 2px solid #f4f4f4; outline-offset: -2px; box-shadow: var(--focus-halo); background: #202020; transform: none; }
+.browse-list.grid.device-roots li { flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); min-height: 0; padding: 18px; border: 2px solid var(--surface-border); border-radius: 12px; align-items: center; justify-content: center; scroll-snap-align: start; }
+.browse-list.grid.device-roots li.focused { border-color: var(--focus-ring); box-shadow: 0 0 0 2px var(--focus-ring); background: var(--bg-card-h); transform: none; }
 .browse-list.grid.device-roots .name { flex: 0 0 auto; font-size: 24px; }
 .browse-list.grid.device-roots .meta { display: none; }
-.browse-list.grid.device-roots .icon { display: flex; justify-content: center; align-items: center; width: 80px; height: 80px; border-radius: 50%; background: #242424; }
-.browse-list.grid.device-roots li.focused .icon { background: #f4f4f4; }
+.browse-list.grid.device-roots .icon { display: flex; justify-content: center; align-items: center; width: 80px; height: 80px; border-radius: 50%; background: #212121; }
+.browse-list.grid.device-roots li.focused .icon { background: var(--focus-ring); }
 .browse-list.grid.device-roots li.focused .icon .remix-icon { filter: none; }
 .browse-list.grid.device-roots.empty-devices .icon { background: transparent; }
 #network-cards .media-card { align-items: center; justify-content: center; text-align: center; }
-#network-cards .card-picture { flex: 0 0 auto; width: 80px; height: 80px; border-radius: 50%; background: #242424; }
-#network-cards .media-card.focused .card-picture, #network-cards .media-card:focus .card-picture { background: #f4f4f4; }
+#network-cards .card-picture { flex: 0 0 auto; width: 80px; height: 80px; border-radius: 50%; background: #212121; }
+#network-cards .media-card.focused .card-picture, #network-cards .media-card:focus .card-picture { background: var(--focus-ring); }
 #network-cards .media-card.focused .card-picture > .remix-icon, #network-cards .media-card:focus .card-picture > .remix-icon { filter: none; }
 #network-cards .card-title { max-width: 100%; }
 #network-cards .card-description:empty { display: none; }
@@ -175,8 +178,6 @@ button:focus { outline: none; }
 .storage-root .browse-media-action { display: none; }
 .device-heading { display: none; }
 .storage-root:not(.empty-storage) .device-heading { display: block; }
-.hint { position: fixed; bottom: 0; left: 0; right: 0; padding: 36px 60px; margin: 0 !important; z-index: 30;
-    background: var(--bg); text-align: end; pointer-events: none; }
 
 /* ── Views: full screen, vertically + horizontally centred contents ────
  * Each non-player view paints its own opaque background — required because
@@ -191,7 +192,10 @@ button:focus { outline: none; }
     align-items: center;
     justify-content: center;
     text-align: center;
-    background: var(--bg);
+    /* The reference mockup lays a baked halftone field over the page colour.
+     * It is a static image, so the browser paints it once instead of blending
+     * a live layer every frame. */
+    background: var(--bg) url("../assets/texture-halftone.png") no-repeat 0 0 / 100% 100%;
     /* On the TV everything fits 1080p; in narrow preview windows wrapped
      * rows must stay reachable instead of spilling out of view. */
     overflow-y: auto;
@@ -239,69 +243,37 @@ button:focus { outline: none; }
 .brand.small .app-icon { width: 56px; height: 56px; border-radius: 12px; }
 
 /* ── Home tiles ───────────────────────────────────────────────────── */
-.home-tiles {
-    display: grid; grid-gap: 16px;   /* grid-gap, not gap: TV WebView is Chromium 63 */
-    /* Full width so auto-fit has a definite size to divide: the TV gets its
-     * 8×216 row back, narrower windows wrap rows instead of overflowing. */
-    width: 100%;
-    grid-template-columns: repeat(auto-fit, 216px);
-    justify-content: center;
-}
-/* The whole strip must never force horizontal scrolling: tiles shrink a
- * little before wrapping becomes pointless. */
-@media (max-width: 740px) {
-    .home-tiles { grid-template-columns: repeat(auto-fit, 172px); }
-    .tile { padding: 40px 8px; }
-    .tile-icon { width: 80px; height: 80px; line-height: 76px; font-size: 30px; }
-}
-
+/* One tile component: a 16:9 card with an icon disc and a label.  It shares
+ * the card geometry and the focus ring with the content cards. */
 .tile {
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); min-height: 0;
+    padding: 18px; text-align: center;
     background: var(--bg-card);
-    border: 3px solid var(--border);
-    border-radius: var(--r);
-    padding: 56px 10px;   /* eight tiles (WebDAV, #145): 216px leaves ~190px for a label */
-    text-align: center;
-    transition: transform var(--motion) var(--ease), border-color var(--motion) var(--ease), background-color var(--motion) var(--ease), box-shadow var(--motion) var(--ease);
+    border: 2px solid var(--surface-border);
+    border-radius: 12px;
     color: var(--fg);
+    scroll-snap-align: start;
+    transition: transform var(--motion) var(--ease), border-color var(--motion) var(--ease), background-color var(--motion) var(--ease), box-shadow var(--motion) var(--ease);
 }
-
 .tile:focus, .tile.focused {
-    border-color: var(--accent);
+    border-color: var(--focus-ring);
     background: var(--bg-card-h);
     transform: none;
-    box-shadow: var(--focus-halo);
+    box-shadow: 0 0 0 2px var(--focus-ring);
 }
-
 .tile-icon {
-    font-size: 36px;
-    font-weight: 600;
-    color: var(--fg);
-    background: var(--accent-soft);
-    border: 2px solid var(--accent);
-    width: 96px; height: 96px;
-    line-height: 92px;
-    border-radius: 24px;
-    margin: 0 auto 28px;
-    letter-spacing: 1px;
+    display: flex; align-items: center; justify-content: center;
+    width: 80px; height: 80px; line-height: normal; margin-bottom: 12px;
+    border: 0; background: #212121; border-radius: 50%;
 }
-.tile-icon.long { font-size: 26px; letter-spacing: 0; }   /* four letters: DLNA */
-.tile:focus .tile-icon, .tile.focused .tile-icon {
-    background: var(--accent);
-    color: #0a0a0a;
-}
-
+.tile-icon .remix-icon { width: 38px; height: 38px; }
+.tile:focus .tile-icon, .tile.focused .tile-icon { background: var(--focus-ring); }
 .tile-label {
-    font-size: 22px;          /* 26px broke "Netzwerkstream" mid-word in the 216px tile */
-    word-break: break-word;   /* a single long word (ru "Медиасерверы") wraps rather than spills */
-    font-weight: 500;
-    color: var(--fg);
-    margin-bottom: 10px;
+    font-size: 24px; font-weight: 500; color: var(--fg); margin: 0;
+    max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.tile-sub {
-    font-size: 18px;
-    color: var(--fg-mute);
-    line-height: 1.4;
-}
+.tile-sub { display: none; }
 
 /* ── URL input view ───────────────────────────────────────────────── */
 .url-input-wrap {
@@ -332,9 +304,9 @@ button:focus { outline: none; }
 .url-input-wrap input::placeholder { color: var(--fg-dim); }
 .url-input-wrap input:focus, .url-input-wrap input.focused {
     outline: none;
-    border-color: var(--accent);
+    border-color: var(--focus-ring);
     background: var(--bg-card-h);
-    box-shadow: 0 0 0 6px var(--accent-soft);
+    box-shadow: 0 0 0 1px var(--bg-card-h);
 }
 
 .presets {
@@ -1189,21 +1161,31 @@ body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 
 }
 
 /* ── Hints / footer ───────────────────────────────────────────────── */
+/* The reference fades the page into a fixed footer strip: the last 128px
+ * carry a scrim and the key chips sit 50px above the bottom edge. */
 .hint {
-    margin-top: 48px;
-    color: var(--fg-mute);
-    font-size: 18px;
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end;
+    margin: 0 !important;
+    padding: 50px 64px 50px 0;
+    font-size: 20px; line-height: 28px; color: var(--fg-mute);
+    text-align: end; pointer-events: none;
+    background: linear-gradient(to bottom, rgba(10,10,10,0), rgba(10,10,10,1));
 }
+.hint span { margin: 0 24px 0 0; }
+.hint span:last-child { margin-right: 0; }
+.hint .browse-actions { display: inline-flex; align-items: center; }
 .key {
-    display: inline-block;
-    background: var(--bg-3);
-    padding: 4px 12px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 2px;
+    height: 28px; padding: 0 10px; margin: 0 10px 0 0;
+    background: rgba(255,255,255,.078);
     border-radius: 4px;
     font-family: 'Consolas', monospace;
-    color: var(--fg);
+    color: var(--fg-mute);
     font-size: 16px;
-    margin: 0 4px;
+    line-height: 1;
 }
+.key .remix-icon { width: 14px; height: 14px; }
 
 /* Word/percentage labels ("Fit", "125%") in the round OSD buttons need a
  * smaller type size than the glyph controls to stay inside the circle. */
@@ -1259,18 +1241,18 @@ body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 22px 28px;
+    padding: 22px 25px;
     margin-bottom: 12px;
     background: var(--bg-card);
-    border: 3px solid var(--border);
-    border-radius: var(--r);
+    border: 2px solid var(--surface-border);
+    border-radius: 8px;
     color: var(--fg);
     text-align: left;
     transition: border-color var(--motion) var(--ease), background-color var(--motion) var(--ease);
 }
 .settings-row:focus, .settings-row.focused {
-    border-color: rgba(255,255,255,.75);
-    background: rgba(255,255,255,.12);
+    border-color: var(--focus-ring);
+    background: var(--bg-card-h);
     box-shadow: none;
 }
 .settings-label { font-size: 24px; }
@@ -1317,25 +1299,31 @@ body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 
 .settings-switch::after {
     content: '';
     position: absolute;
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
-    top: 5px;
-    inset-inline-start: 5px;
-    background: #f4f4f4;
+    top: 4px;
+    inset-inline-start: 4px;
+    background: var(--fg-mute);
 }
-.settings-switch.on { background: #f4f4f4; }
-.settings-switch.on::after { inset-inline-start: 33px; background: #151515; }
-.page-heading { text-align: start; margin: 68px 0 48px; }
-.page-heading h1 { margin: 0 0 12px; font-size: 56px; line-height: 1.2; font-weight: 600; }
-.page-heading p { margin: 0; color: #aaa; font-size: 28px; line-height: 1.25; }
-/* Three Home rows and two Stream rows still clear the fixed remote hints. */
-#view-home .page-heading { margin: 8px 0 16px; }
-#view-url .page-heading { margin: 40px 0 32px; }
+.settings-switch.on { background: var(--fg-mute); }
+.settings-switch.on::after { inset-inline-start: 32px; background: var(--bg-card); }
+/* Page heading: the reference sets the title at 52px/700 with a 28px
+ * description, both starting at the page inset. */
+.page-heading { text-align: start; margin: 68px 0 52px; }
+.page-heading h1 { margin: 0 0 12px; font-size: 52px; line-height: 1.2; font-weight: 700; }
+.page-heading p { margin: 0; color: var(--fg-soft); font-size: 28px; line-height: 1.25; }
 #view-settings .settings-content { max-width: var(--form-width); width: 100%; margin: 0; }
-#view-settings .settings-group { margin-bottom: 16px; }
-#view-settings .settings-row { border-width: 1px; border-radius: 12px; min-height: 80px; }
-#view-settings .settings-row.focused { outline: none; box-shadow: inset 0 0 0 2px #f4f4f4; }
+#view-settings .settings-group { margin-bottom: 19px; }
+#view-settings .settings-row { border-width: 2px; border-radius: 8px; min-height: 78px; padding: 0 25px; }
+#view-settings .settings-row.focused { outline: none; border-color: var(--focus-ring); background: var(--bg-card-h); box-shadow: none; }
+#view-settings .settings-row .settings-value { color: var(--fg-mute); }
+/* The language row ends in a chevron, like the reference picker row. */
+#setting-ui-lang-value::after {
+    content: ''; display: inline-block; width: 10px; height: 10px; margin-inline-start: 14px;
+    border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    transform: rotate(45deg) translate(-3px,-3px);
+}
 #view-settings .tvinfo { margin-top: 48px; padding: 0; border: none; background: transparent; }
 #view-settings .tvinfo .codec .status { color: var(--fg-dim); }
 .settings-row .settings-value {
@@ -1402,27 +1390,25 @@ body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 
 /* TV info table */
 .tvinfo {
     background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--r);
-    padding: 24px 28px;
-    font-size: 19px;
-    line-height: 1.6;
+    border: 2px solid var(--surface-border);
+    border-radius: 8px;
+    padding: 24px 25px;
+    font-size: 24px;
+    line-height: 1.5;
 }
 .tvinfo .row {
     display: flex;
     align-items: baseline;
-    padding: 4px 0;
-    border-bottom: 1px solid var(--border);
+    padding: 8px 0;
+    border-bottom: 1px solid var(--surface-border);
 }
 .tvinfo .row:last-child { border-bottom: 0; }
-.tvinfo .k { flex: 0 0 220px; color: var(--fg-mute); }
-.tvinfo .v { flex: 1; color: var(--fg); word-break: break-all; }
+.tvinfo .k { flex: 0 0 320px; color: var(--fg-soft); }
+.tvinfo .v { flex: 1; color: var(--fg-mute); word-break: break-all; }
 .tvinfo h3 {
-    margin: 18px 0 8px;
-    font-size: 18px;
+    margin: 0 0 12px;
+    font-size: 24px;
     color: var(--fg-mute);
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
     font-weight: 500;
 }
 /* 2-column grid for the codec list — twice the density so everything fits
@@ -1434,13 +1420,16 @@ body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 
 }
 .tvinfo .codec {
     display: flex;
-    padding: 4px 0;
-    font-size: 18px;
+    align-items: center;
+    padding: 8px 0;
+    font-size: 24px;
 }
-.tvinfo .codec .name { flex: 0 0 160px; color: var(--fg-mute); }
-.tvinfo .codec .status.ok    { color: #6ad06a; }
-.tvinfo .codec .status.maybe { color: var(--accent-2); }
-.tvinfo .codec .status.no    { color: var(--danger); }
+.tvinfo .codec .name { flex: 0 0 220px; color: var(--fg-soft); }
+.tvinfo .codec .status { display: inline-flex; align-items: center; gap: 8px; }
+.tvinfo .codec .status .remix-icon { width: 24px; height: 24px; }
+.tvinfo .codec .status.ok    { color: #58a770; }
+.tvinfo .codec .status.maybe { color: var(--fg-mute); }
+.tvinfo .codec .status.no    { color: #f66a6d; }
 
 /* "Support this app" Ko-fi block */
 .support-block {
@@ -1736,11 +1725,14 @@ body.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 
 .audio-title { font-size: 34px; color: var(--fg); word-break: break-word; }
 .audio-art {
     display: block;
-    width: 360px; height: 360px;
+    width: 280px; height: 280px;
     margin: 0 auto 36px;
     object-fit: cover;
     border-radius: var(--r);
 }
+/* While the transport OSD is up it owns the lower half of the screen, so
+ * the music card lifts clear of it instead of running into the timeline. */
+body.player-osd-visible .audio-card { top: 22%; }
 .audio-sub { margin-top: 12px; font-size: 26px; color: var(--fg-mute); word-break: break-word; }
 
 /* Listed, but nothing in the app opens it. */

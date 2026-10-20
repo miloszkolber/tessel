@@ -92,10 +92,10 @@ test('autoplay is silent and the scrub chip is white-on-black text', function ()
     assert.ok(chip.indexOf('border: none') >= 0, 'no chip outline');
 });
 
-test('views sit on the flat mewa dark page colour and subtitle boxes blur', function () {
+test('views sit on the reference dark page colour and subtitle boxes blur', function () {
     var css = fs.readFileSync(path.join(ROOT, 'css/style.css'), 'utf8');
     var view = css.slice(css.indexOf('.view {'), css.indexOf('.view {') + 700);
-    assert.ok(view.indexOf('background: var(--bg)') >= 0, 'flat page colour');
+    assert.ok(view.indexOf('background: var(--bg)') >= 0, 'page colour');
     assert.ok(css.indexOf('--bg:        #0a0a0a') >= 0, 'mewa neutral-1000 base');
     assert.ok(css.indexOf('#subtitle-overlay.sub-bg .sub-line') >= 0, 'subtitle box rule');
     assert.ok(css.indexOf('backdrop-filter: blur(8px)') >= 0, 'subtitle box blur');

@@ -226,6 +226,7 @@ var LibraryUI = (function () {
     function addDlna() {
         var seq = 0;
         var d = Dialog.open(t('network.addDlna'), { back: addSource, dispose: function () { seq++; } });
+        d.root.classList.add('source-dialog');
         var again = el('button', 'btn ghost', t('dlna.searchAgain')); again.addEventListener('click', refresh); d.footer.appendChild(again);
         function refresh() {
             var request = ++seq; d.body.innerHTML = ''; d.body.appendChild(el('p', 'muted', t('dlna.searching')));
@@ -277,9 +278,11 @@ var LibraryUI = (function () {
         var d = Dialog.open(t('cast.headline'), { dispose: function () { castSequence++; clearTimeout(castTimer); } });
         d.body.classList.add('receive-body');
         d.body.parentNode.classList.add('receive-card');
-        var qr = el('div', 'receive-qr'), address = el('p', 'receive-address', t('common.loading')), state = el('p', 'muted', t('cast.waiting'));
+        var qr = el('div', 'receive-qr'), address = el('p', 'receive-address', t('common.loading'));
+        var stateLine = el('div', 'receive-state'), ring = el('span', 'spinner-ring'), state = el('span', 'muted', t('cast.waiting'));
+        stateLine.appendChild(ring); stateLine.appendChild(state);
         var heading = d.body.parentNode.querySelector('h2');
-        d.body.appendChild(qr); d.body.appendChild(heading); d.body.appendChild(el('p', 'muted', t('cast.scan'))); d.body.appendChild(address); d.body.appendChild(state); d.focus();
+        d.body.appendChild(qr); d.body.appendChild(heading); d.body.appendChild(el('p', 'muted', t('cast.scan'))); d.body.appendChild(address); d.body.appendChild(stateLine); d.focus();
         SMB.ensureService(function (err) {
             if (seq !== castSequence) return;
             if (err) { state.textContent = t('url.serviceDown'); return; }
@@ -311,6 +314,6 @@ var LibraryUI = (function () {
     }
     function validUrl(url) { return /^(https?|rtsp|rtmp|mms|udp|rtp|file):\/\//i.test(String(url || '').trim()); }
     return { init: refreshConnections, home: home, network: network, stream: stream, receive: receive,
-        bindFolder: bindFolder, bind: bind, sourceSaved: sourceSaved, editSource: editSource, addSource: addSource,
+        bindFolder: bindFolder, bind: bind, sourceSaved: sourceSaved, editSource: editSource, addSource: addSource, addDlna: addDlna,
         refreshConnections: refreshConnections, descriptor: descriptor, validUrl: validUrl, offline: offline, usbPath: usbPath, streamInfo: streamInfo };
 })();

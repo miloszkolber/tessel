@@ -67,9 +67,35 @@ The queue SHALL remain fully visible whenever the OSD is visible, including when
 - **AND** bottom subtitles remain clear of the timeline
 
 ### Requirement: Restrained motion
-Card and control transitions SHALL use a consistent eased cadence. Library surfaces SHALL NOT depend on decorative gradients. Reduced-motion preference SHALL disable decorative animations and smooth focus scrolling. View transitions SHALL preserve the opaque non-player background above the native video plane.
+Card and control transitions SHALL use a consistent eased cadence. Content surfaces SHALL NOT carry decorative gradients. Reduced-motion preference SHALL disable decorative animations and smooth focus scrolling. View transitions SHALL preserve the opaque non-player background above the native video plane.
 
 #### Scenario: Reduced-motion focus
 - **GIVEN** reduced motion is enabled
 - **WHEN** remote focus moves to an offscreen card
 - **THEN** scrolling brings the card into view without animated movement
+
+### Requirement: Reference surface and focus treatment
+Library surfaces SHALL use the reference outline and fill values. Content cards, rows, options and information panels SHALL use a 2px #303030 outline on a #151515 fill. Inputs and secondary buttons SHALL use a 2px #464646 outline on a #202020 fill. A focused surface SHALL use a #F4F4F4 outline on a #202020 fill. Focus SHALL read as a hard ring rather than a soft glow. Cards, tiles and device shortcuts SHALL add a 2px ring outside the outline; rows, options and inputs SHALL not.
+
+#### Scenario: Focused content card
+- **WHEN** a content card takes focus
+- **THEN** it shows a 2px light outline, a 2px light ring outside it and a lighter fill
+- **AND** no blurred or translucent halo surrounds it
+
+#### Scenario: Focused settings row
+- **WHEN** a settings row takes focus
+- **THEN** it shows a 2px light outline and a lighter fill
+- **AND** its height and neighbours' positions do not change
+
+### Requirement: Page field, footer strip and modal
+Library pages SHALL paint the baked halftone field over the #0A0A0A page colour without a live blended layer. The fixed remote-hint footer SHALL fade the page into a 128px scrim and place 28px key chips 50px above the bottom edge. Modals SHALL be 678px wide with a 16px radius over a 50% scrim, and source dialogs SHALL keep their action at the bottom of the panel.
+
+#### Scenario: Footer over the page field
+- **WHEN** a library page is shown
+- **THEN** the last 128px fade from the page colour into the footer colour
+- **AND** the key chips sit 50px above the bottom edge
+
+#### Scenario: Source configuration dialog
+- **WHEN** a source configuration dialog opens
+- **THEN** the panel keeps its action button at the bottom
+- **AND** the list of discovered sources stays at the top

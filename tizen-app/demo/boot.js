@@ -56,7 +56,7 @@
         } else if (page === 'network') {
             VlcApp.openNetwork();
             if (state === 'smb-config' || state === 'dav-config') LibraryUI.editSource(state === 'smb-config' ? 'smb' : 'webdav', 'new');
-            if (state === 'dlna-config') LibraryUI.addSource();
+            if (state === 'dlna-config') LibraryUI.addDlna();
         } else if (page === 'stream') { VlcApp.openUrlView(); if (state === 'receive') LibraryUI.receive(); }
         else if (page === 'settings') VlcApp.openSettings();
         else { VlcApp.home(); media(page === 'audio' ? 'Music' : 'Films', page === 'audio'); }
