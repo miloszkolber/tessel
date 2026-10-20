@@ -17,6 +17,7 @@
   "network.title": "Network sources",
   "network.description": "Connect your media servers and shared folders.",
   "network.add": "Add a source",
+  "network.noDevices": "No devices found",
   "network.addDlna": "Add DLNA server",
   "network.added": "Added",
   "stream.title": "Play a link",

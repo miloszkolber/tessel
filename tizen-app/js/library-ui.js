@@ -182,7 +182,11 @@ var LibraryUI = (function () {
     function network(focus) {
         var host = document.getElementById('network-cards'); if (!host) return;
         host.innerHTML = '';
-        sources().forEach(function (s) { host.appendChild(card(s, function () { openSource(s); }, function (node) { sourceMenu(s, node); })); });
+        var list = sources();
+        /* The reference names the empty state instead of the section. */
+        var heading = document.getElementById('network-heading');
+        if (heading) heading.textContent = t(list.length ? 'library.devices' : 'network.noDevices');
+        list.forEach(function (s) { host.appendChild(card(s, function () { openSource(s); }, function (node) { sourceMenu(s, node); })); });
         var add = card({ key: 'add-source', title: t('library.add'), icon: 'add-line' }, addSource); add.classList.add('add-card'); host.appendChild(add);
         UI.refreshFocusables();
         if (!document.getElementById('view-network').classList.contains('hidden')) restore(focus, host.querySelector('button') || add);
