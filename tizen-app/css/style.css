@@ -446,7 +446,7 @@ button:focus { outline: none; }
 
 .browse-list li {
     padding: 20px 32px;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--surface-border);
     display: flex;
     align-items: center;
     transition: background-color var(--motion) var(--ease), border-left-color var(--motion) var(--ease);
@@ -557,6 +557,9 @@ body:not(.player-view) #subtitle-overlay { display: none; }
     pointer-events: none;
     /* Above playback chrome, below menus and modal scrims. */
     z-index: 10;
+    /* The OSD and the queue move the cue out of the way; let it travel
+     * instead of jumping. */
+    transition: bottom var(--motion) var(--ease), top var(--motion) var(--ease);
 }
 /* Position presets.  Bottom is the default; middle/top free the opposite
  * anchor so the block grows in the right direction. */
@@ -1445,17 +1448,21 @@ body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: cal
 }
 
 /* ── Toast ────────────────────────────────────────────────────────── */
+/* A toast is a short notice over the page: a bordered surface, not a pill. */
 .toast {
     position: fixed;
-    bottom: 60px; left: 50%;
+    bottom: 130px; left: 50%;
     transform: translateX(-50%);
-    background: var(--bg-3);
+    max-width: 70%;
+    background: var(--bg-card);
     color: var(--fg);
-    padding: 16px 36px;
-    border-radius: 999px;
+    padding: 18px 28px;
+    border-radius: 8px;
     font-size: 20px;
+    line-height: 1.4;
     z-index: 1000;
-    border: 1px solid var(--border);
+    border: 2px solid var(--surface-border);
+    box-shadow: 0 12px 32px rgba(0,0,0,.5);
 }
 
 /* ── Audio-only playback ──────────────────────────────────────────── */
