@@ -619,13 +619,13 @@ body:not(.player-view) #subtitle-overlay { display: none; }
 }
 .osd-top {
     top: 0;
-    padding: 32px 60px 100px;
+    padding: 32px var(--page-inset) 100px;
     background: linear-gradient(180deg, rgba(0,0,0,.72), rgba(0,0,0,.3) 55%, rgba(0,0,0,0));
     text-align: left;
 }
 .osd-bottom {
     bottom: 0;
-    padding: 100px 60px 48px;
+    padding: 100px var(--page-inset) 48px;
     background: linear-gradient(0deg, rgba(0,0,0,.8), rgba(0,0,0,.4) 55%, rgba(0,0,0,0));
 }
 /* Without the queue below (single file, audio) the transport can sit
@@ -724,7 +724,7 @@ body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-open)); }
  * controls never move; it grows to the full cards when the D-pad enters
  * it and shows the tops of the cards until then. */
 .up-next {
-    position: absolute; left: 60px; right: 60px; bottom: 12px;
+    position: absolute; left: var(--page-inset); right: var(--page-inset); bottom: 12px;
     margin: 0; padding: 0; text-align: left;
     background: transparent;
     border: none;
@@ -739,16 +739,16 @@ body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-open)); }
     font-size: 22px; line-height: 1.3; color: var(--fg-soft);
     text-transform: uppercase;
     font-weight: 500;
-    margin: 0 8px 12px;
+    margin: 0 0 12px;
 }
 #up-next-list {
     direction: ltr;
     list-style: none; margin: 0;
-    /* Room for the focus ring halo (8px) and the 2px lift so rings and
-     * tiles never clip against the scroll box. */
+    /* Room for the focus ring so rings and tiles never clip against the
+     * scroll box. */
     padding: 12px;
     margin: -12px;
-    display: flex; flex-direction: row; gap: 24px;
+    display: flex; flex-direction: row; gap: var(--card-gap);
     overflow-x: auto; overflow-y: hidden;
     scroll-padding: 12px; scroll-snap-type: x mandatory;
     scrollbar-width: none;
@@ -986,7 +986,7 @@ body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: cal
 /* ── Track menu ───────────────────────────────────────────────────── */
 .track-menu {
     z-index: 20;
-    position: absolute; right: 60px; bottom: 240px;
+    position: absolute; right: var(--page-inset); bottom: 240px;
     background: var(--bg-card);
     border: 2px solid var(--surface-border);
     border-radius: var(--r);
@@ -1366,7 +1366,7 @@ body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: cal
 
 /* Player popups share one anchor and row rhythm. Back replaces footer actions. */
 .player-view #picker {
-    top: auto; left: auto; right: 60px; bottom: 240px;
+    top: auto; left: auto; right: var(--page-inset); bottom: 240px;
     transform: none;
     width: 480px; max-width: calc(100vw - 48px);
     max-height: calc(100vh - 320px);
