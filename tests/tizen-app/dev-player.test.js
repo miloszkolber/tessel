@@ -86,6 +86,27 @@ test('laid-out descendants of an exiting OSD are excluded from remote focus', fu
     assert.equal(scrollOptions.behavior, 'auto', 'reduced motion also disables smooth focus scrolling');
 });
 
+test('stopping playback clears the OSD and queue layout state before returning to the library', function () {
+    var app = fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
+    var start = app.indexOf('    function stopPlayback()');
+    var end = app.indexOf('    /* Back to the list', start);
+    assert.ok(start >= 0 && end > start);
+    var removed = [], osd = [], stopped = false, saved = false;
+    function noop() {}
+    vm.runInNewContext(app.slice(start, end) + '\nstopPlayback();', {
+        playbackGeneration: 0, standbySnapshot: {}, pendingResume: {}, openWatchdog: 1, osdHideTimer: 2, playerPopupReturn: 'more',
+        state: { playingUri: 'file:///example.mp3' }, lastProgress: { time: 10, duration: 100 },
+        clearInterval: noop, clearTimeout: noop, closeMore: noop, resetScrub: noop, hideError: noop, closeTrackMenu: noop,
+        markWatched: noop, saveResumePos: function () { saved = true; },
+        Player: { stop: function () { stopped = true; } },
+        showOSD: function (visible) { osd.push(visible); },
+        document: { body: { classList: { remove: function () { removed = Array.from(arguments); } } } }
+    });
+    assert.ok(stopped && saved, 'decoder release and resume bookkeeping are preserved');
+    assert.deepEqual(osd, [false], 'use the shared OSD cleanup, including native focus');
+    assert.deepEqual(removed, ['has-queue', 'up-next-open']);
+});
+
 test('simulator uses production markup without painting an unsupported AVPlay plugin', async function () {
     var entry = fs.readFileSync(path.join(ROOT, 'demo.html'), 'utf8');
     var production = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');

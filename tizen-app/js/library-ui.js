@@ -102,7 +102,7 @@ var LibraryUI = (function () {
             art.onerror = function () { b.classList.remove('has-art'); if (art.parentNode) art.parentNode.removeChild(art); };
             image.appendChild(art);
         }
-        var warning = el('span', 'missing-source hidden'); warning.appendChild(icon('error-warning-line')); warning.title = t('source.unavailable'); image.appendChild(warning);
+        var warning = el('span', 'missing-source hidden'); warning.appendChild(icon('error-warning-line')); warning.title = t('source.unavailable'); b.appendChild(warning);
         if (item.dur && item.pos) { var bar = el('span', 'card-progress'), fill = el('span'); fill.style.width = Math.min(100, item.pos / item.dur * 100) + '%'; bar.appendChild(fill); image.appendChild(bar); }
         b.appendChild(image);
         b.appendChild(el('span', 'card-title', item.title || item.name));

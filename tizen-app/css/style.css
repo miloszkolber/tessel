@@ -33,7 +33,7 @@
     /* The queue strip: a peek at the bottom of the OSD until it takes
      * focus, then the full cards. */
     --queue-peek: 150px;
-    --queue-open: 255px;
+    --queue-open: calc(var(--card-height) + 66px);
     --r:         16px;
     --r-sm:      10px;
     --page-inset: 65px;
@@ -121,8 +121,8 @@ button:focus { outline: none; }
 /* Focus: a 2px light border plus a 2px ring drawn outside it — the same
  * treatment on every card, tile and source shortcut. */
 .media-card.focused, .media-card:focus { border-color: var(--focus-ring); background: var(--bg-card-h); box-shadow: 0 0 0 2px var(--focus-ring); transform: none; }
-.missing-source { position: absolute; top: 0; right: 0; border-radius: 50%; padding: 8px; background: #0a0a0a; z-index: 1; }
-.missing-source .remix-icon { width: 24px; height: 24px; }
+.missing-source { z-index: 1; }
+.missing-source .remix-icon { width: 22px; height: 22px; }
 .card-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: #444; border-radius: 3px; overflow: hidden; z-index: 1; }
 .card-progress > span { display: block; height: 100%; background: #eee; }
 .add-card { border-style: dashed; }
@@ -141,14 +141,17 @@ button:focus { outline: none; }
 .dialog-card { width: 678px; max-width: 100%; max-height: calc(100vh - 80px); display: flex; flex-direction: column;
     background: var(--bg-card); border: 2px solid var(--surface-border); border-radius: 16px; padding: 32px; text-align: start;
     box-shadow: 0 24px 64px rgba(0,0,0,.6); }
-.dialog-card h2 { font-size: 28px; font-weight: 600; margin: 0 0 32px; }
+.dialog-card h2 { font-size: 28px; font-weight: 600; margin: 0 0 40px; }
 .dialog-card:focus { outline: none; }
-.dialog-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.dialog-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding: 4px; margin: -4px; scroll-padding: 4px; }
+.dialog-body > .settings-group { flex: 0 0 auto; }
 .dialog-footer { display: flex; flex: 0 0 auto; gap: 16px; margin-top: 24px; }
 .dialog-footer:empty { display: none; }
-.dialog-footer > button { width: 100%; min-height: 78px; padding: 14px 24px; border: 2px solid var(--surface-border); border-radius: 8px; font-size: 22px; }
-.dialog-footer > .primary, .dialog-footer > .settings-row { background: var(--focus-ring); color: #151515; font-weight: 600; }
+.dialog-footer > button { width: 100%; min-height: 78px; margin: 0; padding: 14px 24px; border: 2px solid var(--surface-border); border-radius: 8px; font-size: 22px; }
+.dialog-footer > .primary, .dialog-footer > .settings-row { background: var(--focus-ring); color: #151515; font-weight: 400; }
 .dialog-footer > button.focused, .dialog-footer > button:focus { border-color: var(--focus-ring); background: var(--bg-card-h); box-shadow: 0 0 0 2px var(--focus-ring); }
+.dialog-footer > .primary:focus, .dialog-footer > .primary.focused,
+.dialog-footer > .settings-row:focus, .dialog-footer > .settings-row.focused { background: var(--focus-ring); color: #151515; box-shadow: 0 0 0 3px rgba(244,244,244,.4); }
 .dialog-body input { width: 100%; min-height: 64px; padding: 14px 18px; background: var(--bg); border: 2px solid var(--surface-border); border-radius: 8px; color: white; font: inherit; }
 .dialog-option { min-height: 78px; flex-shrink: 0; padding: 18px 24px; text-align: start; border: 2px solid var(--surface-border); border-radius: 8px; background: var(--bg-card); }
 .dialog-option:disabled { opacity: .45; }
@@ -157,11 +160,12 @@ button:focus { outline: none; }
 .dialog-body .settings-row-input { display: flex; flex-direction: column; align-items: stretch; padding: 0; border: none; background: none; gap: 10px; margin-bottom: 20px; }
 .dialog-body .settings-row-input input { max-width: none; text-align: start; }
 .dialog-body .settings-row { font-size: 24px; }
-.source-dialog .dialog-card { height: 940px; }
+.source-dialog .dialog-card { height: auto; max-height: calc(100vh - 80px); }
 .source-dialog .settings-row { min-height: 56px; font-size: 24px; }
-.source-dialog .settings-row-input .settings-label { font-size: 24px; line-height: 1.3; }
+.source-dialog .settings-row-input .settings-label { font-size: 22px; line-height: 1.3; margin: 0; }
 .source-dialog .dialog-body input { min-height: 60px; padding: 14px 18px; font-size: 22px; border: 2px solid var(--surface-border); }
 .source-dialog .dialog-footer .settings-row { min-height: 64px; font-size: 22px; }
+.source-dialog .dialog-footer .settings-label { font-size: inherit; font-weight: inherit; }
 .receive-body { align-items: center; text-align: center; }
 .receive-card { padding: 48px; }
 .receive-body > h2 { margin: 16px 0 0; font-size: 32px; }
@@ -180,9 +184,9 @@ button:focus { outline: none; }
 .browse-list.grid.device-roots::-webkit-scrollbar { display: none; }
 .browse-list.grid.device-roots li { flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); min-height: 0; padding: 18px; border: 2px solid var(--surface-border); border-radius: 12px; align-items: center; justify-content: center; scroll-snap-align: start; }
 .browse-list.grid.device-roots li.focused { border-color: var(--focus-ring); box-shadow: 0 0 0 2px var(--focus-ring); background: var(--bg-card-h); transform: none; }
-.browse-list.grid.device-roots .name { flex: 0 0 auto; font-size: 24px; }
+.browse-list.grid.device-roots .name { flex: 0 0 auto; font-size: 24px; margin-bottom: 0; }
 .browse-list.grid.device-roots .meta { display: none; }
-.browse-list.grid.device-roots .icon { display: flex; justify-content: center; align-items: center; width: 80px; height: 80px; border-radius: 50%; background: #212121; }
+.browse-list.grid.device-roots .icon { display: flex; justify-content: center; align-items: center; width: 80px; height: 80px; flex: 0 0 80px; border-radius: 50%; background: #212121; }
 .browse-list.grid.device-roots li.focused .icon { background: var(--focus-ring); }
 .browse-list.grid.device-roots li.focused .icon .remix-icon { filter: none; }
 .browse-list.grid.device-roots.empty-devices .icon { background: transparent; }
@@ -366,7 +370,8 @@ button:focus { outline: none; }
 @media (hover: hover) {
     .btn:hover { border-color: var(--focus-ring); background: var(--bg-card-h); }
     .btn.primary:hover { background: var(--accent); color: #151515; }
-    .settings-row:hover { border-color: var(--focus-ring); background: var(--bg-card-h); }
+    button.settings-row:hover { border-color: var(--focus-ring); background: var(--bg-card-h); }
+    .dialog-footer > .primary:hover, .dialog-footer > .settings-row:hover { background: var(--focus-ring); color: #151515; box-shadow: 0 0 0 3px rgba(244,244,244,.4); }
 }
 .btn.ghost {
     background: var(--bg-card);
@@ -409,7 +414,10 @@ button:focus { outline: none; }
     grid-template-columns: repeat(5, var(--card-width));
     gap: var(--card-gap);
     max-width: none;
-    padding: 0;
+    padding: 4px;
+    margin: -4px;
+    width: calc(100% + 8px);
+    scroll-padding: 4px;
     align-content: start;
     background: transparent;
     border: 0;
@@ -419,7 +427,7 @@ button:focus { outline: none; }
     flex-direction: column;
     align-items: flex-start;
     gap: 6px;
-    padding: 14px 18px;
+    padding: 18px;
     border-bottom: 0;
     border-radius: 12px;
     background: var(--bg-card);
@@ -438,11 +446,13 @@ button:focus { outline: none; }
 }
 .browse-list.grid .icon {
     display: flex; align-items: center; justify-content: center;
-    width: 80px; height: 80px; flex: 0 0 auto;
-    border-radius: 50%; background: #212121;
+    position: relative; width: 100%; min-height: 0; flex: 1 1 0;
+    background: transparent;
 }
-.browse-list.grid .icon .remix-icon { width: 38px; height: 38px; }
-.browse-list.grid li.focused .icon { background: var(--focus-ring); }
+.browse-list.grid .icon::before { content: ''; position: absolute; width: 80px; height: 80px; border-radius: 50%; background: #212121; }
+.browse-list.grid .icon .remix-icon { position: relative; width: 38px; height: 38px; }
+.browse-list.grid li.focused .icon::before { background: var(--focus-ring); }
+.browse-list.grid.device-roots .icon::before { display: none; }
 .browse-list.grid li.focused .icon .remix-icon { filter: none; }
 .browse-list.grid .name {
     white-space: nowrap;
@@ -451,8 +461,11 @@ button:focus { outline: none; }
     max-width: 100%;
     flex: 0 0 auto;
     font-size: 24px;
+    margin-top: 6px;
+    /* Every explorer title shares a baseline, including folders without metadata. */
+    margin-bottom: 28px;
 }
-.browse-list.grid .meta { margin-left: 0; flex: 0 0 auto; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.browse-list.grid .meta { position: absolute; left: 18px; right: 18px; bottom: 18px; line-height: 22px; margin-left: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .browse-list.grid .fav-mark, .browse-list.grid .watched { position: absolute; top: 12px; right: 12px; }
 .browse-list.grid li { position: relative; }
 
@@ -475,7 +488,7 @@ button:focus { outline: none; }
     font-size: 22px;
 }
 .browse-list li > * + * { margin-left: 24px; }
-.browse-list li:last-child { border-bottom: 0; }
+.browse-list:not(.grid) li:last-child { border-bottom: 0; }
 .browse-list li.focused {
     background: var(--bg-card-h);
     outline: none;
@@ -533,9 +546,10 @@ button:focus { outline: none; }
 /* A folder pinned to Favorites (issue #140). */
 .browse-list .fav-mark { display: none; flex-shrink: 0; color: var(--accent); font-size: 22px; }
 .browse-list li.is-fav .fav-mark { display: inline; }
-.browse-list li.watched-item .icon { opacity: .6; }
+.browse-list li.watched-item:not(.focused) .icon > .remix-icon { opacity: .65; }
 /* On a tile the mark is a badge pinned to the upper corner, so it never
  * collides with the tile's name or meta line. */
+.missing-source,
 .browse-list.grid li.is-fav .fav-mark,
 .browse-list.grid li.watched-item .watched {
     display: flex;
@@ -677,7 +691,8 @@ body:not(.has-queue) .osd-bottom { padding-bottom: 24px; }
 body.has-queue { --queue-reserve: var(--queue-peek); }
 body.has-queue.up-next-open { --queue-reserve: var(--queue-open); }
 body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-reserve)); }
-.osd-bottom { transition: padding-bottom var(--motion) var(--ease); }
+.osd-bottom { transition: opacity var(--motion) var(--ease), transform var(--motion) var(--ease), visibility 0s, padding-bottom var(--motion) var(--ease); }
+.osd-bottom.hidden { transition: opacity var(--motion) var(--ease), transform var(--motion) var(--ease), visibility 0s var(--motion), padding-bottom var(--motion) var(--ease); }
 
 #osd-title {
     font-size: 28px;
@@ -763,9 +778,8 @@ body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-reserve)); 
 /* Up Next: the queue carousel under the transport controls. No container
  * card — thumbnail tiles sit directly on the OSD gradient, artwork on
  * top, title underneath, progress drawn over the picture.  The strip is
- * positioned out of the flow and clipped to a peek, so the transport
- * controls never move; it grows to the full cards when the D-pad enters
- * it and shows the tops of the cards until then. */
+ * positioned out of the flow and clipped to a peek. The control bar
+ * reserves the matching height as the D-pad opens or leaves the strip. */
 .up-next {
     position: absolute; left: var(--page-inset); right: var(--page-inset); bottom: 12px;
     margin: 0; padding: 0; text-align: left;
@@ -976,6 +990,8 @@ body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom 
 .spinner {
     position: absolute; left: 50%; top: 50%;
     transform: translate(-50%, -50%);
+    z-index: 5; min-width: 240px; padding: 24px;
+    background: var(--bg-card); border: 2px solid var(--surface-border); border-radius: 12px;
     text-align: center;
     pointer-events: auto;
 }
@@ -993,7 +1009,7 @@ body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom 
 /* ── Error overlay ────────────────────────────────────────────────── */
 .error-overlay {
     position: absolute; top: 0; right: 0; bottom: 0; left: 0;
-    background: rgba(10,20,35,.96);
+    background: rgba(10,10,10,.96);
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     padding: 80px;
     pointer-events: auto;
@@ -1206,8 +1222,8 @@ body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom 
     max-width: 1100px;
     text-align: left;
     overflow-y: auto;
-    padding-bottom: 24px;
-    scroll-padding: 12px 0 24px;
+    padding: 4px 4px 24px;
+    scroll-padding: 4px 4px 24px;
     /* One scroll owner bounded above the fixed remote-hint footer. */
     min-height: 0;
     flex: 1 1 auto;
@@ -1215,9 +1231,8 @@ body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom 
     scrollbar-width: none;
 }
 .settings-content::-webkit-scrollbar { display: none; }
-.settings-group {
-    margin-bottom: 19px;
-}
+.settings-group { margin-bottom: 12px; }
+.settings-group > .settings-row:last-child { margin-bottom: 0; }
 .settings-row {
     width: 100%;
     display: flex;
@@ -1234,11 +1249,14 @@ body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom 
 }
 /* The row is the same dark surface as the page, so focus is only legible as
    the ring + the lifted fill — the same treatment every other card gets. */
-.settings-row:focus, .settings-row.focused, .settings-row:hover {
+button.settings-row:focus, button.settings-row.focused {
     border-color: var(--focus-ring);
     background: var(--bg-card-h);
     box-shadow: 0 0 0 2px var(--focus-ring);
     outline: none;
+}
+@media (hover: hover) {
+    button.settings-row:hover { box-shadow: 0 0 0 2px var(--focus-ring); }
 }
 .settings-label { font-size: 24px; }
 
@@ -1300,7 +1318,7 @@ body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom 
 .page-heading { text-align: start; margin: 68px 0 52px; }
 .page-heading h1 { margin: 0 0 12px; font-size: 52px; line-height: 1.2; font-weight: 600; }
 .page-heading p { margin: 0; color: var(--fg-soft); font-size: 28px; line-height: 1.25; }
-#view-settings .settings-content { max-width: var(--form-width); width: 100%; margin: 0; }
+#view-settings .settings-content { max-width: calc(var(--form-width) + 8px); width: calc(100% + 8px); margin: -4px; }
 #view-settings .settings-row { border-width: 2px; border-radius: 8px; min-height: 78px; padding: 0 25px; }
 /* The language row ends in a chevron, like the reference picker row. */
 #setting-ui-lang-value::after {
@@ -1532,29 +1550,29 @@ body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom 
  * a card that moves is a layout shift and reads as a mis-centred album, so
  * it now sits still on the screen's centre line. */
 .audio-card {
-    position: absolute; left: 50%; top: 42%;
+    position: absolute; left: 50%; top: 38%;
     transform: translate(-50%, -50%);
     display: flex; flex-direction: column; align-items: center;
     text-align: center;
-    width: 320px;
+    width: 600px; max-width: calc(100% - 130px);
 }
 .audio-note {
     display: flex; align-items: center; justify-content: center;
     width: 280px; height: 280px;
-    margin: 0 auto 36px;
+    margin: 0 auto 24px;
     border-radius: 16px;
     background: rgba(255,255,255,.06);
 }
 .audio-note .remix-icon { width: 96px; height: 96px; opacity: .6; }
-.audio-title { font-size: 34px; color: var(--fg); word-break: break-word; }
+.audio-title { max-width: 100%; font-size: 34px; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .audio-art {
     display: block;
     width: 280px; height: 280px;
-    margin: 0 auto 36px;
+    margin: 0 auto 24px;
     object-fit: cover;
     border-radius: var(--r);
 }
-.audio-sub { margin-top: 12px; font-size: 26px; color: var(--fg-mute); word-break: break-word; }
+.audio-sub { max-width: 100%; margin-top: 12px; font-size: 26px; color: var(--fg-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Listed, but nothing in the app opens it. */
 .browse-list li.unopenable .name,
@@ -1570,14 +1588,15 @@ body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom 
 /* Keep the view's opaque backdrop intact above the native video plane. */
 .view:not(.hidden):not(#view-player) > :not(.hint) { animation: view-enter var(--motion) var(--ease); }
 .dialog-scrim { animation: view-enter var(--motion) var(--ease); }
+.picker:not(.hidden), .track-menu:not(.hidden) { animation: view-enter var(--motion) var(--ease); }
 .dialog-card { animation: dialog-enter var(--motion) var(--ease); }
 @keyframes view-enter { from { opacity: 0; } to { opacity: 1; } }
 @keyframes dialog-enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
 /* Keep five columns at the portrait review size without oversized contents. */
 @media (max-width: 1400px) {
-    .media-card, #view-home .tile, .browse-list.grid.device-roots li { padding: 12px; }
-    .card-title, #view-home .tile-label, .browse-list.grid.device-roots .name { font-size: 18px; }
+    .media-card, #view-home .tile, .browse-list.grid li, .browse-list.grid.device-roots li { padding: 12px; }
+    .card-title, #view-home .tile-label, .browse-list.grid .name, .browse-list.grid.device-roots .name { font-size: 18px; }
     .card-title { margin-top: 8px; }
     .card-description { font-size: 14px; margin-top: 4px; }
     .card-picture > .remix-icon, .browse-list.grid .icon .remix-icon { width: 32px; height: 32px; }
@@ -1587,13 +1606,15 @@ body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom 
     .card-picture::before { width: 40px; height: 40px; }
     .card-picture > .remix-icon { width: 24px; height: 24px; }
     #view-home .tile-icon { width: 40px; height: 40px; margin-bottom: 8px; }
-    #network-cards .card-picture, .browse-list.grid.device-roots .icon { width: 40px; height: 40px; }
-    .browse-list.grid .icon { width: 40px; height: 40px; }
+    #network-cards .card-picture, .shortcut-row .card-picture, .browse-list.grid.device-roots .icon { width: 40px; height: 40px; }
+    .browse-list.grid.device-roots .icon { flex-basis: 40px; }
+    .browse-list.grid .icon::before { width: 40px; height: 40px; }
     .browse-list.grid .icon .remix-icon { width: 24px; height: 24px; }
+    .browse-list.grid .name { margin-top: 4px; margin-bottom: 0; }
     .browse-list.grid .meta { display: none; }
     #view-home .tile-icon .remix-icon { width: 24px; height: 24px; }
-    .missing-source { padding: 4px; }
-    .missing-source .remix-icon { width: 18px; height: 18px; }
+    .missing-source, .browse-list.grid li.is-fav .fav-mark, .browse-list.grid li.watched-item .watched { width: 28px; height: 28px; top: 6px; right: 6px; padding: 0; }
+    .missing-source .remix-icon, .browse-list.grid li.is-fav .fav-mark .remix-icon, .browse-list.grid li.watched-item .watched .remix-icon { width: 18px; height: 18px; }
     #view-url .actions > button { font-size: 18px; padding: 10px; }
     #up-next-list button { padding: 10px; font-size: 18px; }
     .up-next-glyph .remix-icon { width: 32px; height: 32px; }

@@ -14,7 +14,8 @@ var ROOT = path.join(__dirname, '../../tizen-app');
 function read(rel) { return fs.readFileSync(path.join(ROOT, rel), 'utf8'); }
 function css() { return read('css/style.css'); }
 function rule(source, selector, length) {
-    var at = source.indexOf(selector);
+    var at = source.indexOf('\n' + selector);
+    at = at >= 0 ? at + 1 : (source.startsWith(selector) ? 0 : -1);
     assert.ok(at >= 0, 'missing rule ' + selector);
     return source.slice(at, at + (length || 400));
 }
@@ -104,6 +105,14 @@ test('the music card sits still on the centre line', function () {
     var card = rule(source, '.audio-card {', 400);
     assert.ok(card.indexOf('left: 50%') >= 0, 'centred horizontally');
     assert.ok(card.indexOf('translate(-50%, -50%)') >= 0, 'centred vertically');
+    assert.ok(card.includes('width: 600px'), 'track metadata has a bounded reading column');
+    assert.ok(rule(source, '.audio-title {', 250).includes('text-overflow: ellipsis'), 'long titles cannot grow into the controls');
+});
+
+test('opening playback presents one readable status surface over album metadata', function () {
+    var spinner = rule(css(), '.spinner {', 500).split('}')[0];
+    assert.ok(spinner.includes('background: var(--bg-card)'), 'opening status does not collide with underlying text');
+    assert.ok(read('index.html').includes('id="spinner" role="status" aria-live="polite"'), 'status is announced without announcing the decorative ring');
 });
 
 test('the queue is a peek until it holds focus', function () {
@@ -116,6 +125,7 @@ test('the queue is a peek until it holds focus', function () {
      * time the bar grows to the full card height. */
     assert.ok(source.indexOf('body.has-queue { --queue-reserve: var(--queue-peek); }') >= 0, 'the peek reserves only the peek');
     assert.ok(source.indexOf('body.has-queue.up-next-open { --queue-reserve: var(--queue-open); }') >= 0, 'opening the strip reserves the cards');
+    assert.ok(source.includes('--queue-open: calc(var(--card-height) + 66px)'), 'large-viewport cards fit in the open queue');
     var special = source.indexOf('body.player-osd-visible .audio-card');
     assert.ok(special < 0, 'the album cover does not jump when the OSD fades in');
 });
@@ -198,4 +208,61 @@ test('the language choice opens a menu under its row', function () {
     var app = read('js/app.js');
     assert.ok(app.indexOf("document.querySelector('[data-action=\"setting-ui-lang\"]')") >= 0, 'the row is the anchor');
     assert.ok(app.indexOf("panel.classList.toggle('anchored', !!anchorRow)") >= 0, 'openPicker mounts the anchored mode');
+});
+
+test('explorer pictures fill the card above the name instead of hugging its corner', function () {
+    var source = css();
+    var icon = rule(source, '.browse-list.grid .icon {', 300);
+    assert.ok(icon.includes('flex: 1 1 0'), 'picture area uses the available card height');
+    assert.ok(icon.includes('width: 100%'), 'disc is centred across the card');
+    assert.ok(source.includes('.browse-list.grid .icon::before'), 'disc is independent of picture layout');
+    assert.ok(rule(source, '.browse-list.grid .name {', 500).includes('margin-bottom: 28px'), 'folders reserve the same metadata line as files');
+    assert.ok(rule(source, '.browse-list.grid .meta {', 350).includes('line-height: 22px'), 'metadata occupies one bounded line');
+    assert.ok(source.includes('.browse-list:not(.grid) li:last-child { border-bottom: 0; }'), 'last tile keeps all four borders');
+    assert.ok(!source.includes('.browse-list li.watched-item .icon { opacity:'), 'watched focus disc retains its contrast');
+});
+
+test('unavailable-source badges use the card corner rather than covering shortcut glyphs', function () {
+    var source = read('js/library-ui.js');
+    assert.ok(source.includes('b.appendChild(warning)'), 'warning is positioned against the card');
+    assert.ok(!source.includes('image.appendChild(warning)'), 'warning cannot cover the centred icon disc');
+    assert.ok(css().includes('.missing-source,\n.browse-list.grid li.is-fav .fav-mark,'), 'availability and explorer marks share the badge geometry');
+});
+
+test('scroll owners reserve space for the outside focus ring', function () {
+    var source = css();
+    ['.browse-list.grid {', '.dialog-body {'].forEach(function (selector) {
+        var block = rule(source, selector, 650).split('}')[0];
+        assert.ok(block.includes('padding: 4px'), selector + ' has a ring gutter');
+        assert.ok(block.includes('margin: -4px'), selector + ' preserves content alignment');
+    });
+    assert.ok(rule(source, '.settings-content {', 650).includes('padding: 4px 4px 24px'), 'settings focus also clears the scrollport');
+});
+
+test('source forms size to content and use one label/input scale', function () {
+    var source = css();
+    assert.ok(rule(source, '.source-dialog .dialog-card {', 200).includes('height: auto'), 'no fixed-height empty form body');
+    assert.ok(rule(source, '.dialog-body > .settings-group {', 100).includes('flex: 0 0 auto'), 'long forms scroll rather than compress');
+    assert.ok(rule(source, '.source-dialog .settings-row-input .settings-label', 200).includes('font-size: 22px'), 'label matches input');
+    assert.ok(rule(source, '.source-dialog .dialog-body input', 200).includes('font-size: 22px'), 'input scale');
+    assert.ok(!source.includes('.settings-row:hover {\n'), 'field labels do not inherit button hover');
+    assert.ok(rule(source, '.dialog-footer > .primary,', 200).includes('font-weight: 400'), 'actions use regular weight');
+    var primaryFocus = rule(source, '.dialog-footer > .primary:focus', 400).split('}')[0];
+    assert.ok(primaryFocus.includes('background: var(--focus-ring)') && primaryFocus.includes('color: #151515'), 'focused filled actions retain dark-on-light contrast');
+});
+
+test('settings group boundaries do not add a second inter-row gap', function () {
+    var source = css();
+    assert.ok(source.includes('.settings-group { margin-bottom: 12px; }'), 'one row gap between groups');
+    assert.ok(source.includes('.settings-group > .settings-row:last-child { margin-bottom: 0; }'), 'last row does not double the group gap');
+});
+
+test('queue resizing preserves the OSD fade and popup motion honours reduced motion', function () {
+    var source = css();
+    var osd = rule(source, '.osd-bottom { transition:', 300).split('}')[0];
+    ['opacity', 'transform', 'padding-bottom'].forEach(function (property) {
+        assert.ok(osd.includes(property), 'OSD transitions ' + property);
+    });
+    assert.ok(source.includes('.picker:not(.hidden), .track-menu:not(.hidden)'), 'menus use the shared entrance fade');
+    assert.ok(source.includes('animation: none !important; transition: none !important;'), 'reduced-motion covers every animated component');
 });

@@ -1897,8 +1897,8 @@
         resetScrub();
         Player.stop();
         hideError();
-        document.getElementById('osd-top').classList.add('hidden');
-        document.getElementById('osd-bottom').classList.add('hidden');
+        showOSD(false);
+        document.body.classList.remove('has-queue', 'up-next-open');
         closeTrackMenu();
     }
 
@@ -3560,8 +3560,8 @@
         applySubtitlePreference(prefSub, tracks);
     }
 
-    /* On the settings view, after the last focusable row there's a TV-info
-     * panel that has no focusables.  Up/Down should:
+    /* On the settings view, the information panels can extend below the
+     * controls. Up/Down should:
      *   1. Try to move focus geometrically (noWrap = don't cyclic-fallback).
      *   2. If no element is in that direction, scroll the settings-content
      *      panel instead so the user can read past the bottom of the info.
@@ -3571,7 +3571,18 @@
         if (UI.moveFocus(dir, /*noWrap*/ true)) return;   // focus moved, done
         var c = document.querySelector('.settings-content');
         if (c) {
-            if (c.scrollBy) c.scrollBy({ top: dy, behavior: 'smooth' });
+            // Repeated remote presses can interrupt a focus scroll before
+            // it reaches its target. Reveal that target before free scrolling.
+            var focused = c.querySelector('.focused');
+            if (focused) {
+                var r = focused.getBoundingClientRect(), bounds = c.getBoundingClientRect();
+                if (r.bottom <= bounds.top || r.top >= bounds.bottom) {
+                    focused.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+                    return;
+                }
+            }
+            var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (c.scrollBy) c.scrollBy({ top: dy, behavior: reduced ? 'auto' : 'smooth' });
             else            c.scrollTop += dy;
         }
     }
