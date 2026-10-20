@@ -147,7 +147,6 @@
   "saved.removed": "تمت إزالة {0}",
   "cast.qrAlt": "رمز QR للإقران",
   "browse.noStorage": "لم يُعثر على وحدة تخزين يمكن الوصول إليها.",
-  "browse.folder": "مجلد",
   "browse.watched": "تمت المشاهدة",
   "player.openingShort": "جارٍ الفتح…",
   "player.stuck": "توقف التحميل بعد 20 ث. حالة AVPlay: {0}. قد لا يكون الترميز أو الحاوية أو المصدر مدعومًا.",

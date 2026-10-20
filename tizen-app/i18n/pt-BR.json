@@ -147,7 +147,6 @@
   "saved.removed": "{0} removida",
   "cast.qrAlt": "QR code de emparelhamento",
   "browse.noStorage": "Nenhum armazenamento acessível encontrado.",
-  "browse.folder": "Pasta",
   "browse.watched": "Assistido",
   "player.openingShort": "Abrindo…",
   "player.stuck": "Travado carregando após 20 s.  Estado do AVPlay: {0}.  O codec, o contêiner ou a origem podem não ser compatíveis.",

@@ -147,7 +147,6 @@
   "saved.removed": "{0} borttagen",
   "cast.qrAlt": "QR-kod för parkoppling",
   "browse.noStorage": "Ingen tillgänglig lagring hittades.",
-  "browse.folder": "Mapp",
   "browse.watched": "Sedd",
   "player.openingShort": "Öppnar…",
   "player.stuck": "Fastnade vid inläsning efter 20 s.  AVPlay-status: {0}.  Codec, container eller källa kanske inte stöds.",

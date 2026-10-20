@@ -147,7 +147,6 @@
   "saved.removed": "{0} rimosso",
   "cast.qrAlt": "Codice QR di associazione",
   "browse.noStorage": "Nessuna memoria accessibile trovata.",
-  "browse.folder": "Cartella",
   "browse.watched": "Visto",
   "player.openingShort": "Apertura…",
   "player.stuck": "Caricamento bloccato dopo 20 s.  Stato AVPlay: {0}.  Il codec, il contenitore o la sorgente potrebbero non essere supportati.",

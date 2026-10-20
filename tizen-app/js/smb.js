@@ -404,14 +404,22 @@ var SMB = (function () {
         if (ul) ul.innerHTML = '<li><span class="icon"><img class="remix-icon" src="assets/remix/error-warning-line.svg" alt=""></span><span class="name">' + esc(msg) + '</span></li>';
     }
 
+    /* The row heading doubles as breadcrumbs: the share, then each folder
+     * below it.  VlcApp.setBrowsePage keeps the page title static. */
+    function setCrumbs(srv, path) {
+        var crumbs = srv && srv.host
+            ? [serverLabel(srv)].concat(String(path || '').split('/').filter(Boolean))
+            : [I18n.t('smb.title')];
+        if (window.VlcApp && window.VlcApp.setBrowsePage) window.VlcApp.setBrowsePage('network', crumbs);
+    }
+
     var browseSequence = 0;
     function render(path, focusName) {
         var seq = ++browseSequence;
         UI.showView('view-browse');
-        if (window.VlcApp && window.VlcApp.setBrowsePage) window.VlcApp.setBrowsePage('network');
-        if (window.VlcApp && window.VlcApp.setBrowseGrid) window.VlcApp.setBrowseGrid(true);
-        document.getElementById('browse-title').textContent = path ? path.split('/').pop() : I18n.t('smb.title');
         var srv = serverById(current) || {};
+        if (window.VlcApp && window.VlcApp.setBrowseGrid) window.VlcApp.setBrowseGrid(true);
+        setCrumbs(srv, path);
         document.getElementById('browse-path').textContent = '\\\\' + (srv.host || '') + '\\' + (srv.share || '') + (path || '');
         var ul = document.getElementById('browse-list');
         ul.innerHTML = '<li><span class="icon"><img class="remix-icon" src="assets/remix/loader-4-line.svg" alt=""></span><span class="name">' + esc(I18n.t('common.loading')) + '</span></li>';
@@ -476,12 +484,17 @@ var SMB = (function () {
                 li.dataset.dir = e.isDir ? '1' : '0';
                 if (kind === 'other') li.classList.add('unopenable');
                 var subs = sidecars[e.name] || [];
-                var subBadge = subs.length ? '<span class="meta">CC ×' + subs.length + '</span>' : '';
+                /* One meta line, like the USB explorer: subtitle count and
+                 * size together, so the name is never squeezed out of the
+                 * tile by a second stacked line. */
+                var meta = [];
+                if (subs.length) meta.push('CC ×' + subs.length);
+                if (!e.isDir) meta.push(humanSize(e.size));
                 li.innerHTML =
                     '<span class="icon">' + FileTypes.icon(kind) + '</span>' +
                     '<span class="name">' + esc(e.name) + '</span>' +
                     (e.isDir ? '<span class="fav-mark"><img class="remix-icon" src="assets/remix/pushpin-2-fill.svg" alt=""></span>'
-                             : subBadge + '<span class="meta">' + humanSize(e.size) + '</span>');
+                             : (meta.length ? '<span class="meta">' + esc(meta.join(' · ')) + '</span>' : ''));
                 // A folder row can be pinned to Favorites with ► (issue #140);
                 // app.js reads what to pin off the row.
                 if (e.isDir) {
@@ -605,7 +618,7 @@ var SMB = (function () {
         pickingServer = true;
         pathStack = [];
         UI.showView('view-browse');
-        document.getElementById('browse-title').textContent = I18n.t('smb.title');
+        setCrumbs(null, '');
         document.getElementById('browse-path').textContent = I18n.t('smb.pickServer');
         var ul = document.getElementById('browse-list');
         ul.innerHTML = '';
@@ -639,7 +652,7 @@ var SMB = (function () {
         current = id;
         path = path || '';
         UI.showView('view-browse');
-        document.getElementById('browse-title').textContent = I18n.t('smb.title');
+        setCrumbs(serverById(id) || {}, path);
         document.getElementById('browse-path').textContent = I18n.t('common.connecting');
         document.getElementById('browse-list').innerHTML =
             '<li><span class="icon"><img class="remix-icon" src="assets/remix/loader-4-line.svg" alt=""></span><span class="name">' + esc(I18n.t('common.connecting')) + '</span></li>';
@@ -688,9 +701,12 @@ var SMB = (function () {
     // out here so applyCreds() can repaint it when the settings arrive from
     // somewhere other than this form — e.g. copied off the transcode server.
     var anonState = false;
+    /* Same switch treatment as the WebDAV insecure-cert row. */
     function paintAnon() {
-        var anonVal = document.getElementById('smb-anon-val');
-        if (anonVal) anonVal.textContent = I18n.t(anonState ? 'common.on' : 'common.off');
+        var btn = document.getElementById('smb-anon');
+        if (btn && btn.setAttribute) btn.setAttribute('aria-checked', anonState ? 'true' : 'false');
+        var val = document.getElementById('smb-anon-val');
+        if (val && val.classList) val.classList.toggle('on', anonState);
     }
 
     /* Which server the form edits: '' the first, an added server's id, or

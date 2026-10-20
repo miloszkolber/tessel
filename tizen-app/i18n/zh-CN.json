@@ -147,7 +147,6 @@
   "saved.removed": "已移除 {0}",
   "cast.qrAlt": "配对二维码",
   "browse.noStorage": "未找到可访问的存储设备。",
-  "browse.folder": "文件夹",
   "browse.watched": "已观看",
   "player.openingShort": "正在打开…",
   "player.stuck": "加载 20 秒后仍无进展。AVPlay 状态：{0}。可能不支持该编解码器、容器或来源。",

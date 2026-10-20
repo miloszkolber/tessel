@@ -147,7 +147,6 @@
   "saved.removed": "{0} уклоњено",
   "cast.qrAlt": "QR код за упаривање",
   "browse.noStorage": "Није пронађена доступна меморија.",
-  "browse.folder": "Фасцикла",
   "browse.watched": "Одгледано",
   "player.openingShort": "Отварање…",
   "player.stuck": "Учитавање је заглављено после 20 s. Стање AVPlay: {0}. Кодек, контејнер или извор можда нису подржани.",

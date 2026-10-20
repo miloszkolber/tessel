@@ -147,7 +147,6 @@
   "saved.removed": "{0} odebráno",
   "cast.qrAlt": "QR kód pro spárování",
   "browse.noStorage": "Nenalezeno žádné dostupné úložiště.",
-  "browse.folder": "Složka",
   "browse.watched": "Zhlédnuto",
   "player.openingShort": "Otevírání…",
   "player.stuck": "Načítání se zaseklo po 20 s.  Stav AVPlay: {0}.  Kodek, kontejner nebo zdroj nemusí být podporován.",

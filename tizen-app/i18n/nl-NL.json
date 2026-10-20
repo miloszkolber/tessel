@@ -147,7 +147,6 @@
   "saved.removed": "{0} verwijderd",
   "cast.qrAlt": "QR-code voor koppelen",
   "browse.noStorage": "Geen toegankelijke opslag gevonden.",
-  "browse.folder": "Map",
   "browse.watched": "Bekeken",
   "player.openingShort": "Openen…",
   "player.stuck": "Laden blijft na 20 s hangen.  AVPlay-status: {0}.  De codec, container of bron wordt mogelijk niet ondersteund.",

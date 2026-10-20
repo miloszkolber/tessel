@@ -147,7 +147,6 @@
   "saved.removed": "{0} kaldırıldı",
   "cast.qrAlt": "Eşleştirme QR kodu",
   "browse.noStorage": "Erişilebilir depolama bulunamadı.",
-  "browse.folder": "Klasör",
   "browse.watched": "İzlendi",
   "player.openingShort": "Açılıyor…",
   "player.stuck": "20 sn sonra yükleme takıldı.  AVPlay durumu: {0}.  Codec, kapsayıcı veya kaynak desteklenmiyor olabilir.",

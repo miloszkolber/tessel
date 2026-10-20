@@ -147,7 +147,6 @@
   "saved.removed": "{0} supprimé",
   "cast.qrAlt": "QR code d’association",
   "browse.noStorage": "Aucun stockage accessible trouvé.",
-  "browse.folder": "Dossier",
   "browse.watched": "Vu",
   "player.openingShort": "Ouverture…",
   "player.stuck": "Chargement bloqué après 20 s.  État AVPlay : {0}.  Le codec, le conteneur ou la source n’est peut-être pas pris en charge.",

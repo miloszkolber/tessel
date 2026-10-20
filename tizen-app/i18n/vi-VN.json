@@ -147,7 +147,6 @@
   "saved.removed": "Đã xóa {0}",
   "cast.qrAlt": "Mã QR ghép nối",
   "browse.noStorage": "Không tìm thấy bộ nhớ truy cập được.",
-  "browse.folder": "Thư mục",
   "browse.watched": "Đã xem",
   "player.openingShort": "Đang mở…",
   "player.stuck": "Bị kẹt khi tải sau 20 giây.  Trạng thái AVPlay: {0}.  Codec, container hoặc nguồn có thể không được hỗ trợ.",

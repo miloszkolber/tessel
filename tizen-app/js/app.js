@@ -679,10 +679,8 @@
         state.browseAtRoot = true;
         state.browseDir   = null;
         state.listBack    = null;
-        setBrowsePage('usb');            // the drive's root listing
+        setBrowsePage('usb', []);        // the drive's root listing
         UI.showView('view-browse'); state.view = 'browse';
-        document.getElementById('browse-title').textContent = I18n.t('usb.title');
-        document.getElementById('browse-description').textContent = I18n.t('usb.description');
         setBrowseGrid(true);
         document.getElementById('browse-list').classList.add('device-roots');
         document.getElementById('view-browse').classList.add('storage-root');
@@ -732,14 +730,21 @@
         });
     }
 
+    function usbBreadcrumbs(dir) {
+        var raw = String((dir && (dir.fullPath || dir.name)) || '').replace(/^\/+|\/+$/g, '');
+        if (!raw) return [prettifyRootName(state.browseRoot && state.browseRoot.name)];
+        var parts = raw.split('/').filter(Boolean);
+        if (parts.length) parts[0] = prettifyRootName(parts[0]);
+        return parts;
+    }
+
     function listInto(dir, focusUri) {
         if (!dir) return;
         var seq = ++browseSequence;
-        setBrowsePage('usb');
+        setBrowsePage('usb', usbBreadcrumbs(dir));
         setBrowseGrid(true);
         state.browseDir = dir;
         state.listBack  = null;
-        document.getElementById('browse-title').textContent = dir.name || I18n.t('browse.folder');
         document.getElementById('browse-path').textContent = dir.fullPath;
 
         Browser.listDir(dir, function (err, entries) {
@@ -891,14 +896,23 @@
      * keep its links honest.  The browse view serves three surfaces, and the
      * player is a different page for audio than for video. */
     var browsePage = 'usb';
-    function setBrowsePage(name) {
-        browsePage = name;
+    var browseCrumbs = [];
+    function setBrowsePage(name, crumbs) {
+        if (name === 'usb' || name === 'network') browsePage = name;
+        if (crumbs !== undefined) browseCrumbs = Array.isArray(crumbs) ? crumbs.filter(Boolean) : (crumbs ? [crumbs] : []);
         var list = document.getElementById('browse-list');
         if (list) { list.classList.remove('device-roots'); list.classList.remove('empty-devices'); }
-        document.getElementById('view-browse').classList.remove('empty-storage');
-        document.getElementById('view-browse').classList.remove('storage-root');
+        var view = document.getElementById('view-browse');
+        if (view) {
+            view.classList.remove('empty-storage');
+            view.classList.remove('storage-root');
+        }
+        var title = document.getElementById('browse-title');
+        if (title) title.textContent = I18n.t(browsePage === 'network' ? 'network.title' : 'usb.title');
         var description = document.getElementById('browse-description');
-        if (description) description.textContent = I18n.t(name === 'network' ? 'network.description' : 'usb.description');
+        if (description) description.textContent = I18n.t(browsePage === 'network' ? 'network.description' : 'usb.description');
+        var heading = document.getElementById('browse-heading') || (view && view.querySelector && view.querySelector('.device-heading'));
+        if (heading) heading.textContent = [I18n.t('library.devices')].concat(browseCrumbs).join(' / ');
     }
     function currentPageName() {
         // Read from the visible view: the preview harness drives views
@@ -1118,11 +1132,11 @@
     var MAX_PLAYLIST_BYTES = 8 * 1024 * 1024;
 
     function openPlaylist(src) {
-        setBrowsePage('playlist');
+        var baseCrumbs = browseCrumbs.slice();
+        setBrowsePage(browsePage, baseCrumbs.concat([src.title]));
         setBrowseGrid(false);
         state.listBack = null;
         UI.showView('view-browse'); state.view = 'browse'; state.browseAtRoot = false;
-        document.getElementById('browse-title').textContent = src.title;
         document.getElementById('browse-path').textContent = '';
         var ul = document.getElementById('browse-list');
         ul.innerHTML = '<li><span class="icon"><img class="remix-icon" src="assets/remix/loader-4-line.svg" alt=""></span><span class="name">' +
@@ -1160,7 +1174,7 @@
                                escapeHtml(I18n.t('playlist.empty')) + '</span></li>';
                 return;
             }
-            state.playlistView = { src: src, entries: entries, group: null, filter: '' };
+            state.playlistView = { src: src, entries: entries, group: null, filter: '', baseCrumbs: baseCrumbs };
             document.getElementById('playlist-filter').value = '';
             renderPlaylist();
         });
@@ -1179,7 +1193,9 @@
         var grouped = groups.length > 1;
         var query = foldText(pv.filter || '');
         if (!keepFocus) { UI.showView('view-browse'); state.view = 'browse'; state.browseAtRoot = false; }
-        document.getElementById('browse-title').textContent = pv.src.title;
+        var crumbs = (pv.baseCrumbs || []).concat([pv.src.title]);
+        if (!query && grouped && pv.group !== null) crumbs.push(groupName(pv.group));
+        setBrowsePage(browsePage, crumbs);
         document.getElementById('browse-path').textContent = query ? '' :
             grouped && pv.group !== null ? groupName(pv.group) : '';
         var ul = document.getElementById('browse-list');
@@ -2406,9 +2422,21 @@
 
     /* ── Picker (generic option list, used for settings choices) ──── */
     var pickerSetting = null;        // which setting we're editing
-    function openPicker(title, options, currentValue, onPick) {
+    function openPicker(title, options, currentValue, onPick, anchorRow) {
         // Playback preferences apply immediately. Command/resume/settings pickers retain their existing one-shot behavior.
         var keepOpen = state.view === 'player' && !!playerPopupReturn;
+        var panel = document.getElementById('picker');
+        panel.classList.toggle('anchored', !!anchorRow);
+        panel.style.top = ''; panel.style.right = ''; panel.style.maxHeight = '';
+        if (anchorRow && anchorRow.getBoundingClientRect) {
+            /* Pin the menu under its row, their right edges aligned — the
+             * way the video page hangs its track menu over the OSD. */
+            var r = anchorRow.getBoundingClientRect();
+            var top = Math.round(r.bottom + 12);
+            panel.style.top = Math.max(32, top) + 'px';
+            panel.style.right = Math.max(32, Math.round(window.innerWidth - r.right)) + 'px';
+            panel.style.maxHeight = Math.round(Math.max(200, window.innerHeight - top - 40)) + 'px';
+        }
         document.getElementById('picker-title').textContent = title;
         var ul = document.getElementById('picker-options');
         ul.innerHTML = '';
@@ -2433,7 +2461,10 @@
         if (first) UI.focusOn(first);
     }
     function closePicker() {
-        document.getElementById('picker').classList.add('hidden');
+        var panel = document.getElementById('picker');
+        panel.classList.add('hidden');
+        panel.classList.remove('anchored');
+        panel.style.top = ''; panel.style.right = ''; panel.style.maxHeight = '';
         pickerSetting = null;
         UI.refreshFocusables();
         if (state.view === 'player') returnPlayerPopup();
@@ -2447,10 +2478,12 @@
     function openUiLangPicker() {
         pickerSetting = 'uiLanguage';
         var opts = [{ code: '', name: uiLanguageName('') }].concat(I18n.languages());
+        /* The menu hangs under the row itself, like the video page's menus. */
+        var row = document.querySelector('[data-action="setting-ui-lang"]');
         openPicker(I18n.t('settings.uiLang'), opts, Settings.get('uiLanguage'), function (val) {
             if (val === Settings.get('uiLanguage')) return;
             I18n.setLanguage(val);
-        });
+        }, row);
     }
     function applyRepeatOption(val) {
         Settings.set('repeatMode', val);

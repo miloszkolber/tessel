@@ -147,7 +147,6 @@
   "saved.removed": "{0} eliminat",
   "cast.qrAlt": "Codi QR de vinculació",
   "browse.noStorage": "No s’ha trobat cap emmagatzematge accessible.",
-  "browse.folder": "Carpeta",
   "browse.watched": "Vist",
   "player.openingShort": "S’està obrint…",
   "player.stuck": "La càrrega s’ha encallat després de 20 s.  Estat d’AVPlay: {0}.  Pot ser que el còdec, el contenidor o l’origen no siguin compatibles.",

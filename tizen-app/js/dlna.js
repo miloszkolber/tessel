@@ -112,12 +112,16 @@ var DLNA = (function () {
     function renameServer(id, name) { var list = servers(); list.forEach(function (s) { if (s.id === id) { s.name = name; s.renamed = true; } }); saveServers(list); }
 
     function list() { return document.getElementById('browse-list'); }
-    function head(title, path) {
+    function head(crumbs, path) {
         UI.showView('view-browse');
-        if (window.VlcApp && window.VlcApp.setBrowsePage) window.VlcApp.setBrowsePage('network');
+        if (window.VlcApp && window.VlcApp.setBrowsePage) window.VlcApp.setBrowsePage('network', crumbs);
         if (window.VlcApp && window.VlcApp.setBrowseGrid) window.VlcApp.setBrowseGrid(true);
-        document.getElementById('browse-title').textContent = title;
-        document.getElementById('browse-path').textContent = path;
+        document.getElementById('browse-path').textContent = path;   // legacy line, kept hidden
+    }
+    function pathCrumbs() {
+        if (!server) return [I18n.t('dlna.title')];
+        return [I18n.t('dlna.title'), server.name].concat(stack.slice(1).map(function (f) { return f.title; }),
+                                                          folder && folder.id !== '0' ? [folder.title] : []);
     }
     function row(icon, name, meta) {
         var li = document.createElement('li');
@@ -141,7 +145,7 @@ var DLNA = (function () {
     }
     function search() {
         server = null; folder = null; stack = [];
-        head(I18n.t('dlna.title'), I18n.t('dlna.searching'));
+        head([I18n.t('dlna.title')], I18n.t('dlna.searching'));
         message('<img class="remix-icon" src="assets/remix/loader-4-line.svg" alt="">', I18n.t('dlna.searching'));
         // A sweep from launch (or one made moments ago) is used as it is, so
         // opening the page with a pinned server goes straight to its files.
@@ -228,7 +232,7 @@ var DLNA = (function () {
     /* The servers found, or why there are none, with a way to look again. */
     function showServers(error) {
         server = null; folder = null; stack = [];
-        head(I18n.t('dlna.title'), I18n.t('dlna.pickServer'));
+        head([I18n.t('dlna.title')], I18n.t('dlna.pickServer'));
         var ul = list();
         ul.innerHTML = '';
         var focus = null;
@@ -259,7 +263,7 @@ var DLNA = (function () {
     function openFolder(id, path, title) {
         setupBack();
         var seq = ++browseSequence;
-        head(title || I18n.t('dlna.title'), I18n.t('common.connecting'));
+        head([I18n.t('dlna.title')], I18n.t('common.connecting'));
         message(FileTypes.icon('dir'), I18n.t('common.connecting'));
         prepare(function (err, live) {
             if (seq !== browseSequence) return;
@@ -271,14 +275,13 @@ var DLNA = (function () {
         return true;
     }
     function pathText() {
-        return [server.name].concat(stack.slice(1).map(function (f) { return f.title; }),
-                                    folder.id === '0' ? [] : [folder.title]).join(' / ');
+        return pathCrumbs().slice(1).join(' / ');
     }
 
     function render(f, focusTitle) {
         var seq = ++browseSequence;
         folder = f;
-        head(f.title, pathText());
+        head(pathCrumbs(), pathText());
         message('<img class="remix-icon" src="assets/remix/loader-4-line.svg" alt="">', I18n.t('common.loading'));
         var srv = server, here = f, above = stack.slice();
         request('POST', BASE + '/dlna/browse', { control: srv.control, id: f.id }, 30000, function (err, res) {

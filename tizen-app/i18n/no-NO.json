@@ -147,7 +147,6 @@
   "saved.removed": "{0} fjernet",
   "cast.qrAlt": "QR-kode for paring",
   "browse.noStorage": "Fant ingen tilgjengelig lagring.",
-  "browse.folder": "Mappe",
   "browse.watched": "Sett",
   "player.openingShort": "Åpner…",
   "player.stuck": "Står fast i innlasting etter 20 s.  AVPlay-tilstand: {0}.  Kodeken, containeren eller kilden støttes kanskje ikke.",

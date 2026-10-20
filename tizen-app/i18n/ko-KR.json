@@ -147,7 +147,6 @@
   "saved.removed": "{0} 삭제됨",
   "cast.qrAlt": "페어링 QR 코드",
   "browse.noStorage": "접근 가능한 저장 장치가 없습니다.",
-  "browse.folder": "폴더",
   "browse.watched": "시청함",
   "player.openingShort": "여는 중…",
   "player.stuck": "20초가 지나도 로딩이 끝나지 않습니다. AVPlay 상태: {0}. 코덱, 컨테이너 또는 소스가 지원되지 않을 수 있습니다.",

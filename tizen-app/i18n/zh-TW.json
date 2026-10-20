@@ -147,7 +147,6 @@
   "saved.removed": "已移除 {0}",
   "cast.qrAlt": "配對 QR 碼",
   "browse.noStorage": "找不到可存取的儲存裝置。",
-  "browse.folder": "資料夾",
   "browse.watched": "已觀看",
   "player.openingShort": "開啟中…",
   "player.stuck": "載入 20 秒後仍無進展。AVPlay 狀態：{0}。可能不支援此編解碼器、容器或來源。",

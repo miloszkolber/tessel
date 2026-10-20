@@ -147,7 +147,6 @@
   "saved.removed": "{0} fjernet",
   "cast.qrAlt": "QR-kode til parring",
   "browse.noStorage": "Intet tilgængeligt lager fundet.",
-  "browse.folder": "Mappe",
   "browse.watched": "Set",
   "player.openingShort": "Åbner…",
   "player.stuck": "Hænger i indlæsning efter 20 s.  AVPlay-tilstand: {0}.  Codec, container eller kilde understøttes muligvis ikke.",

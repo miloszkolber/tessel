@@ -147,7 +147,6 @@
   "saved.removed": "{0} הוסר",
   "cast.qrAlt": "קוד QR לצימוד",
   "browse.noStorage": "לא נמצא אחסון נגיש.",
-  "browse.folder": "תיקייה",
   "browse.watched": "נצפה",
   "player.openingShort": "פותח…",
   "player.stuck": "הטעינה נתקעה אחרי 20 שנ׳. מצב AVPlay: {0}. ייתכן שהקודק, המכל או המקור אינם נתמכים.",

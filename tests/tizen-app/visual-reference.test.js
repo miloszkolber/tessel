@@ -70,7 +70,8 @@ test('the footer is a 128px scrim with 28px key chips', function () {
 test('the page heading uses the reference type scale', function () {
     var source = css();
     assert.ok(rule(source, '.page-heading h1').indexOf('font-size: 52px') >= 0, 'title size');
-    assert.ok(rule(source, '.page-heading h1').indexOf('font-weight: 700') >= 0, 'title weight');
+    assert.ok(rule(source, '.page-heading h1').indexOf('font-weight: 600') >= 0, 'title weight');
+    assert.ok(source.indexOf('font-weight: 700') < 0, 'no weight above 600 anywhere');
     assert.ok(rule(source, '.page-heading p').indexOf('font-size: 28px') >= 0, 'description size');
     assert.ok(rule(source, '.page-heading p').indexOf('color: var(--fg-soft)') >= 0, 'description colour');
     assert.ok(source.indexOf('#view-home .page-heading {') < 0, 'one heading rhythm for every page');
@@ -111,7 +112,12 @@ test('the queue is a peek until it holds focus', function () {
     assert.ok(up.indexOf('position: absolute') >= 0, 'out of the transport flow');
     assert.ok(up.indexOf('max-height: var(--queue-peek)') >= 0, 'peek by default');
     assert.ok(source.indexOf('.up-next:focus-within { max-height: var(--queue-open); }') >= 0, 'opens on focus');
-    assert.ok(source.indexOf('body.has-queue .osd-bottom') >= 0, 'the OSD reserves the strip height');
+    /* The control bar shrinks to the peek; opening the strip is the only
+     * time the bar grows to the full card height. */
+    assert.ok(source.indexOf('body.has-queue { --queue-reserve: var(--queue-peek); }') >= 0, 'the peek reserves only the peek');
+    assert.ok(source.indexOf('body.has-queue.up-next-open { --queue-reserve: var(--queue-open); }') >= 0, 'opening the strip reserves the cards');
+    var special = source.indexOf('body.player-osd-visible .audio-card');
+    assert.ok(special < 0, 'the album cover does not jump when the OSD fades in');
 });
 
 test('an empty section keeps its place on the page', function () {
@@ -151,4 +157,45 @@ test('the removed duplicate surfaces are gone', function () {
     assert.ok(source.indexOf('#view-image') < 0, 'the picture viewer is gone');
     assert.ok(source.indexOf('#view-text') < 0, 'the text viewer is gone');
     assert.ok(read('index.html').indexOf('view-cast') < 0, 'the cast page is gone');
+});
+
+test('resume cards lead with the progress line, so titles align', function () {
+    var source = css();
+    assert.ok(rule(source, '.continue-card .card-description', 300).indexOf('order: -1') >= 0, 'the meta line sits above the picture');
+    assert.ok(source.indexOf('.media-card .card-description:empty { display: none; }') >= 0, 'an absent subtitle reserves nothing');
+    var ui = read('js/library-ui.js');
+    assert.ok(ui.indexOf("c.classList.add('continue-card')") >= 0, 'the continue row marks its cards');
+});
+
+test('the page title stays put; the row heading carries the trail', function () {
+    ['app.js', 'smb.js', 'webdav.js', 'dlna.js'].forEach(function (f) {
+        var src = read('js/' + f);
+        assert.ok(src.indexOf("browse-title').textContent =") < 0, f + ' does not own the page title');
+    });
+    var app = read('js/app.js');
+    assert.ok(app.indexOf("usbBreadcrumbs(dir)") >= 0, 'the USB flow passes its trail');
+    assert.ok(read('js/smb.js').indexOf("setBrowsePage('network', crumbs)") >= 0, 'SMB names its surface');
+    assert.ok(read('js/webdav.js').indexOf("setBrowsePage('network', crumbs)") >= 0, 'WebDAV names its surface');
+    assert.ok(read('js/dlna.js').indexOf("setBrowsePage('network', crumbs)") >= 0, 'DLNA names its surface');
+    assert.ok(css().indexOf('.device-heading { display: block; }') >= 0, 'the heading shows on every browse page');
+});
+
+test('a toggle row paints itself as a switch', function () {
+    var source = css();
+    var html = read('index.html');
+    assert.ok(rule(source, '.settings-switch {', 400).indexOf('border-radius: 24px') >= 0, 'the track shape');
+    assert.ok(rule(source, '.settings-switch.on {', 200).indexOf('background: var(--accent)') >= 0, 'lit when on');
+    ['smb-anon', 'dav-insecure'].forEach(function (id) {
+        assert.ok(html.indexOf('id="' + id + '" role="switch"') >= 0, id + ' is a switch');
+    });
+});
+
+test('the language choice opens a menu under its row', function () {
+    var source = css();
+    var anchored = rule(source, '.picker.anchored {', 500);
+    assert.ok(anchored.indexOf('transform: none') >= 0, 'no centring transform');
+    assert.ok(source.indexOf('.picker.anchored > .btn.ghost { display: none; }') >= 0, 'no footer button');
+    var app = read('js/app.js');
+    assert.ok(app.indexOf("document.querySelector('[data-action=\"setting-ui-lang\"]')") >= 0, 'the row is the anchor');
+    assert.ok(app.indexOf("panel.classList.toggle('anchored', !!anchorRow)") >= 0, 'openPicker mounts the anchored mode');
 });

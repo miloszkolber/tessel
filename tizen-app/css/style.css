@@ -111,7 +111,13 @@ button:focus { outline: none; }
 .media-card:focus .card-picture > .remix-icon { filter: none; }
 .card-art { position: absolute; inset: 0; height: 100%; width: 100%; object-fit: cover; }
 .card-title { flex: 0 0 auto; font-size: 24px; font-weight: 500; margin-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card-description { flex: 0 0 auto; min-height: 1.2em; font-size: 18px; color: var(--fg-dim); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* An absent subtitle reserves nothing: the title sits at the same height on
+   every card in a strip. */
+.card-description { flex: 0 0 auto; font-size: 18px; color: var(--fg-dim); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.media-card .card-description:empty { display: none; }
+/* Resume cards lead with the progress line ("4 / 4") so the strip reads as
+   one column: meta above the picture, title below it. */
+.continue-card .card-description { order: -1; margin: 0 0 10px; color: var(--fg-soft); font-weight: 500; }
 /* Focus: a 2px light border plus a 2px ring drawn outside it — the same
  * treatment on every card, tile and source shortcut. */
 .media-card.focused, .media-card:focus { border-color: var(--focus-ring); background: var(--bg-card-h); box-shadow: 0 0 0 2px var(--focus-ring); transform: none; }
@@ -183,14 +189,20 @@ button:focus { outline: none; }
 #network-cards .media-card { align-items: center; justify-content: center; text-align: center; }
 #network-cards .card-picture { flex: 0 0 auto; width: 80px; height: 80px; }
 #network-cards .card-title { max-width: 100%; }
-#network-cards .card-description:empty { display: none; }
+/* Pinned sources are shortcut cards too: a centred icon disc with the name
+   under it, like the sources tiles and the network root cards — the tile
+   pattern, not the content-card pattern. */
+.shortcut-row .media-card { align-items: center; justify-content: center; text-align: center; }
+.shortcut-row .card-picture { flex: 0 0 auto; width: 80px; height: 80px; }
+.shortcut-row .card-title { max-width: 100%; }
 .browse-list.grid.device-roots.empty-devices { justify-content: center; padding-top: 100px; }
 .browse-list.grid.device-roots.empty-devices li { width: 600px; flex-basis: 600px; max-width: 100%; height: auto; border: none; text-align: center; background: transparent; }
 .browse-list.grid.device-roots.empty-devices li.focused { outline: none; }
 .empty-storage .browse-actions, .empty-storage #hint-fav, .empty-storage #hint-save { display: none !important; }
 .storage-root .browse-media-action { display: none; }
-.device-heading { display: none; }
-.storage-root:not(.empty-storage) .device-heading { display: block; }
+/* The row heading under the page title doubles as the breadcrumb trail:
+ * "Devices / Movies / Season 1" — it names the surface in every flow. */
+.device-heading { display: block; }
 
 /* ── Views: full screen, vertically + horizontally centred contents ────
  * Each non-player view paints its own opaque background — required because
@@ -343,9 +355,18 @@ button:focus { outline: none; }
     box-shadow: 0 0 0 2px var(--focus-ring);
     transform: none;
 }
+/* The primary button keeps its lit fill under focus: a filled action that
+ * turns dark reads as "off", so it gains a halo around the fill instead. */
 .btn.primary:focus, .btn.primary.focused {
-    background: var(--bg-card-h);
-    color: var(--fg);
+    background: var(--accent);
+    color: #151515;
+    box-shadow: 0 0 0 3px rgba(244,244,244,.4);
+}
+/* Pointer review only — TVs never hover, browsers get the same signal. */
+@media (hover: hover) {
+    .btn:hover { border-color: var(--focus-ring); background: var(--bg-card-h); }
+    .btn.primary:hover { background: var(--accent); color: #151515; }
+    .settings-row:hover { border-color: var(--focus-ring); background: var(--bg-card-h); }
 }
 .btn.ghost {
     background: var(--bg-card);
@@ -480,7 +501,7 @@ button:focus { outline: none; }
     font-size: 20px;
     font-weight: 600;
 }
-.browse-list li.watched-item .name { color: var(--fg-mute); }
+.browse-list li.watched-item .name { color: var(--fg-soft); }
 /* Playlist filter (issue #122), above the list. */
 .playlist-filter { width: 100%; max-width: 1400px; margin-bottom: 16px; }
 .playlist-filter input {
@@ -513,6 +534,24 @@ button:focus { outline: none; }
 .browse-list .fav-mark { display: none; flex-shrink: 0; color: var(--accent); font-size: 22px; }
 .browse-list li.is-fav .fav-mark { display: inline; }
 .browse-list li.watched-item .icon { opacity: .6; }
+/* On a tile the mark is a badge pinned to the upper corner, so it never
+ * collides with the tile's name or meta line. */
+.browse-list.grid li.is-fav .fav-mark,
+.browse-list.grid li.watched-item .watched {
+    display: flex;
+    position: absolute;
+    top: 10px; right: 10px;
+    width: 40px; height: 40px;
+    align-items: center; justify-content: center;
+    border-radius: 50%;
+    background: #212121;
+    color: var(--accent);
+    font-size: 0;
+}
+.browse-list.grid li.is-fav .fav-mark .remix-icon,
+.browse-list.grid li.watched-item .watched .remix-icon { width: 22px; height: 22px; }
+.browse-list.grid li.focused.is-fav .fav-mark,
+.browse-list.grid li.focused.watched-item .watched { background: var(--bg-card-h); }
 
 /* ── Player ───────────────────────────────────────────────────────── */
 #player-object {
@@ -631,10 +670,14 @@ body:not(.player-view) #subtitle-overlay { display: none; }
 /* Without the queue below (single file, audio) the transport can sit
  *  closer to the bottom edge. */
 body:not(.has-queue) .osd-bottom { padding-bottom: 24px; }
-/* The queue strip is out of the flow, so the OSD reserves its height and
- * the transport controls keep the same place whether the strip is a peek
- * or fully open. */
-body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-open)); }
+/* The queue strip is out of the flow.  While it only peeks the cards' tops
+ * the control bar stays compact; when the D-pad moves into the strip it
+ * grows to the full cards and the bar keeps that height until focus leaves
+ * it (body.up-next-open is toggled on the strip's focusin/out). */
+body.has-queue { --queue-reserve: var(--queue-peek); }
+body.has-queue.up-next-open { --queue-reserve: var(--queue-open); }
+body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-reserve)); }
+.osd-bottom { transition: padding-bottom var(--motion) var(--ease); }
 
 #osd-title {
     font-size: 28px;
@@ -803,9 +846,11 @@ body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-open)); }
     .up-next { transition: none; }
 }
 .player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 260px; }
-/* The complete queue is part of the OSD. Keep cues above the timeline
- * whether focus is on a card or back on the transport controls. */
-body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: calc(var(--card-height) + 320px); }
+/* The queue adds the strip's height under the transport.  The cue clears
+ * the peeking strip while it watches; when focus opens the strip the cue
+ * moves a card-height higher with it. */
+body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: calc(var(--card-height) + 215px); }
+body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: calc(var(--card-height) + 320px); }
 .more-option {
     display: flex; align-items: center;
     width: 100%; padding: 14px 18px;
@@ -1171,7 +1216,7 @@ body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: cal
 }
 .settings-content::-webkit-scrollbar { display: none; }
 .settings-group {
-    margin-bottom: 40px;
+    margin-bottom: 19px;
 }
 .settings-row {
     width: 100%;
@@ -1187,10 +1232,13 @@ body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: cal
     text-align: left;
     transition: border-color var(--motion) var(--ease), background-color var(--motion) var(--ease);
 }
-.settings-row:focus, .settings-row.focused {
+/* The row is the same dark surface as the page, so focus is only legible as
+   the ring + the lifted fill — the same treatment every other card gets. */
+.settings-row:focus, .settings-row.focused, .settings-row:hover {
     border-color: var(--focus-ring);
     background: var(--bg-card-h);
-    box-shadow: none;
+    box-shadow: 0 0 0 2px var(--focus-ring);
+    outline: none;
 }
 .settings-label { font-size: 24px; }
 
@@ -1220,10 +1268,11 @@ body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: cal
     outline: none;
 }
 .settings-value {
-    font-size: 20px;
-    color: var(--accent);
+    font-size: 24px;
+    color: var(--fg-mute);
     font-weight: 500;
 }
+/* The switch is the value: its track reads off/on as dark/lit. */
 .settings-switch {
     display: inline-block;
     position: relative;
@@ -1241,20 +1290,18 @@ body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: cal
     border-radius: 50%;
     top: 4px;
     inset-inline-start: 4px;
-    background: var(--fg-mute);
+    background: var(--fg-dim);
+    transition: inset-inline-start var(--motion) var(--ease), background-color var(--motion) var(--ease);
 }
-.settings-switch.on { background: var(--fg-mute); }
-.settings-switch.on::after { inset-inline-start: 32px; background: var(--bg-card); }
-/* Page heading: the reference sets the title at 52px/700 with a 28px
+.settings-switch.on { background: var(--accent); }
+.settings-switch.on::after { inset-inline-start: 32px; background: #151515; }
+/* Page heading: the reference sets the title at 52px with a 28px
  * description, both starting at the page inset. */
 .page-heading { text-align: start; margin: 68px 0 52px; }
-.page-heading h1 { margin: 0 0 12px; font-size: 52px; line-height: 1.2; font-weight: 700; }
+.page-heading h1 { margin: 0 0 12px; font-size: 52px; line-height: 1.2; font-weight: 600; }
 .page-heading p { margin: 0; color: var(--fg-soft); font-size: 28px; line-height: 1.25; }
 #view-settings .settings-content { max-width: var(--form-width); width: 100%; margin: 0; }
-#view-settings .settings-group { margin-bottom: 19px; }
 #view-settings .settings-row { border-width: 2px; border-radius: 8px; min-height: 78px; padding: 0 25px; }
-#view-settings .settings-row.focused { outline: none; border-color: var(--focus-ring); background: var(--bg-card-h); box-shadow: none; }
-#view-settings .settings-row .settings-value { color: var(--fg-mute); }
 /* The language row ends in a chevron, like the reference picker row. */
 #setting-ui-lang-value::after {
     content: ''; display: inline-block; width: 10px; height: 10px; margin-inline-start: 14px;
@@ -1364,6 +1411,19 @@ body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: cal
     content: ''; display: inline-block; width: 24px; height: 24px; margin-right: 8px;
     vertical-align: middle; background: url('../assets/remix/check-line.svg') center / contain no-repeat; filter: invert(1);
 }
+/* Anchored mode: the same picker mounted as a dropdown under its row —
+ * right-aligned with the row it belongs to (JS pins it), no footer button,
+ * exactly the video page's menu treatment. */
+.picker.anchored {
+    top: auto; left: auto; bottom: auto;
+    transform: none;
+    width: 540px; max-width: calc(100vw - 130px);
+    max-height: calc(100vh - 160px);
+    padding: 24px 24px 16px;
+}
+.picker.anchored h2 { margin-bottom: 12px; }
+.picker.anchored ul { flex: 0 1 auto; margin-bottom: 8px; }
+.picker.anchored > .btn.ghost { display: none; }
 
 /* Player popups share one anchor and row rhythm. Back replaces footer actions. */
 .player-view #picker {
@@ -1494,9 +1554,6 @@ body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: cal
     object-fit: cover;
     border-radius: var(--r);
 }
-/* While the transport OSD is up it owns the lower half of the screen, so
- * the music card lifts clear of it instead of running into the timeline. */
-body.player-osd-visible .audio-card { top: 22%; }
 .audio-sub { margin-top: 12px; font-size: 26px; color: var(--fg-mute); word-break: break-word; }
 
 /* Listed, but nothing in the app opens it. */

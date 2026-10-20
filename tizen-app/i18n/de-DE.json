@@ -147,7 +147,6 @@
   "saved.removed": "{0} entfernt",
   "cast.qrAlt": "Kopplungs-QR-Code",
   "browse.noStorage": "Kein zugänglicher Speicher gefunden.",
-  "browse.folder": "Ordner",
   "browse.watched": "Angesehen",
   "player.openingShort": "Wird geöffnet…",
   "player.stuck": "Hängt nach 20 s beim Laden.  AVPlay-Status: {0}.  Codec, Container oder Quelle werden möglicherweise nicht unterstützt.",

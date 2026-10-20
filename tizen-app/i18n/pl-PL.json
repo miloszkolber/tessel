@@ -147,7 +147,6 @@
   "saved.removed": "Usunięto {0}",
   "cast.qrAlt": "Kod QR parowania",
   "browse.noStorage": "Nie znaleziono dostępnej pamięci.",
-  "browse.folder": "Folder",
   "browse.watched": "Obejrzane",
   "player.openingShort": "Otwieranie…",
   "player.stuck": "Wczytywanie utknęło po 20 s.  Stan AVPlay: {0}.  Kodek, kontener lub źródło mogą nie być obsługiwane.",

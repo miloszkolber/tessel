@@ -184,7 +184,6 @@
   "saved.removed": "Removed {0}",
   "cast.qrAlt": "Cast QR code",
   "browse.noStorage": "No accessible storage found.",
-  "browse.folder": "Folder",
   "browse.watched": "Watched",
   "player.openingShort": "Opening…",
   "player.stuck": "Stuck loading after 20 s.  AVPlay state: {0}.  The codec, container, or source may not be supported.",

@@ -147,7 +147,6 @@
   "saved.removed": "{0} quitada",
   "cast.qrAlt": "Código QR de vinculación",
   "browse.noStorage": "No se encontró almacenamiento accesible.",
-  "browse.folder": "Carpeta",
   "browse.watched": "Visto",
   "player.openingShort": "Abriendo…",
   "player.stuck": "Carga bloqueada tras 20 s.  Estado de AVPlay: {0}.  Es posible que el códec, el contenedor o la fuente no sean compatibles.",

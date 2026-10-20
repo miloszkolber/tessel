@@ -192,12 +192,11 @@ var WebDAV = (function () {
     }
     function join(dir, name) { return (dir ? dir.replace(/\/+$/, '') : '') + '/' + name; }
     function ul() { return document.getElementById('browse-list'); }
-    function head(title, path) {
+    function head(crumbs, path) {
         UI.showView('view-browse');
-        if (window.VlcApp && window.VlcApp.setBrowsePage) window.VlcApp.setBrowsePage('network');
+        if (window.VlcApp && window.VlcApp.setBrowsePage) window.VlcApp.setBrowsePage('network', crumbs);
         if (window.VlcApp && window.VlcApp.setBrowseGrid) window.VlcApp.setBrowseGrid(true);
-        document.getElementById('browse-title').textContent = title;
-        document.getElementById('browse-path').textContent = path;
+        document.getElementById('browse-path').textContent = path;   // legacy line, kept hidden
     }
     function message(icon, text) {
         ul().innerHTML = '<li><span class="icon">' + icon + '</span><span class="name">' + esc(text) + '</span></li>';
@@ -209,7 +208,7 @@ var WebDAV = (function () {
     function render(path, focusName) {
         var seq = ++browseSequence;
         var srv = current, s = serverById(srv) || {};
-        head(path ? path.split('/').pop() : serverLabel(s), serverLabel(s) + (path || '/'));
+        head([serverLabel(s)].concat(String(path || '').split('/').filter(Boolean)), serverLabel(s) + (path || '/'));
         message('<img class="remix-icon" src="assets/remix/loader-4-line.svg" alt="">', I18n.t('common.loading'));
         var stackHere = pathStack.slice();
         list(srv, path, function (err, entries) {
@@ -365,7 +364,7 @@ var WebDAV = (function () {
     function showServers() {
         pickingServer = true;
         pathStack = [];
-        head(I18n.t('dav.title'), I18n.t('smb.pickServer'));
+        head([I18n.t('dav.title')], I18n.t('smb.pickServer'));
         var list_ = ul();
         list_.innerHTML = '';
         var focus = null;
@@ -390,7 +389,7 @@ var WebDAV = (function () {
         current = id;
         path = path || '';
         pathStack = SMB.parentPaths(path);
-        head(I18n.t('dav.title'), I18n.t('common.connecting'));
+        head([I18n.t('dav.title')], I18n.t('common.connecting'));
         message('<img class="remix-icon" src="assets/remix/loader-4-line.svg" alt="">', I18n.t('common.connecting'));
         dbg('openBrowser [' + id + ']' + (path ? ' ' + JSON.stringify(path) : ''));
         SMB.ensureService(function (err) {
@@ -421,9 +420,13 @@ var WebDAV = (function () {
     var editing = 'new';
     var insecureState = false;
 
+    /* The switch itself is the value: paint the track, and keep the switch
+     * state in aria-checked for the screen reader. */
     function paintInsecure() {
-        var el = document.getElementById('dav-insecure-val');
-        if (el) el.textContent = I18n.t(insecureState ? 'common.on' : 'common.off');
+        var btn = document.getElementById('dav-insecure');
+        var val = document.getElementById('dav-insecure-val');
+        if (btn && btn.setAttribute) btn.setAttribute('aria-checked', insecureState ? 'true' : 'false');
+        if (val && val.classList) val.classList.toggle('on', insecureState);
     }
     function paintEditing() {
         var val = null;   // one server: nothing to choose between

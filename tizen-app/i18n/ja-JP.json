@@ -147,7 +147,6 @@
   "saved.removed": "{0} を削除しました",
   "cast.qrAlt": "ペアリング用QRコード",
   "browse.noStorage": "アクセスできるストレージが見つかりません。",
-  "browse.folder": "フォルダ",
   "browse.watched": "視聴済み",
   "player.openingShort": "開いています…",
   "player.stuck": "20秒経っても読み込みが終わりません。AVPlayの状態：{0}。コーデック、コンテナ、またはソースに対応していない可能性があります。",

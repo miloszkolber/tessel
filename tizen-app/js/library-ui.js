@@ -10,7 +10,7 @@ var LibraryUI = (function () {
     function streamInfo(url) {
         var clean = String(url || '').split(/[?#]/)[0], kind = FileTypes.kind(clean);
         var host = /^[a-z][\w+.-]*:\/\/([^/]+)/i.exec(clean);
-        return { icon: kind === 'audio' ? 'file-music-fill' : kind === 'video' ? 'file-video-fill' : kind === 'playlist' ? 'play-list-fill' : 'play-fill',
+        return { icon: kind === 'audio' ? 'file-music-fill' : kind === 'playlist' ? 'play-list-fill' : 'file-video-fill',
             subtitle: host ? host[1].replace(/^.*@/, '') : clean.split(':')[0].toUpperCase() };
     }
     function sourceKey(s) { return s.kind + ':' + String(s.srv !== undefined ? s.srv : s.id || ''); }
@@ -94,15 +94,18 @@ var LibraryUI = (function () {
         b.dataset.cardKey = item.key || item.uri || (item.kind === 'url' ? item.path : sourceKey(item) + (item.path && item.path !== '/' && item.path !== '0' ? ':' + item.path : ''));
         var image = el('span', 'card-picture');
         var folder = item.kind === 'usb' && item.rootPath && item.path !== item.rootPath;
-        image.appendChild(icon(item.icon || (item.kind === 'url' ? 'play-fill' : folder ? 'folder-fill' : item.kind === 'usb' ? 'hard-drive-2-fill' : item.kind === 'dlna' ? 'file-video-fill' : item.kind === 'webdav' ? 'earth-line' : 'folder-fill')));
+        var rootSource = (item.kind === 'smb' && (!item.path || item.path === '/')) || (item.kind === 'dlna' && (!item.path || item.path === '0'));
+        image.appendChild(icon(item.icon || (item.kind === 'url' ? streamInfo(item.path).icon : folder ? 'folder-fill' : item.kind === 'usb' ? 'hard-drive-2-fill' : rootSource ? 'server-line' : item.kind === 'dlna' ? 'file-video-fill' : item.kind === 'webdav' ? 'earth-line' : 'folder-fill')));
         if (item.art) {
             var art = el('img', 'card-art'); art.src = item.art; art.alt = ''; art.loading = 'lazy';
-            art.onerror = function () { if (art.parentNode) art.parentNode.removeChild(art); };
+            art.onload = function () { b.classList.add('has-art'); };
+            art.onerror = function () { b.classList.remove('has-art'); if (art.parentNode) art.parentNode.removeChild(art); };
             image.appendChild(art);
         }
         var warning = el('span', 'missing-source hidden'); warning.appendChild(icon('error-warning-line')); warning.title = t('source.unavailable'); image.appendChild(warning);
         if (item.dur && item.pos) { var bar = el('span', 'card-progress'), fill = el('span'); fill.style.width = Math.min(100, item.pos / item.dur * 100) + '%'; bar.appendChild(fill); image.appendChild(bar); }
-        b.appendChild(image); b.appendChild(el('span', 'card-title', item.title || item.name));
+        b.appendChild(image);
+        b.appendChild(el('span', 'card-title', item.title || item.name));
         b.appendChild(el('span', 'card-description', item.subtitle || ''));
         b.title = item.title || item.name;
         b.setAttribute('aria-label', (item.title || item.name) + (item.subtitle ? ' — ' + item.subtitle : ''));
@@ -114,8 +117,8 @@ var LibraryUI = (function () {
     /* A section keeps its place whether or not it has items: the row stays
      * on the page and says so, so the rows below never jump up and down as
      * the library changes. */
-    function row(host, title, items, render, emptyText) {
-        var section = el('section', 'library-row'); section.appendChild(el('h2', '', title));
+    function row(host, title, items, render, emptyText, modName) {
+        var section = el('section', modName ? 'library-row ' + modName : 'library-row'); section.appendChild(el('h2', '', title));
         var list = el('div', 'card-row');
         if (!items.length) { list.classList.add('empty'); list.dataset.empty = emptyText || ''; }
         else items.forEach(function (item) { list.appendChild(render(item)); });
@@ -140,17 +143,19 @@ var LibraryUI = (function () {
         var focus = document.activeElement && document.activeElement.dataset.cardKey;
         host.innerHTML = '';
         row(host, t('strip.continue'), Library.recommendations(resume || {}, watched || {}), function (r) {
-            return card({ key: r.key, title: r.title, subtitle: r.subtitle, art: r.art, pos: r.pos, dur: r.dur, source: descriptor(r.uri, r.source), icon: 'play-fill' },
+            var c = card({ key: r.key, title: r.title, subtitle: r.subtitle, art: r.art, pos: r.pos, dur: r.dur, source: descriptor(r.uri, r.source), icon: streamInfo(r.uri || r.title).icon },
                 function () { launch(r); }, function (node) {
                     Dialog.menu(r.title, [{ name: t('library.removeContinue'), run: function () { Library.dismiss(r.key, r.uri); home(resume, watched); restore(focus); } }], node);
                 });
+            c.classList.add('continue-card');
+            return c;
         }, t('library.noContinue'));
         row(host, t('library.pinned'), Favorites.list(), function (s) {
             return card(s, function () { openPin(s); }, function (node) {
                 Dialog.menu(s.name, [{ name: t('pin.unpin'), run: function () { Favorites.remove(s.id); VlcApp.refreshHome(); restore(focus); } },
                     { name: t('library.rename'), run: function () { Dialog.rename(t('library.rename'), s.name, function (name) { Favorites.rename(s.id, name); VlcApp.refreshHome(); restore(focus); }, node); } }], node);
             });
-        }, t('library.noPinned'));
+        }, t('library.noPinned'), 'shortcut-row');
         UI.refreshFocusables();
         if (focus && !Dialog.isOpen()) restore(focus);
         else if (!Dialog.isOpen() && !document.getElementById('view-home').classList.contains('hidden') &&

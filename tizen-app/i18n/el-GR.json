@@ -147,7 +147,6 @@
   "saved.removed": "Αφαιρέθηκε: {0}",
   "cast.qrAlt": "Κωδικός QR σύζευξης",
   "browse.noStorage": "Δεν βρέθηκε προσβάσιμος χώρος αποθήκευσης.",
-  "browse.folder": "Φάκελος",
   "browse.watched": "Προβλήθηκε",
   "player.openingShort": "Άνοιγμα…",
   "player.stuck": "Η φόρτωση κόλλησε μετά από 20 δευτ.  Κατάσταση AVPlay: {0}.  Ο codec, το container ή η πηγή ίσως δεν υποστηρίζεται.",

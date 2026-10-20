@@ -147,7 +147,6 @@
   "saved.removed": "{0} poistettu",
   "cast.qrAlt": "Parin muodostuksen QR-koodi",
   "browse.noStorage": "Käytettävissä olevaa tallennustilaa ei löytynyt.",
-  "browse.folder": "Kansio",
   "browse.watched": "Katsottu",
   "player.openingShort": "Avataan…",
   "player.stuck": "Lataus jumissa 20 s jälkeen.  AVPlay-tila: {0}.  Koodekkia, säiliömuotoa tai lähdettä ei ehkä tueta.",

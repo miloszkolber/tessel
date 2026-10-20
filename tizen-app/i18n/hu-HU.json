@@ -147,7 +147,6 @@
   "saved.removed": "{0} eltávolítva",
   "cast.qrAlt": "Párosító QR-kód",
   "browse.noStorage": "Nem található elérhető tároló.",
-  "browse.folder": "Mappa",
   "browse.watched": "Megtekintve",
   "player.openingShort": "Megnyitás…",
   "player.stuck": "A betöltés 20 mp után elakadt.  AVPlay állapota: {0}.  Lehet, hogy a kodek, a konténer vagy a forrás nem támogatott.",
