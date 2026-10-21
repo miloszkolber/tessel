@@ -1791,22 +1791,23 @@
         glyph.className = 'up-next-glyph';
         var kind = 'other';
         try {
-            kind = FileTypes.kind(item.title || '') ||
-                   FileTypes.kind(String(item.uri).split('?')[0]) || 'other';
+            kind = FileTypes.kind(item.title || '');
+            if (kind === 'other') kind = FileTypes.kind(String(item.uri).split(/[?#]/)[0]);
         } catch (e) {}
         glyph.innerHTML = FileTypes.icon(kind);
+        wrap.appendChild(glyph);
         if (item.art) {
             var img = document.createElement('img');
-            img.src = item.art; img.alt = '';
+            img.className = 'card-art'; img.alt = ''; img.loading = 'lazy';
+            img.onload = function () { wrap.classList.add('has-art'); };
             // A dead server thumbnail must not leave a broken-image box:
             // fall back to the file icon, as if there were no art.
             img.onerror = function () {
+                wrap.classList.remove('has-art');
                 if (img.parentNode) img.parentNode.removeChild(img);
-                if (!glyph.parentNode) wrap.appendChild(glyph);
             };
+            img.src = item.art;
             wrap.appendChild(img);
-        } else {
-            wrap.appendChild(glyph);
         }
         wrap.appendChild(bar);
         return wrap;

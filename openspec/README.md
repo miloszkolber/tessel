@@ -19,6 +19,8 @@ For annotated visual corrections, inspect the actual layout at the annotation's 
 
 For aesthetic polishing, compare rendered before/after images against the references first. Judge type scale, spacing, hierarchy, density and balance at each affected viewport before running regression gates. Passing tests do not establish visual quality.
 
+Include mixed loaded, missing and failed artwork, friendly titles without file extensions, progress with queue metadata and populated/empty sections in card comparisons. Compare management dialogs with source forms using computed field/action sizes and typography. Check Rename's initial selection and replacement separately from physical TV text entry.
+
 Stress nested menus with long unbroken labels and enough rows to require scrolling. Confirm fixed headings cannot shrink, multiline clamps do not expose partial extra lines inside padded options, and pending discovery keeps visible native focus before results arrive. Playlist files must remain browseable without entering the folder's audio/video playback queue.
 
 Cancel and reopen source forms while discovery is pending. An old reply must not reopen a picker, show a stale error or clear the newer request's pending state. Editing connection fields also invalidates their pending discovery. Inspect translated feedback and long hostnames inside the toast, not only inside full error dialogs.

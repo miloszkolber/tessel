@@ -82,6 +82,40 @@ test('Up Next is a thumbnail carousel with progress, collapsing until focused', 
     assert.ok(css.indexOf('background: transparent') >= 0, 'no container card');
 });
 
+test('queue artwork retains the URL-derived fallback through loading and failure', function () {
+    function element() {
+        var classes = {}, node = { children: [], style: {}, classList: {
+            add: function (name) { classes[name] = true; },
+            remove: function (name) { delete classes[name]; },
+            contains: function (name) { return !!classes[name]; }
+        } };
+        node.appendChild = function (child) { node.children.push(child); child.parentNode = node; };
+        node.removeChild = function (child) { node.children.splice(node.children.indexOf(child), 1); child.parentNode = null; };
+        return node;
+    }
+    var context = { document: { createElement: element }, queueProgress: function () { return 25; } };
+    vm.createContext(context);
+    vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/filetypes.js'), 'utf8'), context);
+    var source = fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
+    var start = source.indexOf('    function queueThumb('), end = source.indexOf('    function renderUpNext(', start);
+    assert.ok(start >= 0 && end > start);
+    vm.runInContext(source.slice(start, end), context);
+    var thumb = context.queueThumb({ title: 'Friendly film title', uri: 'https://example.com/movie.mp4?token=demo#part', art: 'cover.jpg' });
+    var glyph = thumb.children[0], image = thumb.children[1];
+    assert.ok(glyph.innerHTML.includes('file-video-fill.svg'), 'friendly title falls back to the media URL type');
+    assert.equal(image.loading, 'lazy');
+    assert.equal(image.className, 'card-art');
+    assert.equal(thumb.classList.contains('has-art'), false, 'fallback stays visible until the image succeeds');
+    image.onload();
+    assert.equal(thumb.classList.contains('has-art'), true);
+    image.onerror();
+    assert.equal(thumb.classList.contains('has-art'), false);
+    assert.equal(image.parentNode, null, 'failed image is removed');
+    assert.equal(thumb.children[0], glyph, 'the original fallback survives');
+    var audio = context.queueThumb({ title: 'Friendly music title', uri: 'https://example.com/song.mp3#track' });
+    assert.ok(audio.children[0].innerHTML.includes('file-music-fill.svg'));
+});
+
 test('autoplay is silent and the scrub chip is white-on-black text', function () {
     assert.ok(!('toast.autoPlay' in en), 'autoplay toast removed');
     var css = fs.readFileSync(path.join(ROOT, 'css/style.css'), 'utf8');

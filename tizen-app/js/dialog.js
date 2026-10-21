@@ -59,7 +59,7 @@ var Dialog = (function () {
         function commit() { var name = input.value.trim(); if (!name) { input.focus(); return; } close(false); save(name); }
         b.addEventListener('click', commit);
         input.addEventListener('keydown', function (ev) { if (ev.keyCode === 13) { ev.preventDefault(); ev.stopPropagation(); commit(); } });
-        d.body.appendChild(input); d.footer.appendChild(b); d.focus();
+        d.body.appendChild(input); d.footer.appendChild(b); d.focus(); input.select();
     }
     return { open: open, close: close, menu: menu, rename: rename, isOpen: function () { return !!active; } };
 })();

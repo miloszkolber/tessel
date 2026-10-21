@@ -71,6 +71,8 @@ html, body {
 
 button { font: inherit; color: inherit; cursor: pointer; background: none; border: 0; }
 button:focus { outline: none; }
+input { user-select: text; -webkit-user-select: text; }
+input::selection { background: var(--focus-ring); color: var(--bg); }
 
 /* Bundled SVGs, not font glyphs: stable shapes across TV font sets. */
 .remix-icon {
@@ -97,7 +99,7 @@ button:focus { outline: none; }
 /* An empty section keeps the space a row of cards would take and says why
  * it is empty, so the sections below never move. */
 .card-row.empty { min-height: calc(var(--card-height) + 24px); align-items: flex-start; }
-.empty-state { display: flex; align-items: center; flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); margin: 0; padding: 24px; border: 2px dashed var(--surface-border); border-radius: 12px; background: var(--bg-card); color: var(--fg-soft); font-size: 24px; line-height: 1.4; text-align: start; }
+.empty-state { display: flex; align-items: center; flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); margin: 0; padding: 24px; border: 2px dashed var(--surface-border); border-radius: 12px; background: var(--bg-card); color: var(--fg-soft); font-size: var(--card-label-size); line-height: 1.4; text-align: start; }
 .card-row::-webkit-scrollbar { display: none; }
 .media-card { position: relative; display: flex; flex-direction: column; align-items: stretch; text-align: start;
     flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); min-height: 0; padding: var(--card-inset); border: 2px solid var(--surface-border);
@@ -115,7 +117,10 @@ button:focus { outline: none; }
 .media-card:focus .card-picture::before { background: var(--focus-ring); }
 .media-card.focused .card-picture > .remix-icon,
 .media-card:focus .card-picture > .remix-icon { filter: none; }
-.card-art { position: absolute; inset: 0; height: 100%; width: 100%; object-fit: cover; }
+.card-art { position: absolute; inset: 0; height: 100%; width: 100%; object-fit: cover; border-radius: 8px; opacity: 0; transition: opacity var(--motion) var(--ease); }
+.has-art .card-art { opacity: 1; }
+.has-art .card-picture::before, .has-art .card-picture > .remix-icon,
+.up-next-thumb.has-art .up-next-glyph { visibility: hidden; }
 .card-title { flex: 0 0 auto; font-size: var(--card-label-size); font-weight: 500; margin-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* An absent subtitle reserves nothing: the title sits at the same height on
    every card in a strip. */
@@ -123,7 +128,9 @@ button:focus { outline: none; }
 .media-card .card-description:empty { display: none; }
 /* Resume cards lead with the progress line ("4 / 4") so the strip reads as
    one column: meta above the picture, title below it. */
-.continue-card .card-description { order: -1; margin: 0 0 10px; color: var(--fg-soft); font-weight: 500; }
+.continue-card .card-description { order: -1; margin: 0 0 6px; color: var(--fg-soft); font-weight: 500; }
+.continue-card .card-picture { padding-bottom: 8px; }
+.continue-card .card-title { margin-top: 8px; }
 /* Focus: a 2px light border plus a 2px ring drawn outside it — the same
  * treatment on every card, tile and source shortcut. */
 .media-card.focused, .media-card:focus { border-color: var(--focus-ring); background: var(--bg-card-h); box-shadow: 0 0 0 2px var(--focus-ring); transform: none; }
@@ -156,13 +163,13 @@ button:focus { outline: none; }
 .dialog-body > .settings-group { flex: 0 0 auto; }
 .dialog-footer { display: flex; flex: 0 0 auto; gap: 16px; margin-top: 24px; }
 .dialog-footer:empty { display: none; }
-.dialog-footer > button { width: 100%; min-height: 78px; margin: 0; padding: 14px 24px; border: 2px solid var(--surface-border); border-radius: 8px; font-size: 22px; }
-.dialog-footer > .primary, .dialog-footer > .settings-row { justify-content: center; text-align: center; background: var(--focus-ring); color: #151515; font-weight: 400; }
+.dialog-footer > button, .dialog-footer > button.settings-row { width: 100%; min-height: 64px; margin: 0; padding: 14px 24px; border: 2px solid var(--surface-border); border-radius: 8px; font-size: 22px; }
+.dialog-footer > button.primary, .dialog-footer > button.settings-row { justify-content: center; text-align: center; background: var(--focus-ring); color: #151515; font-weight: 400; }
 .dialog-footer > button.focused, .dialog-footer > button:focus { border-color: var(--focus-ring); background: var(--bg-card-h); box-shadow: 0 0 0 2px var(--focus-ring); }
 .dialog-footer > .primary:focus, .dialog-footer > .primary.focused,
 .dialog-footer > .settings-row:focus, .dialog-footer > .settings-row.focused { background: var(--focus-ring); color: #151515; box-shadow: 0 0 0 3px rgba(244,244,244,.4); }
-.dialog-body input { width: 100%; min-height: 64px; padding: 14px 18px; background: var(--bg); border: 2px solid var(--surface-border); border-radius: 8px; color: white; font: inherit; }
-.dialog-option { min-height: 78px; flex-shrink: 0; padding: 18px 24px; text-align: start; overflow-wrap: break-word; word-break: break-word; border: 2px solid var(--surface-border); border-radius: 8px; background: var(--bg-card); }
+.dialog-body input, .dialog-body .settings-row-input input { width: 100%; min-height: 64px; padding: 14px 18px; background: var(--bg); border: 2px solid var(--surface-border); border-radius: 8px; color: white; font: inherit; font-size: 22px; }
+.dialog-option { min-height: 78px; flex-shrink: 0; padding: 18px 24px; font-size: 24px; line-height: 1.35; text-align: start; overflow-wrap: break-word; word-break: break-word; border: 2px solid var(--surface-border); border-radius: 8px; background: var(--bg-card); }
 .dialog-option:disabled { opacity: .45; }
 .dialog-option.focused, .dialog-body input.focused, .dialog-body .settings-row.focused { outline: none; border-color: var(--focus-ring); background: var(--bg-card-h); }
 .dialog-body .settings-group { margin: 0; }
@@ -172,8 +179,6 @@ button:focus { outline: none; }
 .source-dialog .dialog-card { height: auto; max-height: calc(100vh - 80px); }
 .source-dialog .settings-row { min-height: 56px; font-size: 24px; }
 .source-dialog .settings-row-input .settings-label { font-size: 22px; line-height: 1.3; margin: 0; }
-.source-dialog .dialog-body input { min-height: 60px; padding: 14px 18px; font-size: 22px; border: 2px solid var(--surface-border); }
-.source-dialog .dialog-footer .settings-row { min-height: 64px; font-size: 22px; }
 .source-dialog .dialog-footer .settings-label { font-size: inherit; font-weight: inherit; }
 .receive-body { align-items: center; text-align: center; }
 .receive-card { padding: 48px; }
@@ -832,7 +837,6 @@ body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-reserve)); 
     background: transparent;
     transition: box-shadow var(--motion) var(--ease), transform var(--motion) var(--ease);
 }
-.up-next-thumb > img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
 .up-next-glyph { display: flex; align-items: center; justify-content: center; width: var(--card-disc-size); height: var(--card-disc-size); border-radius: 50%; background: #212121; transition: background-color var(--motion) var(--ease); }
 .up-next-glyph .remix-icon { width: var(--card-glyph-size); height: var(--card-glyph-size); }
 /* Progress drawn over the thumbnail's lower edge. */
@@ -1645,6 +1649,7 @@ button.settings-row:focus, button.settings-row.focused {
     .media-card, #view-home .tile, .browse-list.grid li, .browse-list.grid.device-roots li { padding: 12px; }
     .card-title, #view-home .tile-label, .browse-list.grid .name, .browse-list.grid.device-roots .name { font-size: 18px; }
     .card-title { margin-top: 8px; }
+    .continue-card .card-title { margin-top: 6px; }
     .card-description { font-size: 14px; margin-top: 4px; }
     .card-picture > .remix-icon, .browse-list.grid .icon .remix-icon { width: 32px; height: 32px; }
     /* The narrow card is 55% of the reference size: it cannot hold a disc, a

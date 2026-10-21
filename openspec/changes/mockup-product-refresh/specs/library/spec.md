@@ -24,6 +24,11 @@ Long OK SHALL open contextual actions for pins, saved streams, sources, folders,
 - **WHEN** the viewer holds OK on a recommendation and chooses Remove
 - **THEN** the recommendation is removed without deleting the media or its pin
 
+#### Scenario: Replace a name
+- **WHEN** the viewer opens Rename
+- **THEN** the existing value is selected for replacement
+- **AND** the field and primary action use the shared dialog text scale and monochrome selection treatment
+
 ### Requirement: Stream library and URL receipt
 Stream SHALL display saved and recent cards, derive default names from URLs with a rename action, and receive URLs through a QR listening modal. Simulator receipt SHALL be clearly identified as simulated.
 
@@ -154,3 +159,11 @@ Every glyph that stands for a card, a source or a file SHALL use the shared resp
 - **WHEN** a content card takes focus
 - **THEN** its glyph disc turns light and the glyph turns dark
 - **AND** the disc is the same size as the one on the source and device tiles
+
+#### Scenario: Mixed artwork and fallback cards
+- **WHEN** library or queue cards contain loaded, absent or failed artwork
+- **THEN** loaded artwork uses the same rounded picture treatment
+- **AND** a fallback glyph remains available until artwork loads successfully
+- **AND** failed artwork leaves the fallback rather than a broken image
+- **AND** friendly titles without file extensions do not prevent the queue from deriving its fallback glyph from the media URL
+- **AND** Continue progress lines remain clear of their glyph discs without changing card or section height

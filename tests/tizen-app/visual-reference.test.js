@@ -302,9 +302,9 @@ test('source forms size to content and use one label/input scale', function () {
     assert.ok(rule(source, '.source-dialog .dialog-card {', 200).includes('height: auto'), 'no fixed-height empty form body');
     assert.ok(rule(source, '.dialog-body > .settings-group {', 100).includes('flex: 0 0 auto'), 'long forms scroll rather than compress');
     assert.ok(rule(source, '.source-dialog .settings-row-input .settings-label', 200).includes('font-size: 22px'), 'label matches input');
-    assert.ok(rule(source, '.source-dialog .dialog-body input', 200).includes('font-size: 22px'), 'input scale');
+    assert.ok(rule(source, '.dialog-body input, .dialog-body .settings-row-input input', 400).split('}')[0].includes('font-size: 22px'), 'one input scale for source and management forms');
     assert.ok(!source.includes('.settings-row:hover {\n'), 'field labels do not inherit button hover');
-    assert.ok(rule(source, '.dialog-footer > .primary,', 200).includes('font-weight: 400'), 'actions use regular weight');
+    assert.ok(rule(source, '.dialog-footer > button.primary,', 300).split('}')[0].includes('font-weight: 400'), 'actions use regular weight even when they share the primary button class');
     var primaryFocus = rule(source, '.dialog-footer > .primary:focus', 400).split('}')[0];
     assert.ok(primaryFocus.includes('background: var(--focus-ring)') && primaryFocus.includes('color: #151515'), 'focused filled actions retain dark-on-light contrast');
 });
