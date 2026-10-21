@@ -72,6 +72,20 @@ The queue SHALL remain fully visible whenever the OSD is visible and it holds fo
 - **THEN** the strip grows to the full cards
 - **AND** the queue heading stays visible at the top of the strip
 
+#### Scenario: Identify the playing item
+- **WHEN** a queue of multiple items is visible
+- **THEN** the heading shows the playing position and total count
+- **AND** the playing card has a marker distinct from the navigation focus ring
+- **AND** its fallback glyph uses the shared responsive icon disc
+
+### Requirement: Readable playback popups
+Playback menus and pickers SHALL use opaque shared surfaces so video, subtitles and timeline details cannot show through their options. They SHALL anchor above the transport row with a visible gap and constrain long lists inside the viewport. Nested menu levels SHALL use the shared finite entrance fade and honor reduced motion.
+
+#### Scenario: Open a menu above a queue
+- **WHEN** the viewer opens More during queued playback
+- **THEN** the panel clears the transport controls
+- **AND** opening a nested level preserves that anchor and a visible focus ring on the selected option
+
 ### Requirement: Stable page rhythm
 A section that has no items SHALL keep its place on the page and name its empty state instead of disappearing. The music card SHALL sit still on the screen's centre line.
 
@@ -85,6 +99,19 @@ A section that has no items SHALL keep its place on the page and name its empty 
 - **WHEN** an audio file plays without cover art
 - **THEN** the cover, the title and the album share the screen's centre line
 - **AND** the card does not drift over time
+
+#### Scenario: Audio opening status
+- **WHEN** a centred opening or buffering status is visible
+- **THEN** the album column is hidden rather than protruding from behind the status
+- **AND** it returns at the same position when playback resumes
+
+### Requirement: Playback failure hierarchy
+Playback failures SHALL show a short translated heading, the failure detail as secondary text and any diagnostic hint separately. They SHALL preserve the recovery action and scrolling for long details. The warning glyph SHALL use the bundled icon treatment rather than a text character.
+
+#### Scenario: Inspect a playback failure
+- **WHEN** playback reports a technical failure
+- **THEN** the alert is named by the translated playback-error heading
+- **AND** its description includes the original failure detail and any available hint
 
 ### Requirement: Restrained motion
 Card and control transitions SHALL use a consistent eased cadence. Content surfaces SHALL NOT carry decorative gradients. Reduced-motion preference SHALL disable decorative animations and smooth focus scrolling. View transitions SHALL preserve the opaque non-player background above the native video plane.

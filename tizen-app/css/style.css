@@ -47,6 +47,7 @@
     --card-label-size: 24px;
     --card-meta-size: 18px;
     --card-inset: 18px;
+    --transport-height: 96px;
     --motion: 240ms;
     --ease: cubic-bezier(.22, .61, .36, 1);
 }
@@ -689,6 +690,8 @@ body:not(.has-queue) .osd-bottom { padding-bottom: 24px; }
  * it (body.up-next-open is toggled on the strip's focusin/out). */
 body.has-queue { --queue-reserve: var(--queue-peek); }
 body.has-queue.up-next-open { --queue-reserve: var(--queue-open); }
+body.player-view { --player-popup-bottom: calc(24px + var(--transport-height) + 16px); }
+body.has-queue.player-view { --player-popup-bottom: calc(48px + var(--queue-reserve) + var(--transport-height) + 16px); }
 body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-reserve)); }
 .osd-bottom { transition: opacity var(--motion) var(--ease), transform var(--motion) var(--ease), visibility 0s, padding-bottom var(--motion) var(--ease); }
 .osd-bottom.hidden { transition: opacity var(--motion) var(--ease), transform var(--motion) var(--ease), visibility 0s var(--motion), padding-bottom var(--motion) var(--ease); }
@@ -780,8 +783,8 @@ body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-reserve)); 
  * positioned out of the flow and clipped to a peek. The control bar
  * reserves the matching height as the D-pad opens or leaves the strip. */
 .up-next {
-    position: absolute; left: var(--page-inset); right: var(--page-inset); bottom: 12px;
-    margin: 0; padding: 0; text-align: left;
+    position: absolute; left: calc(var(--page-inset) - 4px); right: calc(var(--page-inset) - 4px); bottom: 12px;
+    margin: 0; padding: 4px; text-align: left;
     background: transparent;
     border: none;
     border-radius: 0;
@@ -792,11 +795,13 @@ body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-reserve)); 
 }
 .up-next:focus-within { max-height: var(--queue-open); }
 .up-next-title {
+    display: flex; align-items: baseline; gap: 16px;
     font-size: 22px; line-height: 1.3; color: var(--fg-soft);
     text-transform: uppercase;
     font-weight: 500;
     margin: 0 0 12px;
 }
+.queue-position { font-size: .85em; color: var(--fg-dim); font-variant-numeric: tabular-nums; }
 #up-next-list {
     direction: ltr;
     list-style: none; margin: 0;
@@ -812,47 +817,49 @@ body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-reserve)); 
 #up-next-list::-webkit-scrollbar { display: none; }
 .up-next-card { flex: 0 0 var(--card-width); min-width: 0; scroll-snap-align: start; }
 #up-next-list button {
-    display: flex; flex-direction: column; align-items: stretch;
-    width: 100%; height: var(--card-height); padding: 14px;
+    position: relative; display: flex; flex-direction: column; align-items: stretch;
+    width: 100%; height: var(--card-height); padding: var(--card-inset);
     text-align: left;
     background: rgba(21,21,21,.94); color: var(--fg-mute); border-radius: 12px; border: 2px solid var(--surface-border);
-    font-size: 24px; line-height: 1.35;
+    font-size: var(--card-label-size); line-height: 1.35;
     transition: transform var(--motion) var(--ease), color var(--motion) var(--ease);
 }
 .up-next-thumb {
     position: relative;
     display: flex; align-items: center; justify-content: center;
     width: 100%; flex: 1 1 0; min-height: 0; height: auto; margin-bottom: 10px;
-    border-radius: 12px; overflow: hidden;
-    background: var(--bg-3);
+    overflow: hidden;
+    background: transparent;
     transition: box-shadow var(--motion) var(--ease), transform var(--motion) var(--ease);
 }
-.up-next-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.up-next-glyph .remix-icon { width: 56px; height: 56px; opacity: .6; }
+.up-next-thumb > img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+.up-next-glyph { display: flex; align-items: center; justify-content: center; width: var(--card-disc-size); height: var(--card-disc-size); border-radius: 50%; background: #212121; transition: background-color var(--motion) var(--ease); }
+.up-next-glyph .remix-icon { width: var(--card-glyph-size); height: var(--card-glyph-size); }
 /* Progress drawn over the thumbnail's lower edge. */
 .up-next-progress {
-    position: absolute; left: 12px; right: 12px; bottom: 10px;
+    position: absolute; left: 0; right: 0; bottom: 0;
     display: block; height: 4px;
     background: rgba(255,255,255,.28); border-radius: 3px; overflow: hidden;
     box-shadow: 0 0 4px rgba(0,0,0,.5);
 }
 .up-next-progress .up-next-fill { display: block; height: 100%; width: 0; background: #fff; }
-.up-next-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* Playing now: a steady white ring. */
-#up-next-list button.active { border-color: #aaa; }
-#up-next-list button.active { color: #fff; }
-#up-next-list button.active .up-next-name { font-weight: 600; }
-/* Cursor: brighter ring, a soft glow, and the tile lifted slightly. */
+.up-next-name { flex: 0 0 auto; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Playing state is independent of the navigation cursor. */
+#up-next-list button.active { color: var(--fg); }
+#up-next-list button.active::after { content: ''; position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 50%; background: var(--focus-ring) url('../assets/remix/play-fill.svg') center / 18px 18px no-repeat; }
+/* Cursor uses the library's hard ring and inverted icon disc, without lift. */
 #up-next-list button .up-next-thumb { outline: none; }
 #up-next-list button.focused, #up-next-list button:focus {
     outline: none;
     border-color: var(--focus-ring);
     background: rgba(32,32,32,.94);
-    box-shadow: inset 0 0 0 2px var(--focus-ring);
+    box-shadow: 0 0 0 2px var(--focus-ring);
     transform: none;
 }
 #up-next-list button.focused .up-next-name,
 #up-next-list button:focus .up-next-name { color: #fff; }
+#up-next-list button.focused .up-next-glyph, #up-next-list button:focus .up-next-glyph { background: var(--focus-ring); }
+#up-next-list button.focused .up-next-glyph .remix-icon, #up-next-list button:focus .up-next-glyph .remix-icon { filter: none; }
 /* Do not collapse to a cropped sliver when focus returns to transport. */
 .up-next:not(:focus-within) { opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
@@ -918,12 +925,12 @@ body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom 
     --accent: #fff;
     --accent-2: #fff;
     --accent-soft: rgba(255,255,255,.18);
-    --bg-card: rgba(255,255,255,.08);
-    --bg-card-h: rgba(255,255,255,.18);
-    --bg-3: rgba(255,255,255,.24);
+    --bg-card: #151515;
+    --bg-card-h: #202020;
+    --bg-3: #303030;
     --fg-mute: #ccc;
-    background: rgba(21,21,21,.78);
-    border: 1px solid rgba(255,255,255,.12);
+    background: var(--bg-card);
+    border: 2px solid var(--surface-border);
 }
 #player-timeline:focus, #player-timeline.focused { outline: none; }
 /* Focus lands on the position dot, not the whole time row. */
@@ -934,7 +941,7 @@ body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom 
 }
 #osd-bottom .ctrl.big { background: rgba(255,255,255,.2); color: white; }
 #osd-bottom .ctrl.big.focused, #osd-bottom .ctrl.big:focus { background: rgba(255,255,255,.35); }
-/* Round controls blur the picture behind them, like the menus do. */
+/* Round controls retain a restrained blur over the video picture. */
 @supports ((backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px))) {
     #osd-bottom .ctrl {
         -webkit-backdrop-filter: blur(20px);
@@ -942,12 +949,14 @@ body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom 
     }
 }
 @media (max-width: 700px) {
+    :root { --transport-height: 60px; }
     .osd-bottom { padding-left: 24px; padding-right: 24px; }
     .transport-controls > * + * { margin-left: 8px; }
     .controls .ctrl { width: 44px; height: 44px; }
     .controls .ctrl.big { width: 60px; height: 60px; }
 }
 @media (max-width: 1060px) and (min-width: 701px) {
+    :root { --transport-height: 86px; }
     .transport-controls > * + * { margin-left: 12px; }
     .controls .ctrl.big { width: 86px; height: 86px; }
 }
@@ -1024,22 +1033,24 @@ body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom 
 
 /* The error surface uses the same monochrome contrast as playback controls. */
 .error-icon {
-    width: 96px; height: 96px;
+    width: 80px; height: 80px;
     border-radius: 50%;
-    background: var(--accent-soft);
-    border: 4px solid var(--accent);
+    background: #212121;
     color: var(--accent);
-    font-size: 56px; font-weight: 600;
     display: flex; align-items: center; justify-content: center;
     line-height: 1;
 }
+.error-icon .remix-icon { width: 38px; height: 38px; }
 .error-title {
-    font-size: 36px;
-    font-weight: 500;
+    font-size: 32px;
+    font-weight: 600;
     color: var(--fg);
     max-width: 1200px;
     width: 100%; overflow-wrap: break-word; word-break: break-word;
 }
+.error-message { font-size: 24px; line-height: 1.4; color: var(--fg-soft); width: 100%; max-width: 960px; overflow-wrap: break-word; word-break: break-word; }
+.error-hint:empty { display: none; }
+.error-overlay .btn { margin-top: 32px; font-weight: 500; }
 .error-hint {
     font-size: 20px;
     color: var(--fg-mute);
@@ -1053,18 +1064,16 @@ body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom 
 /* ── Track menu ───────────────────────────────────────────────────── */
 .track-menu {
     z-index: 20;
-    position: absolute; right: var(--page-inset); bottom: 240px;
+    position: absolute; right: var(--page-inset); bottom: var(--player-popup-bottom, 240px);
     background: var(--bg-card);
     border: 2px solid var(--surface-border);
     border-radius: var(--r);
     padding: 24px;
     min-width: 480px;
     max-width: 600px;
-    /* Grows upward from bottom:240px, so cap it well short of the top of
-     * the screen.  Rips with 20+ subtitle tracks used to push the first
-     * entries off-screen where the D-pad could reach them but nothing was
-     * visible; the list now scrolls inside .track-menu-body instead. */
-    max-height: calc(100vh - 320px);
+    /* Grow above the transport, leaving a top gutter. Long track lists
+     * scroll inside the panel instead of pushing their heading offscreen. */
+    max-height: calc(100vh - var(--player-popup-bottom, 240px) - 48px);
     display: flex;
     flex-direction: column;
     pointer-events: auto;
@@ -1450,10 +1459,10 @@ button.settings-row:focus, button.settings-row.focused {
 
 /* Player popups share one anchor and row rhythm. Back replaces footer actions. */
 .player-view #picker {
-    top: auto; left: auto; right: var(--page-inset); bottom: 240px;
+    top: auto; left: auto; right: var(--page-inset); bottom: var(--player-popup-bottom);
     transform: none;
     width: 480px; max-width: calc(100vw - 48px);
-    max-height: calc(100vh - 320px);
+    max-height: calc(100vh - var(--player-popup-bottom) - 48px);
     display: flex; flex-direction: column;
     overflow: hidden;
 }
@@ -1481,8 +1490,8 @@ button.settings-row:focus, button.settings-row.focused {
 }
 /* The selected row keeps its outline when the cursor is elsewhere, so the
  * choice stays visible at a glance. */
-#view-player .track-level li.active, #view-player .track-section li.active,
-.player-view #picker li.active {
+#view-player .track-level li.active:not(.focused):not(:focus), #view-player .track-section li.active:not(.focused):not(:focus),
+.player-view #picker li.active:not(.focused):not(:focus) {
     outline: none;
     box-shadow: inset 0 0 0 2px rgba(244,244,244,.4);
 }
@@ -1503,7 +1512,7 @@ button.settings-row:focus, button.settings-row.focused {
 .track-level { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 .track-level > h2, #view-player .track-menu > h2 {
     display: block; flex: 0 0 auto; margin: 0 0 16px; padding: 4px 18px;
-    font-size: 26px; line-height: 1.25; white-space: nowrap; overflow: hidden;
+    font-size: 26px; font-weight: 600; line-height: 1.25; white-space: nowrap; overflow: hidden;
     text-overflow: ellipsis;
 }
 /* The playback toast sits just above the scrub bar. */
@@ -1529,13 +1538,6 @@ button.settings-row:focus, button.settings-row.focused {
 [dir="rtl"] .player-view #picker li.active::after { right: auto; left: 18px; }
 [dir="rtl"] #view-player .file-info dl { text-align: right; }
 #view-player .more-value { direction: ltr; unicode-bidi: isolate; }
-@supports ((backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px))) {
-    #view-player .track-menu, .player-view #picker {
-        background: rgba(24,24,24,.62);
-        -webkit-backdrop-filter: blur(20px);
-        backdrop-filter: blur(20px);
-    }
-}
 
 /* ── Toast ────────────────────────────────────────────────────────── */
 /* A toast is a short notice over the page: a bordered surface, not a pill. */
@@ -1570,6 +1572,8 @@ button.settings-row:focus, button.settings-row.focused {
     text-align: center;
     width: 600px; max-width: calc(100% - 130px);
 }
+.audio-card.is-loading { visibility: hidden; }
+.audio-card:not(.hidden):not(.is-loading) { animation: view-enter var(--motion) var(--ease); }
 .audio-note {
     display: flex; align-items: center; justify-content: center;
     width: 280px; height: 280px;
@@ -1603,18 +1607,30 @@ button.settings-row:focus, button.settings-row.focused {
 .view:not(.hidden):not(#view-player) > :not(.hint) { animation: view-enter var(--motion) var(--ease); }
 .dialog-scrim { animation: view-enter var(--motion) var(--ease); }
 .picker:not(.hidden), .track-menu:not(.hidden), .toast:not(.hidden) { animation: view-enter var(--motion) var(--ease); }
+.track-level:not(.hidden) { animation: view-enter var(--motion) var(--ease); }
+.spinner:not(.hidden), .error-overlay:not(.hidden) > * { animation: view-enter var(--motion) var(--ease); }
 .dialog-card { animation: dialog-enter var(--motion) var(--ease); }
 @keyframes view-enter { from { opacity: 0; } to { opacity: 1; } }
 @keyframes dialog-enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
 /* Broad cards need proportionate contents, not an oversized empty picture. */
 @media (min-width: 2400px) {
-    :root { --card-disc-size: 112px; --card-glyph-size: 52px; --card-label-size: 30px; --card-meta-size: 22px; --card-inset: 24px; }
+    :root { --card-disc-size: 112px; --card-glyph-size: 52px; --card-label-size: 30px; --card-meta-size: 22px; --card-inset: 24px; --transport-height: 120px; }
     .page-heading h1 { font-size: 64px; }
     .page-heading p { font-size: 32px; }
-    .library-row h2, .row-heading { font-size: 26px; line-height: 34px; }
+    .library-row h2, .row-heading, .up-next-title { font-size: 26px; line-height: 34px; }
     #view-url .url-input-wrap input, .playlist-filter input { height: 88px; font-size: 26px; }
     #view-url .actions > button { min-height: 74px; font-size: 26px; }
+    .ctrl { width: 88px; height: 88px; }
+    .ctrl.big { width: var(--transport-height); height: var(--transport-height); }
+    .ctrl img { width: 36px; height: 36px; }
+    .ctrl.big img { width: 48px; height: 48px; }
+    .time { font-size: 26px; }
+    #osd-title { font-size: 34px; }
+    .audio-card { width: 800px; }
+    .audio-art, .audio-note { width: 400px; height: 400px; }
+    .audio-title { font-size: 44px; }
+    .audio-sub { font-size: 32px; }
 }
 /* Keep five columns at the portrait review size without oversized contents. */
 @media (max-width: 1400px) {
@@ -1622,6 +1638,7 @@ button.settings-row:focus, button.settings-row.focused {
     .page-heading p { font-size: 22px; }
     .library-row { margin-bottom: 36px; }
     .library-row h2, .row-heading { margin-bottom: 16px; font-size: 16px; line-height: 24px; }
+    .up-next-title { font-size: 16px; line-height: 24px; }
     #view-url .url-input-wrap input, .playlist-filter input { height: 64px; font-size: 20px; }
     #view-url .actions { margin-bottom: 32px; }
     .empty-state { padding: 12px; font-size: 18px; }
@@ -1646,8 +1663,10 @@ button.settings-row:focus, button.settings-row.focused {
     .missing-source, .browse-list.grid li.is-fav .fav-mark, .browse-list.grid li.watched-item .watched { width: 28px; height: 28px; top: 6px; right: 6px; padding: 0; }
     .missing-source .remix-icon, .browse-list.grid li.is-fav .fav-mark .remix-icon, .browse-list.grid li.watched-item .watched .remix-icon { width: 18px; height: 18px; }
     #view-url .actions > button { font-size: 18px; padding: 10px; }
-    #up-next-list button { padding: 10px; font-size: 18px; }
-    .up-next-glyph .remix-icon { width: 32px; height: 32px; }
+    #up-next-list button { padding: 10px; font-size: 18px; line-height: 1.25; }
+    .up-next-thumb { margin-bottom: 8px; }
+    .up-next-glyph { flex-shrink: 0; width: 40px; height: 40px; margin-bottom: 8px; }
+    .up-next-glyph .remix-icon { width: 24px; height: 24px; }
 }
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

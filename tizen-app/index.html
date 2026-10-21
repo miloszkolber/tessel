@@ -205,9 +205,10 @@
     </div>
 
     <!-- Center error banner -->
-    <div class="error-overlay hidden" id="error-overlay" role="alertdialog" aria-modal="true" aria-labelledby="error-title" aria-describedby="error-hint">
-        <div class="error-icon">!</div>
+    <div class="error-overlay hidden" id="error-overlay" role="alertdialog" aria-modal="true" aria-labelledby="error-title" aria-describedby="error-message error-hint">
+        <div class="error-icon" aria-hidden="true"><img class="remix-icon" src="assets/remix/error-warning-line.svg" alt=""></div>
         <div class="error-title" id="error-title" data-i18n="player.error">Playback error</div>
+        <div class="error-message" id="error-message"></div>
         <div class="error-hint"  id="error-hint"></div>
         <button class="btn primary" data-action="back-home" data-i18n="player.backHome">Back to Home</button>
     </div>
@@ -235,7 +236,7 @@
         <!-- Queue section under the transport controls: the next files in
              this folder or list. Hidden for single files. -->
         <div class="up-next hidden" id="up-next">
-            <div class="up-next-title" data-i18n="player.queue">Queue</div>
+            <div class="up-next-title"><span data-i18n="player.queue">Queue</span><span id="queue-position" class="queue-position" dir="ltr"></span></div>
             <ul id="up-next-list"></ul>
         </div>
     </div>

@@ -188,8 +188,9 @@ test('anchored menus reposition after resize, cap their height and flip when spa
 
 test('a playback failure dismisses picker/menu owners before focusing its recovery action', function () {
     var h = harness(false, true), context = h.context, doc = h.document, closed = [];
+    context.I18n = { t: function (key) { return key; } };
     var error = h.view.appendChild(doc.createElement('div')); error.id = 'error-overlay'; error.classList.add('hidden');
-    ['error-title', 'error-hint'].forEach(function (id) { var el = error.appendChild(doc.createElement('div')); el.id = id; });
+    ['error-title', 'error-message', 'error-hint'].forEach(function (id) { var el = error.appendChild(doc.createElement('div')); el.id = id; });
     var back = error.appendChild(doc.createElement('button')); back.classList.add('btn');
     context.state.playingUri = 'file:///example.mp4';
     context.openWatchdog = 1; context.clearInterval = function () {};
@@ -207,6 +208,8 @@ test('a playback failure dismisses picker/menu owners before focusing its recove
     assert.equal(h.listeners.length, 0, 'no stale picker key layer can steal Back or arrows');
     assert.deepEqual(closed, [['more', false], ['tracks', false], ['osd', false]]);
     assert.equal(doc.activeElement, back);
+    assert.equal(doc.getElementById('error-title').textContent, 'player.error');
+    assert.equal(doc.getElementById('error-message').textContent, 'Simulated failure');
     assert.equal(context.playerPopupReturn, null);
 });
 

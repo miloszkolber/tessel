@@ -1822,6 +1822,8 @@
             rows.push(ri);
         }
         var currentRow = rows.indexOf(state.playlistIndex);
+        var position = document.getElementById('queue-position');
+        if (position) position.textContent = currentRow >= 0 ? (currentRow + 1) + ' / ' + rows.length : '';
         if (state.playlistIndex < 0 || rows.length <= 1) {
             box.classList.add('hidden');
             document.body.classList.remove('has-queue');
@@ -2301,9 +2303,13 @@
     function showSpinner(msg) {
         var sp = document.getElementById('spinner');
         sp.querySelector('.spinner-text').textContent = msg || I18n.t('common.loading');
+        document.getElementById('audio-card').classList.add('is-loading');
         sp.classList.remove('hidden');
     }
-    function hideSpinner() { document.getElementById('spinner').classList.add('hidden'); }
+    function hideSpinner() {
+        document.getElementById('spinner').classList.add('hidden');
+        document.getElementById('audio-card').classList.remove('is-loading');
+    }
 
     /* kind 'codec': the message is our own (and so translated), and the
      * codec hint below can't be matched out of its text. */
@@ -2341,7 +2347,8 @@
             hint = I18n.t('err.networkHint');
         }
 
-        document.getElementById('error-title').textContent = msg;
+        document.getElementById('error-title').textContent = I18n.t('player.error');
+        document.getElementById('error-message').textContent = msg;
         document.getElementById('error-hint').textContent  = hint;
         document.getElementById('error-overlay').classList.remove('hidden');
 
