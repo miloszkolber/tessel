@@ -7,7 +7,7 @@ var FileTypes = require('../../tizen-app/js/filetypes.js');
 var Playlist = require('../../tizen-app/js/playlist.js');
 
 function node() {
-    var n = { children: [], dataset: {}, classList: { add: function () {}, toggle: function () {} },
+    var n = { children: [], dataset: {}, classList: { add: function () {}, remove: function () {}, toggle: function () {} },
         addEventListener: function (event, fn) { this[event] = fn; },
         appendChild: function (child) { this.children.push(child); } };
     Object.defineProperty(n, 'innerHTML', { set: function (value) { this.markup = value; this.children = []; } });
@@ -77,4 +77,29 @@ test('playlist groups, cross-group filtering and playback return retain the inte
     h.context.state.playlistView.filter = '';
     h.context.renderPlaylist(); h.context.state.listBack();
     assert.equal(left, true);
+});
+
+test('a URL playlist resets the prior device trail and retains Stream page identity', function () {
+    var h = harness(), context = h.context, returned = false;
+    context.browseCrumbs = ['Old NAS', 'Old folder']; context.browsePage = 'network';
+    context.LibraryUI = { validUrl: function () { return true; } };
+    context.Library = { recent: function () {} };
+    context.TextDecode = require('../../tizen-app/js/text-decode.js');
+    context.fetchBytes = function (url, cb) { cb(null, Buffer.from('#EXTM3U\n#EXTINF:-1,News\nhttps://example.com/news.m3u8')); };
+    context.returnToStreamPage = function () { returned = true; };
+    context.entryKind = function () { return 'video'; };
+    context.logoUrl = function () { return null; };
+    [['    function setBrowsePage(', '    function currentPageName()'], ['    function openPlaylist(', '    /* The playlist filter'], ['    function openUrl(', '    /* Back from a stream']].forEach(function (boundary) {
+        var start = app.indexOf(boundary[0]), end = app.indexOf(boundary[1], start);
+        assert.ok(start >= 0 && end > start); vm.runInContext(app.slice(start, end), context);
+    });
+    context.openUrl('https://example.com/channels.m3u', 'Channels');
+    assert.equal(context.browsePage, 'stream');
+    assert.equal(h.ids['browse-title'].textContent, 'Play a link');
+    assert.equal(h.ids['browse-heading'].textContent, 'Stream / Channels');
+    assert.equal(h.ids['browse-list'].children[0].dataset.channel, 'News');
+    context.state.listBack(); assert.equal(returned, true);
+    context.setBrowsePage('usb', ['USB drive', 'Series']);
+    assert.equal(h.ids['browse-title'].textContent, 'USB devices');
+    assert.equal(h.ids['browse-heading'].textContent, 'Devices / USB drive / Series');
 });

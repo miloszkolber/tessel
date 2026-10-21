@@ -158,8 +158,16 @@ var UI = (function () {
         refreshFocusables();
         if (!focusable.length) return false;
         var current = document.querySelector('.focused') || focusable[focusIdx] || focusable[0];
-        var cr = current.getBoundingClientRect();
         var vertical = dir === 'up' || dir === 'down';
+        // Plain browse rows are full-width and ordered vertically. Interior
+        // moves need no geometry scan of a potentially huge channel list.
+        // Boundaries, hidden neighbours and grids retain geometric policy.
+        var parent = current.parentNode;
+        if (vertical && parent && parent.classList.contains('browse-list') && !parent.classList.contains('grid')) {
+            var neighbour = dir === 'down' ? current.nextElementSibling : current.previousElementSibling;
+            if (focusable.indexOf(neighbour) >= 0) { focusOn(neighbour); return true; }
+        }
+        var cr = current.getBoundingClientRect();
 
         // Distance from the focused element's edge in `d`'s direction to the
         // near edge of r; negative when r isn't past it.

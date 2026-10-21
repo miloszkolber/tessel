@@ -486,6 +486,7 @@
         // is then played exactly as before — so is anything that can't be
         // read here, which leaves AVPlay to try it.
         if (Playlist.isPlaylistUrl(url)) {
+            setBrowsePage('stream', []);
             openPlaylist({
                 title:   title,
                 read:    function (cb) { fetchBytes(url, cb); },
@@ -899,7 +900,7 @@
     var browsePage = 'usb';
     var browseCrumbs = [];
     function setBrowsePage(name, crumbs) {
-        if (name === 'usb' || name === 'network') browsePage = name;
+        if (name === 'usb' || name === 'network' || name === 'stream') browsePage = name;
         if (crumbs !== undefined) browseCrumbs = Array.isArray(crumbs) ? crumbs.filter(Boolean) : (crumbs ? [crumbs] : []);
         var list = document.getElementById('browse-list');
         if (list) { list.classList.remove('device-roots'); list.classList.remove('empty-devices'); }
@@ -909,12 +910,12 @@
             view.classList.remove('storage-root');
         }
         var title = document.getElementById('browse-title');
-        if (title) title.textContent = I18n.t(browsePage === 'network' ? 'network.title' : 'usb.title');
+        if (title) title.textContent = I18n.t(browsePage === 'stream' ? 'stream.title' : browsePage === 'network' ? 'network.title' : 'usb.title');
         var description = document.getElementById('browse-description');
-        if (description) description.textContent = I18n.t(browsePage === 'network' ? 'network.description' : 'usb.description');
+        if (description) description.textContent = I18n.t(browsePage === 'stream' ? 'stream.description' : browsePage === 'network' ? 'network.description' : 'usb.description');
         var heading = document.getElementById('browse-heading') || (view && view.querySelector && view.querySelector('.device-heading'));
         if (heading) {
-            heading.textContent = [I18n.t('library.devices')].concat(browseCrumbs).join(' / ');
+            heading.textContent = [I18n.t(browsePage === 'stream' ? 'home.url' : 'library.devices')].concat(browseCrumbs).join(' / ');
             heading.title = heading.textContent;
         }
     }
@@ -1975,7 +1976,9 @@
         return (value > 0 ? '+' : '') + (value / 1000).toFixed(1) + ' s';
     }
     function updateSubtitleSync() {
-        document.getElementById('subtitle-sync-value').textContent = fmtSyncDelay(Player.getSubtitleDelay());
+        var value = fmtSyncDelay(Player.getSubtitleDelay());
+        document.getElementById('subtitle-sync-value').textContent = value;
+        document.getElementById('subtitle-sync-control').setAttribute('aria-label', I18n.t('sync.title') + ': ' + value);
     }
     function adjustSubtitleSync(delta) {
         if (!Player.setSubtitleDelay(delta === null ? 0 : Player.getSubtitleDelay() + delta)) UI.toast(I18n.t('sync.unsupported'));
@@ -2353,7 +2356,8 @@
     function updatePlayPauseButton(state) {
         var btn = document.getElementById('btn-playpause');
         btn.querySelector('img').src = 'assets/remix/' + (state === 'playing' ? 'pause-fill' : 'play-fill') + '.svg';
-        btn.setAttribute('aria-label', state === 'playing' ? 'Pause' : 'Play');
+        btn.setAttribute('aria-label', I18n.t(state === 'playing' ? 'common.pause' : 'common.play'));
+        btn.title = btn.getAttribute('aria-label');
     }
 
     function updateProgress(timeMs, durMs) {
@@ -2751,7 +2755,6 @@
     function toggleShuffle() {
         var next = !Settings.get('shuffle');
         applyShuffle(next);
-        document.getElementById('btn-shuffle').setAttribute('aria-label', I18n.t('toast.shuffle', I18n.t(next ? 'common.on' : 'common.off')));
         scheduleOSDHide();
     }
     function applyShuffle(on) {
@@ -2772,6 +2775,7 @@
         var on = !!Settings.get('shuffle');
         btn.classList.toggle('shuffle-on', on);
         btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.setAttribute('aria-label', I18n.t('toast.shuffle', I18n.t(on ? 'common.on' : 'common.off')));
     }
 
     /* ── More value rows: Left/Right steps the option directly, OK opens

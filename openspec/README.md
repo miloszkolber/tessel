@@ -21,6 +21,8 @@ Stress nested menus with long unbroken labels and enough rows to require scrolli
 
 Cancel and reopen source forms while discovery is pending. An old reply must not reopen a picker, show a stale error or clear the newer request's pending state. Editing connection fields also invalidates their pending discovery. Inspect translated feedback and long hostnames inside the toast, not only inside full error dialogs.
 
+For large-playlist navigation, check adjacent moves, the filter boundary, hidden/disabled rows and grid neighbours. Keep browser timing separate from deterministic work-count assertions and physical-TV performance. URL playlists must start a Stream trail rather than inherit the last device folder. Check icon-control names and state at initial load as well as after activation.
+
 The audio and video demo routes offer `default`, `queue`, `loading`, `buffering` and `error` states. Default plays one item. Queue plays the folder queue. Loading and buffering hold the simulated decoder until playback is resumed or the route changes. Error drives the application's normal playback-error callback. Scenario selection applies only to the next simulated open, so a later ordinary launch is not forced to fail. These states exercise production markup and recovery code, not a second interface fixture.
 
 ## Code map

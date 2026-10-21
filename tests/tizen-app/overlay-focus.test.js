@@ -40,6 +40,10 @@ function harness(nested, player) {
             if (!self.parentNode) return null;
             return self.parentNode.children[self.parentNode.children.indexOf(self) + 1] || null;
         } });
+        Object.defineProperty(this, 'nextElementSibling', { get: function () { return self.nextSibling; } });
+        Object.defineProperty(this, 'previousElementSibling', { get: function () {
+            return self.parentNode ? self.parentNode.children[self.parentNode.children.indexOf(self) - 1] || null : null;
+        } });
         this.closest = function (selector) {
             var node = self;
             while (node) {
@@ -320,4 +324,67 @@ test('translated toasts have bounded reading time and replace the prior dismissa
     assert.equal(cleared[2], 2, 'new feedback replaces rather than stacking an old timer');
     assert.ok(!toast.classList.contains('hidden'));
     timers[2].fn(); assert.ok(toast.classList.contains('hidden'));
+});
+
+test('adjacent plain-list focus avoids geometry reads but hidden rows and grids retain geometric search', function () {
+    var h = harness(false), list = h.view.appendChild(h.document.createElement('ul')), reads = 0;
+    list.classList.add('browse-list');
+    for (var i = 0; i < 300; i++) {
+        var row = list.appendChild(h.document.createElement('li')); row.tabIndex = 0;
+        var original = row.getBoundingClientRect;
+        row.getBoundingClientRect = (function (get) { return function () { reads++; return get(); }; })(original);
+    }
+    h.context.UI.focusOn(list.children[5]); reads = 0;
+    assert.equal(h.context.UI.moveFocus('down', true), true);
+    assert.equal(h.document.activeElement, list.children[6]);
+    assert.equal(reads, 0, 'an interior list step must not scan every row rectangle');
+    h.context.UI.moveFocus('up', true);
+    assert.equal(h.document.activeElement, list.children[5]); assert.equal(reads, 0);
+    list.children[6].classList.add('hidden'); reads = 0;
+    h.context.UI.moveFocus('down', true);
+    assert.equal(h.document.activeElement, list.children[7]); assert.ok(reads > 0);
+    list.children[8].disabled = true; reads = 0;
+    h.context.UI.moveFocus('down', true);
+    assert.equal(h.document.activeElement, list.children[9]); assert.ok(reads > 0);
+    list.classList.add('grid'); reads = 0;
+    h.context.UI.moveFocus('down', true);
+    assert.equal(h.document.activeElement, list.children[10]); assert.ok(reads > 0, 'grids must not use DOM adjacency');
+});
+
+test('plain-list boundaries still reach the filter and honour no-wrap', function () {
+    var h = harness(false), filter = h.view.appendChild(h.document.createElement('input'));
+    filter.rect = { top: -100, bottom: -22, left: 0, right: 460 };
+    var list = h.view.appendChild(h.document.createElement('ul')); list.classList.add('browse-list');
+    for (var i = 0; i < 3; i++) { var row = list.appendChild(h.document.createElement('li')); row.tabIndex = 0; }
+    h.context.UI.focusOn(list.children[0]); h.context.UI.moveFocus('up', true);
+    assert.equal(h.document.activeElement, filter);
+    h.context.UI.focusOn(list.children[2]);
+    assert.equal(h.context.UI.moveFocus('down', true), false);
+    assert.equal(h.document.activeElement, list.children[2]);
+    h.context.UI.moveFocus('down');
+    assert.equal(h.document.activeElement, filter, 'plain-list wrapping retains the existing filter destination');
+});
+
+test('playback action names and stored shuffle state use translated values before interaction', function () {
+    var h = harness(false), context = h.context, shuffle = true;
+    var play = h.view.appendChild(h.document.createElement('button')); play.id = 'btn-playpause';
+    var image = {}; play.querySelector = function () { return image; };
+    var button = h.view.appendChild(h.document.createElement('button')); button.id = 'btn-shuffle';
+    var value = h.view.appendChild(h.document.createElement('span')); value.id = 'subtitle-sync-value';
+    var sync = h.view.appendChild(h.document.createElement('button')); sync.id = 'subtitle-sync-control';
+    var strings = { 'common.play': 'Lire', 'common.pause': 'Pause', 'common.on': 'Activé', 'common.off': 'Désactivé', 'toast.shuffle': 'Aléatoire : {0}', 'sync.title': 'Synchronisation' };
+    context.I18n = { t: function (key, value) { return strings[key].replace('{0}', value); } };
+    context.Settings = { get: function () { return shuffle; } };
+    context.Player = { getSubtitleDelay: function () { return 1500; } };
+    var source = read('js/app.js');
+    [['    function updatePlayPauseButton(', '    function updateProgress('], ['    function updateShuffleButton()', '    /* ── More value rows:'], ['    function fmtSyncDelay(', '    function adjustSubtitleSync(']].forEach(function (boundary) {
+        var start = source.indexOf(boundary[0]), end = source.indexOf(boundary[1], start);
+        assert.ok(start >= 0 && end > start); vm.runInContext(source.slice(start, end), context);
+    });
+    context.updatePlayPauseButton('paused'); assert.equal(play.getAttribute('aria-label'), 'Lire'); assert.equal(play.title, 'Lire');
+    context.updatePlayPauseButton('playing'); assert.equal(play.getAttribute('aria-label'), 'Pause');
+    context.updateShuffleButton(); assert.equal(button.getAttribute('aria-label'), 'Aléatoire : Activé');
+    shuffle = false; context.updateShuffleButton(); assert.equal(button.getAttribute('aria-pressed'), 'false');
+    assert.equal(button.getAttribute('aria-label'), 'Aléatoire : Désactivé');
+    context.updateSubtitleSync(); assert.equal(sync.getAttribute('aria-label'), 'Synchronisation: +1.5 s');
 });
