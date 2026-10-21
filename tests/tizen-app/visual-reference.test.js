@@ -273,8 +273,9 @@ test('explorer pictures fill the card above the name instead of hugging its corn
     assert.ok(icon.includes('flex: 1 1 0'), 'picture area uses the available card height');
     assert.ok(icon.includes('width: 100%'), 'disc is centred across the card');
     assert.ok(source.includes('.browse-list.grid .icon::before'), 'disc is independent of picture layout');
-    assert.ok(rule(source, '.browse-list.grid .name {', 500).includes('margin-bottom: 28px'), 'folders reserve the same metadata line as files');
-    assert.ok(rule(source, '.browse-list.grid .meta {', 350).includes('line-height: 22px'), 'metadata occupies one bounded line');
+    assert.ok(rule(source, '.browse-list.grid .name {', 500).includes('margin-bottom: calc(var(--card-meta-size) * 1.25 + 6px)'), 'folders reserve the same responsive metadata line as files');
+    var meta = rule(source, '.browse-list.grid .meta {', 500).split('}')[0];
+    assert.ok(meta.includes('font-size: var(--card-meta-size)') && meta.includes('line-height: 1.25'), 'metadata occupies one bounded responsive line');
     assert.ok(source.includes('.browse-list:not(.grid) li:last-child { border-bottom: 0; }'), 'last tile keeps all four borders');
     assert.ok(!source.includes('.browse-list li.watched-item .icon { opacity:'), 'watched focus disc retains its contrast');
 });

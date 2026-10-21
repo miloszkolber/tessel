@@ -121,7 +121,7 @@ Library pages SHALL paint the baked halftone field over the #0A0A0A page colour 
 - **AND** the list of discovered sources stays at the top
 
 ### Requirement: One icon disc
-Every glyph that stands for a card, a source or a file SHALL sit in the same 80px disc, and a focused card SHALL invert it. Poster art replaces the disc when a file carries artwork.
+Every glyph that stands for a card, a source or a file SHALL use the shared responsive disc scale, and a focused card SHALL invert it. The reference disc is 80px at 1920px viewport width, grows to 112px at widths of at least 2400px and uses the compact 40px scale at widths of at most 1400px. Poster art replaces the disc when a file carries artwork.
 
 #### Scenario: Focused card glyph
 - **WHEN** a content card takes focus

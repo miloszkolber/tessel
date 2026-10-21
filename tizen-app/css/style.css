@@ -42,6 +42,11 @@
     --card-width: calc((100vw - 130px - 104px) / 5);
     --card-height: calc((100vw - 130px - 104px) / 80 * 9);
     --form-width: calc(var(--card-width) * 4 + 78px);
+    --card-disc-size: 80px;
+    --card-glyph-size: 38px;
+    --card-label-size: 24px;
+    --card-meta-size: 18px;
+    --card-inset: 18px;
     --motion: 240ms;
     --ease: cubic-bezier(.22, .61, .36, 1);
 }
@@ -71,7 +76,7 @@ button:focus { outline: none; }
     display: inline-block; width: 1em; height: 1em; flex-shrink: 0;
     vertical-align: middle; filter: invert(1); pointer-events: none;
 }
-.tile-icon .remix-icon { width: 38px; height: 38px; }
+.tile-icon .remix-icon { width: var(--card-glyph-size); height: var(--card-glyph-size); }
 .tile:focus .tile-icon .remix-icon, .tile.focused .tile-icon .remix-icon { filter: none; }
 .track-warning { margin-left: 10px; }
 
@@ -94,26 +99,26 @@ button:focus { outline: none; }
 .empty-state { display: flex; align-items: center; flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); margin: 0; padding: 24px; border: 2px dashed var(--surface-border); border-radius: 12px; background: var(--bg-card); color: var(--fg-soft); font-size: 24px; line-height: 1.4; text-align: start; }
 .card-row::-webkit-scrollbar { display: none; }
 .media-card { position: relative; display: flex; flex-direction: column; align-items: stretch; text-align: start;
-    flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); min-height: 0; padding: 18px; border: 2px solid var(--surface-border);
+    flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); min-height: 0; padding: var(--card-inset); border: 2px solid var(--surface-border);
     border-radius: 12px; background: var(--bg-card); overflow: hidden; scroll-snap-align: start; }
 .card-picture { display: flex; flex: 1 1 0; min-height: 0; align-items: center; justify-content: center; position: relative; }
 /* One icon disc: every glyph that stands for a card or a source sits in the
- * same 80px circle, and a focused card inverts it.  Poster art replaces
+ * same responsive circle, and a focused card inverts it. Poster art replaces
  * the disc when a file carries artwork. */
 .card-picture::before {
-    content: ''; position: absolute; width: 80px; height: 80px;
+    content: ''; position: absolute; width: var(--card-disc-size); height: var(--card-disc-size);
     border-radius: 50%; background: #212121;
 }
-.card-picture > .remix-icon { position: relative; width: 38px; height: 38px; opacity: 1; }
+.card-picture > .remix-icon { position: relative; width: var(--card-glyph-size); height: var(--card-glyph-size); opacity: 1; }
 .media-card.focused .card-picture::before,
 .media-card:focus .card-picture::before { background: var(--focus-ring); }
 .media-card.focused .card-picture > .remix-icon,
 .media-card:focus .card-picture > .remix-icon { filter: none; }
 .card-art { position: absolute; inset: 0; height: 100%; width: 100%; object-fit: cover; }
-.card-title { flex: 0 0 auto; font-size: 24px; font-weight: 500; margin-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-title { flex: 0 0 auto; font-size: var(--card-label-size); font-weight: 500; margin-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* An absent subtitle reserves nothing: the title sits at the same height on
    every card in a strip. */
-.card-description { flex: 0 0 auto; font-size: 18px; color: var(--fg-dim); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-description { flex: 0 0 auto; font-size: var(--card-meta-size); color: var(--fg-dim); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .media-card .card-description:empty { display: none; }
 /* Resume cards lead with the progress line ("4 / 4") so the strip reads as
    one column: meta above the picture, title below it. */
@@ -151,7 +156,7 @@ button:focus { outline: none; }
 .dialog-footer { display: flex; flex: 0 0 auto; gap: 16px; margin-top: 24px; }
 .dialog-footer:empty { display: none; }
 .dialog-footer > button { width: 100%; min-height: 78px; margin: 0; padding: 14px 24px; border: 2px solid var(--surface-border); border-radius: 8px; font-size: 22px; }
-.dialog-footer > .primary, .dialog-footer > .settings-row { background: var(--focus-ring); color: #151515; font-weight: 400; }
+.dialog-footer > .primary, .dialog-footer > .settings-row { justify-content: center; text-align: center; background: var(--focus-ring); color: #151515; font-weight: 400; }
 .dialog-footer > button.focused, .dialog-footer > button:focus { border-color: var(--focus-ring); background: var(--bg-card-h); box-shadow: 0 0 0 2px var(--focus-ring); }
 .dialog-footer > .primary:focus, .dialog-footer > .primary.focused,
 .dialog-footer > .settings-row:focus, .dialog-footer > .settings-row.focused { background: var(--focus-ring); color: #151515; box-shadow: 0 0 0 3px rgba(244,244,244,.4); }
@@ -187,20 +192,20 @@ button:focus { outline: none; }
 .browse-list.grid.device-roots::-webkit-scrollbar { display: none; }
 .browse-list.grid.device-roots li { flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); min-height: 0; padding: 18px; border: 2px solid var(--surface-border); border-radius: 12px; align-items: center; justify-content: center; scroll-snap-align: start; }
 .browse-list.grid.device-roots li.focused { border-color: var(--focus-ring); box-shadow: 0 0 0 2px var(--focus-ring); background: var(--bg-card-h); transform: none; }
-.browse-list.grid.device-roots .name { flex: 0 0 auto; font-size: 24px; margin-bottom: 0; }
+.browse-list.grid.device-roots .name { flex: 0 0 auto; font-size: var(--card-label-size); margin-bottom: 0; }
 .browse-list.grid.device-roots .meta { display: none; }
-.browse-list.grid.device-roots .icon { display: flex; justify-content: center; align-items: center; width: 80px; height: 80px; flex: 0 0 80px; border-radius: 50%; background: #212121; }
+.browse-list.grid.device-roots .icon { display: flex; justify-content: center; align-items: center; width: var(--card-disc-size); height: var(--card-disc-size); flex: 0 0 var(--card-disc-size); border-radius: 50%; background: #212121; }
 .browse-list.grid.device-roots li.focused .icon { background: var(--focus-ring); }
 .browse-list.grid.device-roots li.focused .icon .remix-icon { filter: none; }
 .browse-list.grid.device-roots.empty-devices .icon { background: transparent; }
 #network-cards .media-card { align-items: center; justify-content: center; text-align: center; }
-#network-cards .card-picture { flex: 0 0 auto; width: 80px; height: 80px; }
+#network-cards .card-picture { flex: 0 0 auto; width: var(--card-disc-size); height: var(--card-disc-size); }
 #network-cards .card-title { max-width: 100%; }
 /* Pinned sources are shortcut cards too: a centred icon disc with the name
    under it, like the sources tiles and the network root cards — the tile
    pattern, not the content-card pattern. */
 .shortcut-row .media-card { align-items: center; justify-content: center; text-align: center; }
-.shortcut-row .card-picture { flex: 0 0 auto; width: 80px; height: 80px; }
+.shortcut-row .card-picture { flex: 0 0 auto; width: var(--card-disc-size); height: var(--card-disc-size); }
 .shortcut-row .card-title { max-width: 100%; }
 .browse-list.grid.device-roots.empty-devices { justify-content: center; padding-top: 100px; }
 .browse-list.grid.device-roots.empty-devices li { width: 600px; flex-basis: 600px; max-width: 100%; height: auto; border: none; text-align: center; background: transparent; }
@@ -248,7 +253,7 @@ button:focus { outline: none; }
 .tile {
     display: flex; flex-direction: column; justify-content: center; align-items: center;
     flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); min-height: 0;
-    padding: 18px; text-align: center;
+    padding: var(--card-inset); text-align: center;
     background: var(--bg-card);
     border: 2px solid var(--surface-border);
     border-radius: 12px;
@@ -264,13 +269,13 @@ button:focus { outline: none; }
 }
 .tile-icon {
     display: flex; align-items: center; justify-content: center;
-    width: 80px; height: 80px; line-height: normal; margin-bottom: 12px;
+    width: var(--card-disc-size); height: var(--card-disc-size); line-height: normal; margin-bottom: 12px;
     border: 0; background: #212121; border-radius: 50%;
 }
-.tile-icon .remix-icon { width: 38px; height: 38px; }
+.tile-icon .remix-icon { width: var(--card-glyph-size); height: var(--card-glyph-size); }
 .tile:focus .tile-icon, .tile.focused .tile-icon { background: var(--focus-ring); }
 .tile-label {
-    font-size: 24px; font-weight: 500; color: var(--fg); margin: 0;
+    font-size: var(--card-label-size); font-weight: 500; color: var(--fg); margin: 0;
     max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .tile-sub { display: none; }
@@ -430,7 +435,7 @@ button:focus { outline: none; }
     flex-direction: column;
     align-items: flex-start;
     gap: 6px;
-    padding: 18px;
+    padding: var(--card-inset);
     border-bottom: 0;
     border-radius: 12px;
     background: var(--bg-card);
@@ -452,8 +457,8 @@ button:focus { outline: none; }
     position: relative; width: 100%; min-height: 0; flex: 1 1 0;
     background: transparent;
 }
-.browse-list.grid .icon::before { content: ''; position: absolute; width: 80px; height: 80px; border-radius: 50%; background: #212121; }
-.browse-list.grid .icon .remix-icon { position: relative; width: 38px; height: 38px; }
+.browse-list.grid .icon::before { content: ''; position: absolute; width: var(--card-disc-size); height: var(--card-disc-size); border-radius: 50%; background: #212121; }
+.browse-list.grid .icon .remix-icon { position: relative; width: var(--card-glyph-size); height: var(--card-glyph-size); }
 .browse-list.grid li.focused .icon::before { background: var(--focus-ring); }
 .browse-list.grid.device-roots .icon::before { display: none; }
 .browse-list.grid li.focused .icon .remix-icon { filter: none; }
@@ -463,12 +468,12 @@ button:focus { outline: none; }
     text-overflow: ellipsis;
     max-width: 100%;
     flex: 0 0 auto;
-    font-size: 24px;
+    font-size: var(--card-label-size);
     margin-top: 6px;
     /* Every explorer title shares a baseline, including folders without metadata. */
-    margin-bottom: 28px;
+    margin-bottom: calc(var(--card-meta-size) * 1.25 + 6px);
 }
-.browse-list.grid .meta { position: absolute; left: 18px; right: 18px; bottom: 18px; line-height: 22px; margin-left: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.browse-list.grid .meta { position: absolute; left: var(--card-inset); right: var(--card-inset); bottom: var(--card-inset); font-size: var(--card-meta-size); line-height: 1.25; margin-left: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .browse-list.grid .fav-mark, .browse-list.grid .watched { position: absolute; top: 12px; right: 12px; }
 .browse-list.grid li { position: relative; }
 
@@ -1345,7 +1350,7 @@ button.settings-row:focus, button.settings-row.focused {
     border: 2px solid var(--surface-border);
     border-radius: 8px;
     padding: 24px 25px;
-    font-size: 24px;
+    font-size: 20px;
     line-height: 1.5;
 }
 .tvinfo .row {
@@ -1374,11 +1379,11 @@ button.settings-row:focus, button.settings-row.focused {
     display: flex;
     align-items: center;
     padding: 8px 0;
-    font-size: 24px;
+    font-size: 20px;
 }
 .tvinfo .codec .name { flex: 0 0 220px; color: var(--fg-soft); }
 .tvinfo .codec .status { display: inline-flex; align-items: center; gap: 8px; }
-.tvinfo .codec .status .remix-icon { width: 24px; height: 24px; }
+.tvinfo .codec .status .remix-icon { width: 20px; height: 20px; }
 .tvinfo .codec .status.ok    { color: #58a770; }
 .tvinfo .codec .status.maybe { color: var(--fg-mute); }
 .tvinfo .codec .status.no    { color: #f66a6d; }
@@ -1602,8 +1607,23 @@ button.settings-row:focus, button.settings-row.focused {
 @keyframes view-enter { from { opacity: 0; } to { opacity: 1; } }
 @keyframes dialog-enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
+/* Broad cards need proportionate contents, not an oversized empty picture. */
+@media (min-width: 2400px) {
+    :root { --card-disc-size: 112px; --card-glyph-size: 52px; --card-label-size: 30px; --card-meta-size: 22px; --card-inset: 24px; }
+    .page-heading h1 { font-size: 64px; }
+    .page-heading p { font-size: 32px; }
+    .library-row h2, .row-heading { font-size: 26px; line-height: 34px; }
+    #view-url .url-input-wrap input, .playlist-filter input { height: 88px; font-size: 26px; }
+    #view-url .actions > button { min-height: 74px; font-size: 26px; }
+}
 /* Keep five columns at the portrait review size without oversized contents. */
 @media (max-width: 1400px) {
+    .page-heading h1 { font-size: 40px; }
+    .page-heading p { font-size: 22px; }
+    .library-row { margin-bottom: 36px; }
+    .library-row h2, .row-heading { margin-bottom: 16px; font-size: 16px; line-height: 24px; }
+    #view-url .url-input-wrap input, .playlist-filter input { height: 64px; font-size: 20px; }
+    #view-url .actions { margin-bottom: 32px; }
     .empty-state { padding: 12px; font-size: 18px; }
     .media-card, #view-home .tile, .browse-list.grid li, .browse-list.grid.device-roots li { padding: 12px; }
     .card-title, #view-home .tile-label, .browse-list.grid .name, .browse-list.grid.device-roots .name { font-size: 18px; }

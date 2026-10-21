@@ -17,6 +17,8 @@ Serve `tizen-app/` statically and open `demo.html` for the interactive simulator
 
 For annotated visual corrections, inspect the actual layout at the annotation's CSS viewport as well as 1920×1080. Check the computed cascade for normal, focus and hover states, the complete focus ring inside each scroll owner, mixed folder/file title alignment and the last focused item after scrolling. Wait for the requested route, fonts and finite transitions to settle. Source-string assertions and resized screenshots do not establish these conditions. Record any forced-state checks separately from real pointer or keyboard input.
 
+For aesthetic polishing, compare rendered before/after images against the references first. Judge type scale, spacing, hierarchy, density and balance at each affected viewport before running regression gates. Passing tests do not establish visual quality.
+
 Stress nested menus with long unbroken labels and enough rows to require scrolling. Confirm fixed headings cannot shrink, multiline clamps do not expose partial extra lines inside padded options, and pending discovery keeps visible native focus before results arrive. Playlist files must remain browseable without entering the folder's audio/video playback queue.
 
 Cancel and reopen source forms while discovery is pending. An old reply must not reopen a picker, show a stale error or clear the newer request's pending state. Editing connection fields also invalidates their pending discovery. Inspect translated feedback and long hostnames inside the toast, not only inside full error dialogs.
