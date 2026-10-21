@@ -31,6 +31,15 @@ function harness(nested, player) {
             self.children.push(node); node.parentNode = self; return node;
         };
         this.removeChild = function (node) { self.children.splice(self.children.indexOf(node), 1); node.parentNode = null; };
+        this.insertBefore = function (node, next) {
+            if (node.parentNode) node.parentNode.removeChild(node);
+            var at = self.children.indexOf(next);
+            self.children.splice(at < 0 ? self.children.length : at, 0, node); node.parentNode = self;
+        };
+        Object.defineProperty(this, 'nextSibling', { get: function () {
+            if (!self.parentNode) return null;
+            return self.parentNode.children[self.parentNode.children.indexOf(self) + 1] || null;
+        } });
         this.closest = function (selector) {
             var node = self;
             while (node) {
@@ -275,4 +284,40 @@ test('DLNA discovery keeps focus while pending and ignores replies after cancell
     pending(null, [{ id: 'late', name: 'Late server' }]);
     assert.equal(h.document.getElementById('library-modal'), null);
     assert.equal(h.document.activeElement, h.origin, 'late discovery cannot replace focus restored after cancellation');
+});
+
+test('closing an SMB source form invalidates share discovery before returning its reusable fields', function () {
+    var h = harness(false), context = h.context, cancelled = 0;
+    context.I18n = { t: function (key) { return key; } }; context.t = context.I18n.t;
+    context.addSource = function () {};
+    context.SMB = { editServer: function () {}, cancelShareSearch: function () { cancelled++; } };
+    var home = h.view.appendChild(h.document.createElement('div'));
+    var group = home.appendChild(h.document.createElement('div')); group.id = 'grp-smb';
+    group.appendChild(h.document.createElement('input'));
+    var save = group.appendChild(h.document.createElement('button')); save.id = 'smb-save';
+    vm.runInContext(read('js/dialog.js'), context);
+    var source = read('js/library-ui.js'), start = source.indexOf('    function editSource('), end = source.indexOf('    function addDlna()', start);
+    vm.runInContext(source.slice(start, end) + '\neditSource("smb", "new");', context);
+    assert.notEqual(group.parentNode, home);
+    context.Dialog.close();
+    assert.equal(cancelled, 1);
+    assert.equal(group.parentNode, home);
+    assert.equal(save.parentNode, group);
+    assert.equal(h.document.activeElement, h.origin);
+});
+
+test('translated toasts have bounded reading time and replace the prior dismissal timer', function () {
+    var h = harness(false), context = h.context, timers = [], cleared = [];
+    var toast = h.view.appendChild(h.document.createElement('div')); toast.id = 'toast'; toast.classList.add('hidden');
+    context.setTimeout = function (fn, delay) { timers.push({ fn: fn, delay: delay }); return timers.length; };
+    context.clearTimeout = function (id) { cleared.push(id); };
+    context.UI.toast('Saved');
+    assert.equal(timers[0].delay, 2000);
+    context.UI.toast('A'.repeat(80));
+    assert.equal(timers[1].delay, 3600);
+    context.UI.toast('A'.repeat(1000));
+    assert.equal(timers[2].delay, 6000);
+    assert.equal(cleared[2], 2, 'new feedback replaces rather than stacking an old timer');
+    assert.ok(!toast.classList.contains('hidden'));
+    timers[2].fn(); assert.ok(toast.classList.contains('hidden'));
 });

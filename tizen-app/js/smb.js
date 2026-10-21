@@ -715,6 +715,7 @@ var SMB = (function () {
 
     /* Push a credentials object into the settings form. */
     function fillSettingsForm(c) {
+        cancelShareSearch();
         c = c || {};
         FORM_IDS.forEach(function (k) {
             var el = document.getElementById('smb-' + k);
@@ -867,17 +868,33 @@ var SMB = (function () {
 
     /* "Find shares": ask the server what it offers and let the user pick,
      * instead of guessing a share name on a TV remote. */
-    var findingShares = false;
+    var findingShares = false, shareSearch = 0;
+    function shareSearchBusy(busy) {
+        findingShares = busy;
+        var button = document.getElementById('smb-find-shares');
+        if (!button) return;
+        button.setAttribute('aria-busy', busy ? 'true' : 'false');
+        button.setAttribute('aria-disabled', busy ? 'true' : 'false');
+        var label = button.querySelector('.settings-label');
+        if (label) label.textContent = I18n.t(busy ? 'smb.findingShares' : 'smb.findShares');
+    }
+    function cancelShareSearch() {
+        shareSearch++;
+        shareSearchBusy(false);
+    }
     function findShares() {
         if (findingShares) return;
         var c = readSettingsForm();
         if (!c.host) { UI.toast(I18n.t('smb.hostMissing')); UI.focusOn(document.getElementById('smb-host')); return; }
-        findingShares = true;
+        var request = ++shareSearch;
+        shareSearchBusy(true);
         UI.toast(I18n.t('smb.findingShares'));
         ensureService(function (err) {
-            if (err) { findingShares = false; UI.toast(I18n.t('smb.sharesFailed', err.message)); return; }
+            if (request !== shareSearch) return;
+            if (err) { shareSearchBusy(false); UI.toast(I18n.t('smb.sharesFailed', err.message)); return; }
             listShares(c, function (e2, shares) {
-                findingShares = false;
+                if (request !== shareSearch) return;
+                shareSearchBusy(false);
                 if (e2) {
                     UI.toast(I18n.t('smb.sharesFailed', e2.message));
                     dumpServiceLogs('share list failure');
@@ -909,9 +926,13 @@ var SMB = (function () {
 
         var findBtn = document.getElementById('smb-find-shares');
         if (findBtn) findBtn.addEventListener('click', findShares);
+        FORM_IDS.forEach(function (key) {
+            var field = document.getElementById('smb-' + key);
+            if (field && field.addEventListener) field.addEventListener('input', cancelShareSearch);
+        });
 
         var anonBtn = document.getElementById('smb-anon');
-        if (anonBtn) anonBtn.addEventListener('click', function () { anonState = !anonState; paintAnon(); });
+        if (anonBtn) anonBtn.addEventListener('click', function () { cancelShareSearch(); anonState = !anonState; paintAnon(); });
 
         btn.addEventListener('click', function () {
             var hostEl = document.getElementById('smb-host');
@@ -950,6 +971,7 @@ var SMB = (function () {
         openBrowser:     openBrowser,
         openFolder:      openFolder,
         editServer:      editServer,
+        cancelShareSearch: cancelShareSearch,
         removeServer:    removeServer,
         parentPaths:     parentPaths,       // exposed for the Node tests
         // The app's full player is coming up over this folder: its BACK

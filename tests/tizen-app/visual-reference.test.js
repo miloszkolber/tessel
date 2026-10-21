@@ -225,6 +225,14 @@ test('playback option rows share bounded multiline labels and announced selectio
     assert.ok(html.includes('id="toast" class="toast hidden" role="status"'), 'form feedback is announced without taking focus');
 });
 
+test('status feedback wraps long diagnostics and uses shared reduced-motion-aware entrance styling', function () {
+    var source = css(), toast = rule(source, '.toast {', 800).split('}')[0];
+    assert.ok(toast.includes('overflow-wrap: break-word') && toast.includes('word-break: break-word'), 'an unbroken host name cannot paint outside the notice');
+    assert.ok(toast.includes('width: max-content') && toast.includes('max-width: 70%'), 'centred notices use their available reading width rather than shrink-to-fit half the screen');
+    assert.ok(toast.includes('pointer-events: none'), 'noninteractive status cannot steal a pointer action');
+    assert.ok(source.includes('.toast:not(.hidden) { animation: view-enter var(--motion) var(--ease); }'), 'notices share the existing finite entrance fade');
+});
+
 test('a toggle row paints itself as a switch', function () {
     var source = css();
     var html = read('index.html');

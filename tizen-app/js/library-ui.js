@@ -237,6 +237,7 @@ var LibraryUI = (function () {
         var parent = group.parentNode, next = group.nextSibling;
         var save = document.getElementById(kind === 'smb' ? 'smb-save' : 'dav-save'), afterSave = save.nextSibling;
         var d = Dialog.open(t(kind === 'smb' ? 'smb.section' : 'dav.section'), { back: addSource, dispose: function () {
+            if (kind === 'smb') mod.cancelShareSearch();
             group.insertBefore(save, afterSave); parent.insertBefore(group, next);
         } });
         d.root.classList.add('source-dialog');

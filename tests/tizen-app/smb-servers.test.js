@@ -23,17 +23,28 @@ function load(opts) {
     if (opts.extra) store.vlctv_smb_extra_v1 = JSON.stringify(opts.extra);
     var connected = [];        // server ids the fake service holds
     var sent = [];             // every request, for the assertions
-    var picker = null;
+    var picker = null, shareRequests = [], pings = [];
     var toasts = [], focused;
     var inputs = {};
-    ['host', 'port', 'share', 'user', 'pass', 'domain'].forEach(function (k) { inputs['smb-' + k] = { value: '' }; });
     var handlers = {};
+    ['host', 'port', 'share', 'user', 'pass', 'domain'].forEach(function (k) {
+        var value = '';
+        var input = { addEventListener: function (event, fn) { handlers[k + ':' + event] = fn; } };
+        Object.defineProperty(input, 'value', { get: function () { return value; }, set: function (next) { value = String(next); } });
+        inputs['smb-' + k] = input;
+    });
+    var shareLabel = { textContent: '' }, busy = {};
     var buttons = {
         'smb-save': { addEventListener: function (ev, fn) { handlers.save = fn; } },
         'smb-server': { addEventListener: function (ev, fn) { handlers.server = fn; } },
         'smb-remove': { addEventListener: function (ev, fn) { handlers.remove = fn; }, style: {} },
         'smb-server-val': { textContent: '' },
         'smb-anon-val': { textContent: '' }
+    };
+    buttons['smb-find-shares'] = {
+        addEventListener: function (event, fn) { handlers.findShares = fn; },
+        setAttribute: function (name, value) { busy[name] = value; },
+        querySelector: function () { return shareLabel; }
     };
 
     function reply(x, status, body) {
@@ -48,7 +59,11 @@ function load(opts) {
     FakeXHR.prototype.send = function (body) {
         var u = this.url;
         sent.push(u);
-        if (/\/smb\/ping$/.test(u)) return reply(this, 200, { ok: true, servers: connected.slice() });
+        if (/\/smb\/ping$/.test(u)) {
+            if (opts.delayPing) { pings.push(this); return; }
+            return reply(this, 200, { ok: true, servers: connected.slice() });
+        }
+        if (/\/smb\/shares$/.test(u)) { shareRequests.push({ xhr: this, body: JSON.parse(body) }); return; }
         if (/\/smb\/connect$/.test(u)) {
             var c = JSON.parse(body);
             connected.push(c.id);
@@ -87,6 +102,12 @@ function load(opts) {
 
     return {
         SMB: SMB, store: store, sent: sent, toasts: toasts, connected: connected,
+        shareRequests: shareRequests, busy: busy, shareLabel: shareLabel,
+        findShares: function () { handlers.findShares(); },
+        input: function (key, value) { inputs['smb-' + key].value = value; handlers[key + ':input'](); },
+        replyShares: function (index, shares, error) { reply(shareRequests[index].xhr, 200, error ? { ok: false, error: error } : { ok: true, shares: shares }); },
+        releasePing: function () { reply(pings.shift(), 200, { ok: true, servers: connected.slice() }); },
+        picker: function () { return picker; },
         focused: function () { return Object.keys(inputs).filter(function (id) { return inputs[id] === focused; })[0]; },
         extra: function () { return JSON.parse(store.vlctv_smb_extra_v1 || '[]'); },
         first: function () { return JSON.parse(store.vlctv_smb_v1 || '{}'); },
@@ -108,6 +129,42 @@ test('missing SMB fields return focus to the correction without changing saved s
     assert.strictEqual(t.focused(), 'smb-share');
     assert.deepStrictEqual(t.first(), NAS);
     assert.deepStrictEqual(t.extra(), []);
+});
+
+test('cancelled share discovery cannot reopen a picker or clear a newer request state', function () {
+    var t = load({ creds: NAS });
+    t.findShares(); t.findShares();
+    assert.strictEqual(t.shareRequests.length, 1, 'one request while the form is busy');
+    assert.strictEqual(t.busy['aria-busy'], 'true');
+    assert.strictEqual(t.shareLabel.textContent, I18n.t('smb.findingShares'));
+    t.SMB.cancelShareSearch();
+    t.type({ host: 'second-nas' }); t.findShares();
+    assert.strictEqual(t.shareRequests.length, 2, 'a new form need not wait for the stale reply');
+    t.replyShares(0, [{ name: 'Old share' }]);
+    assert.strictEqual(t.picker(), null);
+    assert.strictEqual(t.busy['aria-busy'], 'true', 'the old request cannot clear the new pending label');
+    t.replyShares(1, [{ name: 'New share' }]);
+    assert.strictEqual(t.picker().items[0].name, 'New share');
+    assert.strictEqual(t.busy['aria-busy'], 'false');
+    assert.strictEqual(t.busy['aria-disabled'], 'false');
+    assert.strictEqual(t.shareLabel.textContent, I18n.t('smb.findShares'));
+});
+
+test('editing the form invalidates pending shares and suppresses stale errors', function () {
+    var t = load({ creds: NAS }); t.findShares();
+    t.input('host', 'changed-nas');
+    var messages = t.toasts.length;
+    t.replyShares(0, null, 'old authentication error');
+    assert.strictEqual(t.picker(), null);
+    assert.strictEqual(t.toasts.length, messages, 'a discarded form request has no visible error side effect');
+    assert.strictEqual(t.busy['aria-busy'], 'false');
+});
+
+test('cancellation during service startup does not send a share request later', function () {
+    var t = load({ creds: NAS, delayPing: true }); t.findShares();
+    t.SMB.cancelShareSearch(); t.releasePing();
+    assert.strictEqual(t.shareRequests.length, 0);
+    assert.strictEqual(t.picker(), null);
 });
 
 test('a single-server setup keeps the URLs it always had', function () {

@@ -247,7 +247,10 @@ var UI = (function () {
         t.textContent = msg;
         t.classList.remove('hidden');
         clearTimeout(toastTimer);
-        toastTimer = setTimeout(function () { t.classList.add('hidden'); }, 2000);
+        // Longer translated feedback needs reading time, but never leaves
+        // a notice covering the picture indefinitely.
+        var duration = Math.min(6000, Math.max(2000, String(msg || '').length * 45));
+        toastTimer = setTimeout(function () { t.classList.add('hidden'); }, duration);
     }
 
     return {
