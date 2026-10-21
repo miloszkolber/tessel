@@ -233,6 +233,20 @@ test('status feedback wraps long diagnostics and uses shared reduced-motion-awar
     assert.ok(source.includes('.toast:not(.hidden) { animation: view-enter var(--motion) var(--ease); }'), 'notices share the existing finite entrance fade');
 });
 
+test('reading-direction styles mirror labels without reversing technical inputs or transport', function () {
+    var source = css(), html = read('index.html');
+    ['.browse-list {', '.settings-row {', '.picker {'].forEach(function (selector) {
+        assert.ok(rule(source, selector, 600).split('}')[0].includes('text-align: start'), 'labels follow the reading direction');
+    });
+    ['smb-host', 'smb-port', 'dav-url', 'url-input', 'saved-url'].forEach(function (id) {
+        assert.ok(html.includes('id="' + id + '" dir="ltr"'), 'technical input keeps its left-to-right editing direction');
+    });
+    assert.ok(source.includes('[dir="rtl"] .browse-list li > * + * { margin-left: 0; margin-right: 24px; }'), 'playlist row spacing mirrors with its icons');
+    assert.ok(source.includes('[dir="rtl"] .browse-list.grid li > * + * { margin-right: 0; }'), 'grid children do not inherit row spacing');
+    assert.ok(source.includes('[dir="rtl"] .picker li.active::before { margin-right: 0; margin-left: 8px; }'), 'the selected marker keeps its inner gap in RTL');
+    assert.ok(rule(source, '.controls {', 400).includes('direction: ltr'), 'transport order stays unchanged');
+});
+
 test('a toggle row paints itself as a switch', function () {
     var source = css();
     var html = read('index.html');

@@ -23,6 +23,8 @@ Cancel and reopen source forms while discovery is pending. An old reply must not
 
 For large-playlist navigation, check adjacent moves, the filter boundary, hidden/disabled rows and grid neighbours. Keep browser timing separate from deterministic work-count assertions and physical-TV performance. URL playlists must start a Stream trail rather than inherit the last device folder. Check icon-control names and state at initial load as well as after activation.
 
+For card mutations, verify focus against the card that opened the menu rather than the render-time cursor. Rename keeps that card, removal selects an adjacent surviving card, and the final removal retains the empty row's height and a visible fallback. Check RTL geometry independently from script/font acceptance. Labels mirror, technical address fields and transport order do not.
+
 The audio and video demo routes offer `default`, `queue`, `loading`, `buffering` and `error` states. Default plays one item. Queue plays the folder queue. Loading and buffering hold the simulated decoder until playback is resumed or the route changes. Error drives the application's normal playback-error callback. Scenario selection applies only to the next simulated open, so a later ordinary launch is not forced to fail. These states exercise production markup and recovery code, not a second interface fixture.
 
 ## Code map

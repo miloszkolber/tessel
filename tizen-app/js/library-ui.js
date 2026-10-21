@@ -143,6 +143,10 @@ var LibraryUI = (function () {
         for (var i = 0; i < candidates.length; i++) if (candidates[i].dataset.cardKey === key && !candidates[i].closest('.hidden')) found = candidates[i];
         UI.focusOn(found || fallback || (UI.currentView && UI.currentView.querySelector('button,input')));
     }
+    function adjacentCardKey(node) {
+        var neighbour = node.nextElementSibling || node.previousElementSibling;
+        return neighbour && neighbour.dataset.cardKey;
+    }
     function home(resume, watched) {
         var host = document.getElementById('home-library');
         if (!host) return;
@@ -151,15 +155,22 @@ var LibraryUI = (function () {
         row(host, t('strip.continue'), Library.recommendations(resume || {}, watched || {}), function (r) {
             var c = card({ key: r.key, title: r.title, subtitle: r.subtitle, art: r.art, pos: r.pos, dur: r.dur, source: descriptor(r.uri, r.source), icon: streamInfo(r.uri || r.title).icon },
                 function () { launch(r); }, function (node) {
-                    Dialog.menu(r.title, [{ name: t('library.removeContinue'), run: function () { Library.dismiss(r.key, r.uri); home(resume, watched); restore(focus); } }], node);
+                    Dialog.menu(r.title, [{ name: t('library.removeContinue'), run: function () {
+                        var next = adjacentCardKey(node);
+                        Library.dismiss(r.key, r.uri); home(resume, watched); restore(next);
+                    } }], node);
                 });
             c.classList.add('continue-card');
             return c;
         }, t('library.noContinue'));
         row(host, t('library.pinned'), Favorites.list(), function (s) {
             return card(s, function () { openPin(s); }, function (node) {
-                Dialog.menu(s.name, [{ name: t('pin.unpin'), run: function () { Favorites.remove(s.id); VlcApp.refreshHome(); restore(focus); } },
-                    { name: t('library.rename'), run: function () { Dialog.rename(t('library.rename'), s.name, function (name) { Favorites.rename(s.id, name); VlcApp.refreshHome(); restore(focus); }, node); } }], node);
+                Dialog.menu(s.name, [{ name: t('pin.unpin'), run: function () {
+                    var next = adjacentCardKey(node);
+                    Favorites.remove(s.id); VlcApp.refreshHome(); restore(next);
+                } }, { name: t('library.rename'), run: function () {
+                    Dialog.rename(t('library.rename'), s.name, function (name) { Favorites.rename(s.id, name); VlcApp.refreshHome(); restore(node.dataset.cardKey); }, node);
+                } }], node);
             });
         }, t('library.noPinned'), 'shortcut-row');
         UI.refreshFocusables();
@@ -218,7 +229,8 @@ var LibraryUI = (function () {
         if (s.kind === 'dlna') options.push({ name: t('library.rename'), run: function () { Dialog.rename(t('library.rename'), s.name, function (name) { DLNA.renameServer(s.srv, name); network(sourceKey(s)); }, node); } });
         else options.push({ name: t('saved.edit'), run: function () { editSource(s.kind, s.srv); } });
         options.push({ name: t('saved.remove'), run: function () {
-            Dialog.menu(t('smb.removeConfirm', s.name), [{ name: t('saved.remove'), run: function () { mod.removeServer(s.srv); network('add-source'); refreshBadges(); } },
+            var next = adjacentCardKey(node);
+            Dialog.menu(t('smb.removeConfirm', s.name), [{ name: t('saved.remove'), run: function () { mod.removeServer(s.srv); network(next || 'add-source'); refreshBadges(); } },
                 { name: t('common.cancel'), run: function () { network(sourceKey(s)); } }], node);
         } });
         Dialog.menu(s.name, options, node);
@@ -297,7 +309,11 @@ var LibraryUI = (function () {
         var options = [pinAction(pin, function () { stream(); restore(node.dataset.cardKey); })];
         if (recent) options.push({ name: t('saved.save'), run: function () { SavedStreams.add(s.name, s.url); stream(); restore('saved:' + SavedStreams.findByUrl(s.url).id); } });
         else options.push({ name: t('library.rename'), run: function () { Dialog.rename(t('library.rename'), s.name, function (name) { SavedStreams.update(s.id, name, s.url); stream(); restore('saved:' + s.id); }, node); } });
-        options.push({ name: t('saved.remove'), run: function () { if (recent) Library.removeRecent(s.url); else SavedStreams.remove(s.id); stream(); restore(null, document.getElementById('url-input')); } });
+        options.push({ name: t('saved.remove'), run: function () {
+            var next = adjacentCardKey(node);
+            if (recent) Library.removeRecent(s.url); else SavedStreams.remove(s.id);
+            stream(); restore(next, document.getElementById('url-input'));
+        } });
         Dialog.menu(s.name, options, node);
     }
     function receive() {

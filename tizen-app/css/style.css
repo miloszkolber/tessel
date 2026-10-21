@@ -407,7 +407,7 @@ button:focus { outline: none; }
     background: var(--bg-card);
     border-radius: 8px;
     border: 2px solid var(--surface-border);
-    text-align: left;
+    text-align: start;
 }
 /* File explorers present folders and files as a grid of tiles; the playlist
  * channel list keeps the row layout.  Tiles are their own surfaces — the
@@ -1244,7 +1244,7 @@ body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom 
     border: 2px solid var(--surface-border);
     border-radius: 8px;
     color: var(--fg);
-    text-align: left;
+    text-align: start;
     transition: border-color var(--motion) var(--ease), background-color var(--motion) var(--ease);
 }
 /* The row is the same dark surface as the page, so focus is only legible as
@@ -1399,7 +1399,7 @@ button.settings-row:focus, button.settings-row.focused {
     border-radius: var(--r);
     padding: 32px;
     z-index: 400;
-    text-align: left;
+    text-align: start;
 }
 .picker h2 {
     margin: 0 0 20px;
@@ -1508,15 +1508,20 @@ button.settings-row:focus, button.settings-row.focused {
     max-width: calc(100vw - 80px); text-align: center;
 }
 /* Mirror labels and row affordances, not transport or numeric controls. */
+[dir="rtl"] .browse-list li > * + * { margin-left: 0; margin-right: 24px; }
+[dir="rtl"] .browse-list.grid li > * + * { margin-right: 0; }
+[dir="rtl"] .picker li.active::before { margin-right: 0; margin-left: 8px; }
 [dir="rtl"] #view-player .track-menu { text-align: right; }
 [dir="rtl"] #view-player .more-option { text-align: right; }
 [dir="rtl"] #view-player .more-icon { margin-right: 0; margin-left: 14px; }
 [dir="rtl"] #view-player .more-value { margin-left: 0; margin-right: 24px; }
 [dir="rtl"] #view-player .chevron { margin-left: 0; margin-right: 16px; transform: rotate(180deg); }
 [dir="rtl"] #view-player .track-section li,
-[dir="rtl"] #view-player .track-level li { padding-right: 18px; padding-left: 56px; }
+[dir="rtl"] #view-player .track-level li,
+[dir="rtl"] .player-view #picker li { padding-right: 18px; padding-left: 56px; }
 [dir="rtl"] #view-player .track-section li.active::after,
-[dir="rtl"] #view-player .track-level li.active::after { right: auto; left: 18px; }
+[dir="rtl"] #view-player .track-level li.active::after,
+[dir="rtl"] .player-view #picker li.active::after { right: auto; left: 18px; }
 [dir="rtl"] #view-player .file-info dl { text-align: right; }
 #view-player .more-value { direction: ltr; unicode-bidi: isolate; }
 @supports ((backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px))) {
