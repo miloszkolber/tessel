@@ -891,7 +891,7 @@ var SMB = (function () {
                     var el = document.getElementById('smb-share');
                     if (el) el.value = name;
                     refocus('smb-find-shares');
-                });
+                }, document.getElementById('smb-find-shares'));
             });
         });
     }

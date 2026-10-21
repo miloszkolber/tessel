@@ -25,6 +25,7 @@ var Player = (function () {
     var selectedSub = -1;         // -1 = off, otherwise an external index
     var selectedAudio = 0;
     var timer = null;             // the interval driving progress
+    var nextScene = 'default';    // one-shot harness state, never a playback preference
 
     function emit(name, value) { if (listeners[name]) listeners[name](value); }
     function progress() { emit('onprogress', { time: time, duration: duration }); }
@@ -123,16 +124,20 @@ var Player = (function () {
     }
 
     return {
+        setDemoState: function (scene) { nextScene = /^(loading|buffering|error)$/.test(scene) ? scene : 'default'; },
         setListener: function (name, fn) { listeners[name] = fn; },
 
         open: function (url, opts) {
             opts = opts || {};
+            var scene = nextScene; nextScene = 'default';
+            clearInterval(timer);
             title = opts.title || url;
             duration = durationFor(url, opts.title);
             time = 0;
             speed = 1;
             subtitleDelay = 0;
             buffering = false;
+            lastBufferingAt = 0;
             activeCue = null;
             selectedSub = externalSubs.length ? -1 : -1;
             selectedAudio = 0;
@@ -143,9 +148,19 @@ var Player = (function () {
             /* A short, honest "opening" beat, then playback — the app's own
              * spinner and 20 s watchdog both see normal behaviour. */
             clearTimeout(openTimer);
+            if (scene === 'loading') { buffering = true; lastBufferingAt = Date.now(); return; }
             openTimer = setTimeout(function () {
+                if (scene === 'error') {
+                    status = 'ERROR';
+                    emit('onstatechange', 'error');
+                    emit('onerror', 'Simulated playback failure. This preview does not test TV decoding.');
+                    return;
+                }
                 status = 'PLAYING';
                 emit('onstatechange', 'playing');
+                if (scene === 'buffering') {
+                    buffering = true; lastBufferingAt = Date.now(); emit('onbuffering', true);
+                }
                 startClock();
                 progress();
             }, 350);
@@ -153,6 +168,7 @@ var Player = (function () {
 
         play: function () {
             if (status === 'PAUSED' || status === 'READY') {
+                if (buffering) { buffering = false; emit('onbuffering', false); }
                 status = 'PLAYING';
                 emit('onstatechange', 'playing');
                 startClock();
@@ -160,6 +176,7 @@ var Player = (function () {
         },
         pause: function () {
             if (status === 'PLAYING') {
+                if (buffering) { buffering = false; emit('onbuffering', false); }
                 status = 'PAUSED';
                 emit('onstatechange', 'paused');
             }

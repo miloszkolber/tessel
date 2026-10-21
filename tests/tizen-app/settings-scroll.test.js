@@ -21,11 +21,14 @@ function run(options) {
         getBoundingClientRect: function () { return { top: 300, bottom: 950 }; },
         scrollBy: function (value) { scrolled.push(value); }
     };
-    vm.runInNewContext(source.slice(start, end) + '\nscrollSettingsIfNoFocusMove(200, "down");', {
-        UI: { moveFocus: function () { return !!options.moved; } },
+    var context = {
         window: { matchMedia: function () { return { matches: !!options.reduced }; } },
         document: { querySelector: function () { return container; } }
-    });
+    };
+    vm.createContext(context);
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '../../tizen-app/js/ui.js'), 'utf8'), context);
+    context.UI.moveFocus = function () { return !!options.moved; };
+    vm.runInContext(source.slice(start, end) + '\nscrollSettingsIfNoFocusMove(200, "down");', context);
     return { revealed: revealed, scrolled: scrolled };
 }
 

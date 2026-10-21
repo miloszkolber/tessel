@@ -61,8 +61,8 @@ var UI = (function () {
 
         var scope = currentView;
         var dialog = document.getElementById('library-modal');
-        if (dialog) scope = dialog;
-        else if (picker    && !picker.classList.contains('hidden'))    scope = picker;
+        if (picker && !picker.classList.contains('hidden')) scope = picker;
+        else if (dialog) scope = dialog;
         else if (errorOv   && !errorOv.classList.contains('hidden')) scope = errorOv;
         else if (trackMenu && !trackMenu.classList.contains('hidden')) scope = trackMenu;
         else if (moreMenu && !moreMenu.classList.contains('hidden')) scope = moreMenu;
@@ -106,6 +106,38 @@ var UI = (function () {
         var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         try { el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: reduced ? 'auto' : 'smooth' }); } catch (e) {}
     }
+
+    function restoreFocus(el) {
+        refreshFocusables();
+        // A callback may have replaced its originating card. Restore only
+        // inside the current visible scope, without resetting the view/scroll.
+        var target = focusable.indexOf(el) >= 0 ? el : (firstWidget() || focusable[0]);
+        if (target && target === document.activeElement && target.classList.contains('focused')) {
+            focusIdx = focusable.indexOf(target);
+            return;
+        }
+        focusOn(target);
+    }
+
+    function scrollBy(container, distance) {
+        if (!container) return;
+        var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (container.scrollBy) container.scrollBy({ top: distance, behavior: reduced ? 'auto' : 'smooth' });
+        else container.scrollTop += distance;
+    }
+
+    // Pointer/native Tab focus must agree with the TV cursor. Do not call
+    // focusOn here: a native focus event must not start another scroll.
+    if (document.addEventListener) document.addEventListener('focusin', function (ev) {
+        if (ev.target.classList.contains('focused')) return; // focusOn already owns this transition
+        refreshFocusables();
+        var at = focusable.indexOf(ev.target);
+        if (at < 0) return;
+        focusIdx = at;
+        var previous = document.querySelectorAll('.focused');
+        for (var i = 0; i < previous.length; i++) previous[i].classList.remove('focused');
+        ev.target.classList.add('focused');
+    });
 
     /* Geometric next-element search by direction.  Returns true if focus
      * moved geometrically, false otherwise.
@@ -221,6 +253,8 @@ var UI = (function () {
     return {
         showView:          showView,
         focusOn:           focusOn,
+        restoreFocus:      restoreFocus,
+        scrollBy:          scrollBy,
         moveFocus:         moveFocus,
         moveFocusCyclic:   moveFocusCyclic,
         activateFocused:   activateFocused,

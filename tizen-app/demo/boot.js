@@ -4,7 +4,7 @@
     var states = {
         home: ['default'], usb: ['default', 'empty', 'series', 'music'],
         network: ['default', 'smb-config', 'dav-config', 'dlna-config'],
-        stream: ['default', 'receive'], video: ['default', 'queue'], audio: ['default', 'queue'], settings: ['default']
+        stream: ['default', 'receive'], video: ['default', 'queue', 'loading', 'buffering', 'error'], audio: ['default', 'queue', 'loading', 'buffering', 'error'], settings: ['default']
     };
     var labels = { home: 'Home', usb: 'USB', network: 'Network', stream: 'Stream', video: 'Video', audio: 'Audio', settings: 'Settings' };
     var remembered = {}, current = '', note, stateRow;
@@ -30,7 +30,7 @@
         Favorites.add({ kind: 'usb', path: '/removable2/Films', name: 'Disconnected drive' });
         localStorage.setItem('tessel_demo_v3', '1');
     }
-    function media(folder, audio) {
+    function media(folder, audio, scene) {
         var revision = UI.viewRevision;
         tizen.filesystem.resolve('/removable1/' + folder, function (dir) {
             Browser.listDir(dir, function (err, entries) {
@@ -39,6 +39,7 @@
                     return { uri: e.uri, title: e.name, file: e.file, subtitles: e.subtitles,
                         source: { kind: 'usb', path: dir.fullPath, root: 'removable1', rootPath: '/removable1' } };
                 });
+                if (scene !== 'queue') list = list.slice(0, 1);
                 VlcApp.play('browse', list, 0, dir);
             });
         }, function () {}, 'r');
@@ -47,6 +48,7 @@
         if (Dialog.isOpen()) Dialog.close(false);
         var previous = VlcApp.currentPageName();
         if (previous === 'audio' || previous === 'video') VlcApp.leavePlayback();
+        Player.setDemoState(page === 'audio' || page === 'video' ? state : 'default');
         Simulator.setUsbMounted(state !== 'empty');
         remembered[page] = state;
         if (page === 'home') VlcApp.home();
@@ -59,7 +61,7 @@
             if (state === 'dlna-config') LibraryUI.addDlna();
         } else if (page === 'stream') { VlcApp.openUrlView(); if (state === 'receive') LibraryUI.receive(); }
         else if (page === 'settings') VlcApp.openSettings();
-        else { VlcApp.home(); media(page === 'audio' ? 'Music' : 'Films', page === 'audio'); }
+        else { VlcApp.home(); media(page === 'audio' ? 'Music' : 'Films', page === 'audio', state); }
         LibraryUI.refreshConnections();
         paint(page);
     }

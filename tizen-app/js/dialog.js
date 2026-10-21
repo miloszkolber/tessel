@@ -8,12 +8,8 @@ var Dialog = (function () {
         Remote.pop(old.keys);
         old.root.parentNode.removeChild(old.root);
         if (old.dispose) old.dispose();
-        UI.refreshFocusables();
-        if (restore !== false) {
-            var target = old.returnTo;
-            if (target && document.body.contains(target) && !target.closest('.hidden')) UI.focusOn(target);
-            else if (UI.currentView) UI.showView(UI.currentView.id);
-        }
+        if (restore !== false) UI.restoreFocus(old.returnTo);
+        else UI.refreshFocusables();
     }
     function open(title, options) {
         options = options || {};
@@ -21,18 +17,20 @@ var Dialog = (function () {
         var root = document.createElement('div'); root.id = 'library-modal'; root.className = 'dialog-scrim';
         var card = document.createElement('div'); card.className = 'dialog-card';
         card.setAttribute('role', 'dialog'); card.setAttribute('aria-modal', 'true');
-        var heading = document.createElement('h2'); heading.id = 'dialog-title'; heading.textContent = title;
+        var heading = document.createElement('h2'); heading.id = 'dialog-title'; heading.textContent = title; heading.title = title;
         card.setAttribute('aria-labelledby', heading.id);
         var body = document.createElement('div'); body.className = 'dialog-body';
         var footer = document.createElement('div'); footer.className = 'dialog-footer';
         card.appendChild(heading); card.appendChild(body); card.appendChild(footer); root.appendChild(card); document.body.appendChild(root);
         var item = { root: root, body: body, footer: footer, returnTo: options.returnTo || document.activeElement, dispose: options.dispose };
-        item.keys = Remote.push(function (code) {
+        item.keys = Remote.push(function (code, ev) {
             var K = Remote.KEY;
             if (code === K.BACK) { if (options.back) options.back(); else close(); return true; }
+            if (code === K.TAB) { UI.moveFocusCyclic(ev && ev.shiftKey ? -1 : 1); return true; }
             if (code === K.ENTER) { if (document.activeElement.tagName !== 'INPUT') UI.activateFocused(); return document.activeElement.tagName !== 'INPUT'; }
             if (code === K.UP || code === K.DOWN) {
                 var rows = Array.prototype.slice.call(card.querySelectorAll('button,input,[tabindex]')).filter(function (el) { return !el.disabled && !el.closest('.hidden') && el.offsetParent !== null; });
+                if (!rows.length) { UI.scrollBy(body, code === K.UP ? -200 : 200); return true; }
                 var at = rows.indexOf(document.activeElement);
                 UI.focusOn(rows[Math.max(0, Math.min(rows.length - 1, at + (code === K.DOWN ? 1 : -1)))]);
                 return true;

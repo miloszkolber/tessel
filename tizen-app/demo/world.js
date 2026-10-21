@@ -344,7 +344,7 @@ var Simulator = (function () {
         if (/\/smb\/ping/.test(url))  return { ok: true, connected: true,
             servers: (typeof SMB !== 'undefined' && SMB.servers().length) ? [''] : [], dav: [] };
         if (/\/smb\/connect/.test(url)) return { ok: true, dialect: 'SMB 3.1.1 (simulated)', signing: 'off' };
-        if (/\/smb\/shares/.test(url))  return { ok: true, shares: ['Media', 'Films', 'Music'] };
+        if (/\/smb\/shares/.test(url)) return { ok: true, shares: ['Media', 'Films', 'Music'].map(function (name) { return { name: name, remark: '' }; }) };
         if (/\/smb\/debug\/logs/.test(url)) return { ok: true, logs: [] };
         if (/\/smb\/list/.test(url)) {
             var key = path.replace(/^\/+/, '');

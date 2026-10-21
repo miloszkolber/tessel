@@ -7,6 +7,7 @@
 
 var Remote = (function () {
     var KEY = {
+        TAB:    9,
         LEFT:   37,
         UP:     38,
         RIGHT:  39,

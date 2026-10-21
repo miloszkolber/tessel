@@ -360,6 +360,7 @@
 
         // Reflow display rect on size changes
         window.addEventListener('resize', Player.setDisplayRect);
+        window.addEventListener('resize', positionPicker);
 
         // Standby-safe playback restore (issue #42).
         document.addEventListener('visibilitychange', onVisibilityChange);
@@ -1877,15 +1878,23 @@
         returnToOrigin();
     }
 
+    function clearPlaybackChrome() {
+        clearTimeout(osdHideTimer);
+        playerPopupReturn = null;
+        closePicker(false);
+        closeMore(false);
+        closeTrackMenu(false);
+        showOSD(false);
+        document.body.classList.remove('has-queue', 'up-next-open');
+        hideSpinner();
+    }
+
     /* Stop for good: watched/resume bookkeeping and decoder release. */
     function stopPlayback() {
         playbackGeneration++;
         standbySnapshot = null;
         pendingResume = null;
         clearInterval(openWatchdog);
-        clearTimeout(osdHideTimer);
-        playerPopupReturn = null;
-        closeMore(false);
         // Watched ≥ 90 % counts as seen even if the user stops before the end
         // (markWatched also drops the resume position); anything short of
         // that keeps its position so the file can pick up where it left off.
@@ -1897,9 +1906,7 @@
         resetScrub();
         Player.stop();
         hideError();
-        showOSD(false);
-        document.body.classList.remove('has-queue', 'up-next-open');
-        closeTrackMenu();
+        clearPlaybackChrome();
     }
 
     /* Back to the list playback was launched from, rather than always
@@ -1926,15 +1933,14 @@
         releaseBrowsers();
         resetScrub();
         Player.stop();
+        clearInterval(openWatchdog);
+        clearPlaybackChrome();
         state.view = 'home';
         state.listBack = null;
         state.playlistView = null;
         UI.showView('view-home');
         refreshHome();
         hideError();
-        document.getElementById('osd-top').classList.add('hidden');
-        document.getElementById('osd-bottom').classList.add('hidden');
-        closeTrackMenu();
     }
 
     /* Cleanly quit the app from the home view (issue #57).  Tizen exposes
@@ -2040,6 +2046,7 @@
             var li = document.createElement('li');
             li.tabIndex = 0;
             li.textContent = opt.name;
+            li.title = opt.name;
             if (opt.code === currentValue) li.classList.add('active');
             li.addEventListener('click', function () {
                 // Choosing updates the parent card's value and stays put, so
@@ -2286,10 +2293,7 @@
      * codec hint below can't be matched out of its text. */
     function showError(msg, kind) {
         // Hide all sibling overlays so the error stays the only focusable thing
-        document.getElementById('osd-top').classList.add('hidden');
-        document.getElementById('osd-bottom').classList.add('hidden');
-        document.getElementById('track-menu').classList.add('hidden');
-        hideSpinner();
+        clearPlaybackChrome();
         clearInterval(openWatchdog);
 
         // Hint for opaque codec-not-supported errors
@@ -2422,21 +2426,34 @@
 
     /* ── Picker (generic option list, used for settings choices) ──── */
     var pickerSetting = null;        // which setting we're editing
+    var pickerReturnTo = null, pickerKeys = null, pickerDismiss = null, pickerAnchor = null;
+    function positionPicker() {
+        if (!pickerAnchor) return;
+        var panel = document.getElementById('picker');
+        // Finish any interrupted focus scroll before measuring the trigger.
+        pickerAnchor.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+        var r = pickerAnchor.getBoundingClientRect();
+        var below = window.innerHeight - r.bottom - 44, above = r.top - 44;
+        panel.style.right = Math.max(32, Math.round(window.innerWidth - r.right)) + 'px';
+        if (below < 200 && above > below) {
+            panel.style.top = '';
+            panel.style.bottom = Math.max(32, Math.round(window.innerHeight - r.top + 12)) + 'px';
+            panel.style.maxHeight = Math.min(640, Math.max(80, above)) + 'px';
+        } else {
+            panel.style.bottom = '';
+            panel.style.top = Math.max(32, Math.round(r.bottom + 12)) + 'px';
+            panel.style.maxHeight = Math.min(640, Math.max(80, below)) + 'px';
+        }
+    }
     function openPicker(title, options, currentValue, onPick, anchorRow) {
         // Playback preferences apply immediately. Command/resume/settings pickers retain their existing one-shot behavior.
         var keepOpen = state.view === 'player' && !!playerPopupReturn;
         var panel = document.getElementById('picker');
+        if (!pickerKeys) pickerReturnTo = anchorRow || document.activeElement;
+        if (pickerReturnTo && pickerReturnTo.getAttribute('aria-controls') === 'picker') pickerReturnTo.setAttribute('aria-expanded', 'true');
         panel.classList.toggle('anchored', !!anchorRow);
-        panel.style.top = ''; panel.style.right = ''; panel.style.maxHeight = '';
-        if (anchorRow && anchorRow.getBoundingClientRect) {
-            /* Pin the menu under its row, their right edges aligned — the
-             * way the video page hangs its track menu over the OSD. */
-            var r = anchorRow.getBoundingClientRect();
-            var top = Math.round(r.bottom + 12);
-            panel.style.top = Math.max(32, top) + 'px';
-            panel.style.right = Math.max(32, Math.round(window.innerWidth - r.right)) + 'px';
-            panel.style.maxHeight = Math.round(Math.max(200, window.innerHeight - top - 40)) + 'px';
-        }
+        pickerAnchor = anchorRow || null;
+        panel.style.top = ''; panel.style.right = ''; panel.style.bottom = ''; panel.style.maxHeight = '';
         document.getElementById('picker-title').textContent = title;
         var ul = document.getElementById('picker-options');
         ul.innerHTML = '';
@@ -2444,30 +2461,66 @@
             var li = document.createElement('li');
             li.tabIndex = 0;
             li.textContent = opt.name;
+            var choice = currentValue !== undefined && currentValue !== null;
+            li.setAttribute('role', choice ? 'menuitemradio' : 'menuitem');
+            if (choice) li.setAttribute('aria-checked', opt.code === currentValue ? 'true' : 'false');
             if (opt.code === currentValue) li.classList.add('active');
             li.addEventListener('click', function () {
                 var applied = onPick(opt.code);
                 if (!keepOpen) { closePicker(); return; }
                 if (applied === false) return;
-                Array.prototype.forEach.call(ul.children, function (row) { row.classList.toggle('active', row === li); });
+                Array.prototype.forEach.call(ul.children, function (row) {
+                    row.classList.toggle('active', row === li);
+                    if (choice) row.setAttribute('aria-checked', row === li ? 'true' : 'false');
+                });
                 UI.focusOn(li);
             });
             ul.appendChild(li);
         });
         document.getElementById('picker').classList.remove('hidden');
+        positionPicker();
+        // A picker can sit above a source dialog. Its own key layer owns
+        // navigation and dismissal until the underlying scope is restored.
+        if (!pickerKeys) pickerKeys = Remote.push(function (code, ev) {
+            var K = Remote.KEY;
+            if (code === K.BACK || code === K.IME_CANCEL) { closePicker(); return true; }
+            if (code === K.TAB) { UI.moveFocusCyclic(ev && ev.shiftKey ? -1 : 1); return true; }
+            if (code === K.UP || code === K.DOWN) { UI.moveFocus(code === K.UP ? 'up' : 'down', true); return true; }
+            if (code === K.LEFT || code === K.RIGHT) return true;
+            if (code === K.ENTER) { UI.activateFocused(); return true; }
+            return false;
+        });
+        if (!pickerDismiss) {
+            pickerDismiss = function (ev) {
+                if (panel.contains(ev.target) || (anchorRow && anchorRow.contains(ev.target))) return;
+                var target = ev.target.closest('button,input,[tabindex="0"]') || pickerReturnTo;
+                closePicker(false);
+                UI.restoreFocus(target);
+            };
+            document.addEventListener('click', pickerDismiss, true);
+        }
         UI.refreshFocusables();
         var first = document.querySelector('#picker .active') ||
                     document.querySelector('#picker li, #picker button');
         if (first) UI.focusOn(first);
     }
-    function closePicker() {
+    function closePicker(restoreFocus) {
         var panel = document.getElementById('picker');
+        var restore = restoreFocus !== false && panel.contains(document.activeElement), target = pickerReturnTo;
+        if (target && target.getAttribute('aria-controls') === 'picker') target.setAttribute('aria-expanded', 'false');
+        if (pickerKeys) Remote.pop(pickerKeys);
+        if (pickerDismiss) document.removeEventListener('click', pickerDismiss, true);
+        pickerDismiss = null;
+        pickerKeys = null; pickerReturnTo = null;
+        pickerAnchor = null;
         panel.classList.add('hidden');
         panel.classList.remove('anchored');
-        panel.style.top = ''; panel.style.right = ''; panel.style.maxHeight = '';
+        panel.style.top = ''; panel.style.right = ''; panel.style.bottom = ''; panel.style.maxHeight = '';
         pickerSetting = null;
         UI.refreshFocusables();
-        if (state.view === 'player') returnPlayerPopup();
+        if (state.view === 'player' && restoreFocus !== false) returnPlayerPopup();
+        else if (restore) UI.restoreFocus(target);
+        else if (restoreFocus !== false) UI.restoreFocus(document.activeElement);
     }
     /* The app's own language.  Every language is listed by its own name, so
      * someone stuck in a language they can't read still finds theirs. */
@@ -2476,6 +2529,8 @@
                     : I18n.t('uiLang.followTv', I18n.languageName(I18n.current()));
     }
     function openUiLangPicker() {
+        var panel = document.getElementById('picker');
+        if (!panel.classList.contains('hidden') && panel.classList.contains('anchored')) { closePicker(); return; }
         pickerSetting = 'uiLanguage';
         var opts = [{ code: '', name: uiLanguageName('') }].concat(I18n.languages());
         /* The menu hangs under the row itself, like the video page's menus. */
@@ -2973,7 +3028,7 @@
         document.getElementById('file-info').classList.add('hidden');
         document.getElementById('file-info-scrim').classList.add('hidden');
         UI.refreshFocusables();
-        if (state.view === 'player') {
+        if (state.view === 'player' && restore !== false) {
             if (restore) returnPlayerPopup();
             else UI.focusOn(document.getElementById('btn-more'));
         }
@@ -3197,6 +3252,12 @@
         var osdVisible = !document.getElementById('osd-bottom').classList.contains('hidden');
 
         switch (code) {
+            case K.TAB:
+                if (state.view === 'player' && (trackMenuOpen || errorUp || osdVisible)) {
+                    UI.moveFocusCyclic(ev && ev.shiftKey ? -1 : 1);
+                    return true;
+                }
+                return false;
             // Up/Down switch hidden → timeline → transport row.
             // Left/Right on a More value row or the sync control step that
             // option directly; on the timeline they scrub with duration-aware
@@ -3206,6 +3267,8 @@
             // committed after a short pause in input, or instantly on OK.
             // BACK during a scrub cancels it without seeking.
             case K.UP:
+                if (state.view === 'player' && errorUp) { UI.scrollBy(document.getElementById('error-overlay'), -200); return true; }
+                if (state.view === 'player' && !document.getElementById('file-info').classList.contains('hidden')) { UI.scrollBy(document.querySelector('#file-info .track-menu-body'), -200); return true; }
                 if (state.view === 'player' && !errorUp && !trackMenuOpen) {
                     if (!osdVisible) return true;
                     if (document.activeElement === document.getElementById('player-timeline')) {
@@ -3225,6 +3288,8 @@
                 UI.moveFocus('up', state.view === 'player' && trackMenuOpen);
                 return true;
             case K.DOWN:
+                if (state.view === 'player' && errorUp) { UI.scrollBy(document.getElementById('error-overlay'), 200); return true; }
+                if (state.view === 'player' && !document.getElementById('file-info').classList.contains('hidden')) { UI.scrollBy(document.querySelector('#file-info .track-menu-body'), 200); return true; }
                 if (state.view === 'player' && !errorUp && !trackMenuOpen) {
                     if (!osdVisible) { flashOSD(); return true; }
                     if (scrub.active) commitScrub();
@@ -3581,9 +3646,7 @@
                     return;
                 }
             }
-            var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            if (c.scrollBy) c.scrollBy({ top: dy, behavior: reduced ? 'auto' : 'smooth' });
-            else            c.scrollTop += dy;
+            UI.scrollBy(c, dy);
         }
     }
 

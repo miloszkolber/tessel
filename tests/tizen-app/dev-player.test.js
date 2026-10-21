@@ -88,7 +88,7 @@ test('laid-out descendants of an exiting OSD are excluded from remote focus', fu
 
 test('stopping playback clears the OSD and queue layout state before returning to the library', function () {
     var app = fs.readFileSync(path.join(ROOT, 'js/app.js'), 'utf8');
-    var start = app.indexOf('    function stopPlayback()');
+    var start = app.indexOf('    function clearPlaybackChrome()');
     var end = app.indexOf('    /* Back to the list', start);
     assert.ok(start >= 0 && end > start);
     var removed = [], osd = [], stopped = false, saved = false;
@@ -96,7 +96,7 @@ test('stopping playback clears the OSD and queue layout state before returning t
     vm.runInNewContext(app.slice(start, end) + '\nstopPlayback();', {
         playbackGeneration: 0, standbySnapshot: {}, pendingResume: {}, openWatchdog: 1, osdHideTimer: 2, playerPopupReturn: 'more',
         state: { playingUri: 'file:///example.mp3' }, lastProgress: { time: 10, duration: 100 },
-        clearInterval: noop, clearTimeout: noop, closeMore: noop, resetScrub: noop, hideError: noop, closeTrackMenu: noop,
+        clearInterval: noop, clearTimeout: noop, closePicker: noop, closeMore: noop, resetScrub: noop, hideError: noop, hideSpinner: noop, closeTrackMenu: noop,
         markWatched: noop, saveResumePos: function () { saved = true; },
         Player: { stop: function () { stopped = true; } },
         showOSD: function (visible) { osd.push(visible); },

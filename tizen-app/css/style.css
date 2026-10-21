@@ -91,7 +91,7 @@ button:focus { outline: none; }
 /* An empty section keeps the space a row of cards would take and says why
  * it is empty, so the sections below never move. */
 .card-row.empty { min-height: calc(var(--card-height) + 24px); align-items: flex-start; }
-.card-row.empty::after { content: attr(data-empty); color: var(--fg-dim); font-size: 24px; padding: 12px 4px 0; }
+.empty-state { display: flex; align-items: center; flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); margin: 0; padding: 24px; border: 2px dashed var(--surface-border); border-radius: 12px; background: var(--bg-card); color: var(--fg-soft); font-size: 24px; line-height: 1.4; text-align: start; }
 .card-row::-webkit-scrollbar { display: none; }
 .media-card { position: relative; display: flex; flex-direction: column; align-items: stretch; text-align: start;
     flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); min-height: 0; padding: 18px; border: 2px solid var(--surface-border);
@@ -140,8 +140,10 @@ button:focus { outline: none; }
 .dialog-scrim { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; padding: 40px; }
 .dialog-card { width: 678px; max-width: 100%; max-height: calc(100vh - 80px); display: flex; flex-direction: column;
     background: var(--bg-card); border: 2px solid var(--surface-border); border-radius: 16px; padding: 32px; text-align: start;
-    box-shadow: 0 24px 64px rgba(0,0,0,.6); }
+}
+.dialog-card, .picker, .track-menu { box-shadow: 0 24px 64px rgba(0,0,0,.6); }
 .dialog-card h2 { font-size: 28px; font-weight: 600; margin: 0 0 40px; }
+.dialog-card h2, .picker h2 { flex: 0 0 auto; line-height: 1.3; overflow-wrap: break-word; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .dialog-card:focus { outline: none; }
 .dialog-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding: 4px; margin: -4px; scroll-padding: 4px; }
 .dialog-body > .settings-group { flex: 0 0 auto; }
@@ -153,7 +155,7 @@ button:focus { outline: none; }
 .dialog-footer > .primary:focus, .dialog-footer > .primary.focused,
 .dialog-footer > .settings-row:focus, .dialog-footer > .settings-row.focused { background: var(--focus-ring); color: #151515; box-shadow: 0 0 0 3px rgba(244,244,244,.4); }
 .dialog-body input { width: 100%; min-height: 64px; padding: 14px 18px; background: var(--bg); border: 2px solid var(--surface-border); border-radius: 8px; color: white; font: inherit; }
-.dialog-option { min-height: 78px; flex-shrink: 0; padding: 18px 24px; text-align: start; border: 2px solid var(--surface-border); border-radius: 8px; background: var(--bg-card); }
+.dialog-option { min-height: 78px; flex-shrink: 0; padding: 18px 24px; text-align: start; overflow-wrap: break-word; word-break: break-word; border: 2px solid var(--surface-border); border-radius: 8px; background: var(--bg-card); }
 .dialog-option:disabled { opacity: .45; }
 .dialog-option.focused, .dialog-body input.focused, .dialog-body .settings-row.focused { outline: none; border-color: var(--focus-ring); background: var(--bg-card-h); }
 .dialog-body .settings-group { margin: 0; }
@@ -1009,17 +1011,21 @@ body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom 
 /* ── Error overlay ────────────────────────────────────────────────── */
 .error-overlay {
     position: absolute; top: 0; right: 0; bottom: 0; left: 0;
-    background: rgba(10,10,10,.96);
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    overflow-y: auto;
     padding: 80px;
+    scroll-padding: 80px;
     pointer-events: auto;
     text-align: center;
     z-index: 100;  /* keep above OSDs so the "Back" button is clickable */
 }
 .error-overlay > * + * { margin-top: 24px; }
+.error-overlay > * { flex-shrink: 0; }
+.error-overlay > :first-child { margin-top: auto; }
+.error-overlay > :last-child { margin-bottom: auto; }
 
-/* Big yellow warning icon for visibility, white message text for readability,
- * muted secondary line for the codec hint.  Red on navy was too low contrast. */
+/* The error surface uses the same monochrome contrast as playback controls. */
 .error-icon {
     width: 96px; height: 96px;
     border-radius: 50%;
@@ -1035,11 +1041,13 @@ body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom 
     font-weight: 500;
     color: var(--fg);
     max-width: 1200px;
+    width: 100%; overflow-wrap: break-word; word-break: break-word;
 }
 .error-hint {
     font-size: 20px;
     color: var(--fg-mute);
     max-width: 1000px;
+    width: 100%; overflow-wrap: break-word; word-break: break-word;
     line-height: 1.5;
     white-space: pre-line;  /* respect \n in the hint text so ffmpeg cmds are on their own lines */
     text-align: left;
@@ -1398,7 +1406,7 @@ button.settings-row:focus, button.settings-row.focused {
     border: 2px solid var(--surface-border);
     border-radius: var(--r);
     padding: 32px;
-    z-index: 200;
+    z-index: 400;
     text-align: left;
 }
 .picker h2 {
@@ -1413,7 +1421,7 @@ button.settings-row:focus, button.settings-row.focused {
 }
 .picker li {
     min-height: 78px; display: flex; align-items: center;
-    padding: 0 24px;
+    padding: 14px 24px; line-height: 1.3; overflow-wrap: break-word; word-break: break-word;
     border-radius: 8px;
     color: var(--fg);
     transition: background-color var(--motion) var(--ease);
@@ -1426,7 +1434,7 @@ button.settings-row:focus, button.settings-row.focused {
     box-shadow: inset 0 0 0 2px var(--focus-ring);
 }
 .picker li.active::before {
-    content: ''; display: inline-block; width: 24px; height: 24px; margin-right: 8px;
+    content: ''; display: inline-block; width: 24px; height: 24px; flex: 0 0 24px; margin-right: 8px;
     vertical-align: middle; background: url('../assets/remix/check-line.svg') center / contain no-repeat; filter: invert(1);
 }
 /* Anchored mode: the same picker mounted as a dropdown under its row —
@@ -1595,6 +1603,7 @@ button.settings-row:focus, button.settings-row.focused {
 
 /* Keep five columns at the portrait review size without oversized contents. */
 @media (max-width: 1400px) {
+    .empty-state { padding: 12px; font-size: 18px; }
     .media-card, #view-home .tile, .browse-list.grid li, .browse-list.grid.device-roots li { padding: 12px; }
     .card-title, #view-home .tile-label, .browse-list.grid .name, .browse-list.grid.device-roots .name { font-size: 18px; }
     .card-title { margin-top: 8px; }

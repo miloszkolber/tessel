@@ -135,7 +135,11 @@ test('an empty section keeps its place on the page', function () {
     assert.ok(source.indexOf('.card-row.empty') >= 0, 'empty row styling');
     assert.ok(source.indexOf('min-height: calc(var(--card-height) + 24px)') >= 0, 'same height as a filled row');
     var ui = read('js/library-ui.js');
-    assert.ok(ui.indexOf("list.classList.add('empty')") >= 0, 'the row says it is empty');
+    assert.ok(ui.indexOf("list.classList.toggle('empty', empty)") >= 0, 'the row says it is empty');
+    assert.ok(ui.includes("el('p', 'empty-state', message)"), 'the empty message is real readable content rather than a CSS pseudo-element');
+    assert.ok(!source.includes('.card-row.empty::after'), 'no duplicate generated message');
+    var empty = rule(source, '.empty-state {', 500).split('}')[0];
+    assert.ok(empty.includes('height: var(--card-height)') && empty.includes('width: var(--card-width)'), 'the status tile uses the same geometry as a populated card');
     assert.ok(ui.indexOf('saved.noSaved') >= 0, 'the saved section names its empty state');
 });
 
@@ -265,4 +269,16 @@ test('queue resizing preserves the OSD fade and popup motion honours reduced mot
     });
     assert.ok(source.includes('.picker:not(.hidden), .track-menu:not(.hidden)'), 'menus use the shared entrance fade');
     assert.ok(source.includes('animation: none !important; transition: none !important;'), 'reduced-motion covers every animated component');
+});
+
+test('shared overlays bound long headings and keep diagnostics scrollable without hiding recovery', function () {
+    var source = css();
+    var headings = rule(source, '.dialog-card h2, .picker h2', 450).split('}')[0];
+    assert.ok(headings.includes('-webkit-line-clamp: 3') && headings.includes('word-break: break-word'), 'unbroken names cannot force a modal outside its viewport');
+    var error = rule(source, '.error-overlay {', 700).split('}')[0];
+    assert.ok(error.includes('overflow-y: auto') && error.includes('scroll-padding: 80px'), 'long diagnostics leave room for the focus ring');
+    assert.ok(error.includes('background: var(--bg)'), 'album text and the video plane cannot bleed through the error message');
+    assert.ok(source.includes('.error-overlay > :first-child { margin-top: auto; }'), 'short errors centre while long errors begin at the top');
+    assert.ok(rule(source, '.picker {', 800).includes('z-index: 400'), 'pickers sit above the source dialog at layer 300');
+    assert.ok(read('index.html').includes('id="error-overlay" role="alertdialog"'), 'the error announces its recovery context');
 });

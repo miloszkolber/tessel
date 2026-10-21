@@ -88,6 +88,8 @@ test('the service answers the app the way the real one does', function () {
     var ping = request(w.context, 'GET', 'http://127.0.0.1:8127/smb/ping');
     assert.equal(ping.ok, true);
     assert.deepEqual(ping.servers, []);          // none saved until the app saves one
+    var shares = request(w.context, 'GET', 'http://127.0.0.1:8127/smb/shares');
+    assert.deepEqual(shares.shares, [{ name: 'Media', remark: '' }, { name: 'Films', remark: '' }, { name: 'Music', remark: '' }]);
 
     var root = request(w.context, 'GET', 'http://127.0.0.1:8127/smb/list?path=');
     assert.equal(root.ok, true);
@@ -135,7 +137,7 @@ function decoder(opts) {
         },
         appendChild: function (el) { this.children.push(el); }
     };
-    var timers = [], ticks = [];
+    var timers = {}, ticks = {}, nextTimer = 1;
     var context = {
         document: {
             getElementById: function (id) { return id === 'subtitle-overlay' ? overlay : null; },
@@ -143,17 +145,17 @@ function decoder(opts) {
         },
         Simulator: { DURATIONS: { 'Big Buck Bunny.mp4': 596000 } },
         Browser: opts.browser || undefined,
-        setTimeout: function (fn, ms) { timers.push({ fn: fn, ms: ms }); return timers.length; },
-        clearTimeout: function () {},
-        setInterval: function (fn) { ticks.push(fn); return ticks.length; },
-        clearInterval: function () {}
+        setTimeout: function (fn, ms) { var id = nextTimer++; timers[id] = { fn: fn, ms: ms }; return id; },
+        clearTimeout: function (id) { delete timers[id]; },
+        setInterval: function (fn) { var id = nextTimer++; ticks[id] = fn; return id; },
+        clearInterval: function (id) { delete ticks[id]; }
     };
     vm.createContext(context);
     vm.runInContext(read('demo/player.js'), context);
     return {
         player: context.Player, overlay: overlay,
-        flush: function () { timers.splice(0).forEach(function (t) { t.fn(); }); },
-        tick: function (n) { for (var i = 0; i < (n || 1); i++) ticks.slice().forEach(function (fn) { fn(); }); }
+        flush: function () { Object.keys(timers).forEach(function (id) { var t = timers[id]; if (t) { delete timers[id]; t.fn(); } }); },
+        tick: function (n) { for (var i = 0; i < (n || 1); i++) Object.keys(ticks).forEach(function (id) { if (ticks[id]) ticks[id](); }); }
     };
 }
 
@@ -195,6 +197,43 @@ test('a URL the app was handed still gets a plausible timeline', function () {
     assert.equal(h.player.duration(), 1800000);
     assert.equal(h.player.describe().video.width, 1920);
     assert.equal(h.player.getBackend(), 'simulated');
+});
+
+test('simulated loading and buffering hold the clock and can resume through normal playback controls', function () {
+    ['loading', 'buffering'].forEach(function (scene) {
+        var h = decoder();
+        h.player.setDemoState(scene);
+        h.player.open('file:///example.mp4', { title: 'Example.mp4' }); h.flush();
+        assert.equal(h.player.state(), scene === 'loading' ? 'READY' : 'PLAYING');
+        assert.equal(h.player.isBuffering(), true);
+        h.tick(4); assert.equal(h.player.currentTime(), 0);
+        if (scene === 'buffering') h.player.pause();
+        h.player.play(); h.tick(4);
+        assert.equal(h.player.isBuffering(), false);
+        assert.equal(h.player.currentTime(), 1000);
+    });
+});
+
+test('a simulated failure uses the production error callback and does not poison later opens', function () {
+    var h = decoder(), errors = [];
+    h.player.setListener('onerror', function (text) { errors.push(text); });
+    h.player.setDemoState('error');
+    h.player.open('file:///example.mp4', { title: 'Example.mp4' }); h.flush();
+    assert.equal(h.player.state(), 'ERROR');
+    assert.match(errors[0], /Simulated playback failure/);
+    h.player.open('file:///example.mp4', { title: 'Example.mp4' }); h.flush(); h.tick();
+    assert.equal(h.player.state(), 'PLAYING');
+    assert.ok(h.player.currentTime() > 0);
+    assert.equal(errors.length, 1);
+});
+
+test('a cancelled simulated open cannot deliver a late failure into the next route', function () {
+    var h = decoder(), failed = false;
+    h.player.setListener('onerror', function () { failed = true; });
+    h.player.setDemoState('error'); h.player.open('file:///example.mp4', { title: 'Example.mp4' });
+    h.player.stop(); h.flush();
+    assert.equal(h.player.state(), 'IDLE');
+    assert.equal(failed, false);
 });
 
 /* ── the harness keeps driving the real app ─────────────────────────────── */

@@ -117,11 +117,17 @@ var LibraryUI = (function () {
     /* A section keeps its place whether or not it has items: the row stays
      * on the page and says so, so the rows below never jump up and down as
      * the library changes. */
+    function markEmpty(list, message) {
+        var empty = !list.children.length;
+        list.classList.toggle('empty', empty);
+        list.dataset.empty = message || '';
+        if (empty) list.appendChild(el('p', 'empty-state', message));
+    }
     function row(host, title, items, render, emptyText, modName) {
         var section = el('section', modName ? 'library-row ' + modName : 'library-row'); section.appendChild(el('h2', '', title));
         var list = el('div', 'card-row');
-        if (!items.length) { list.classList.add('empty'); list.dataset.empty = emptyText || ''; }
-        else items.forEach(function (item) { list.appendChild(render(item)); });
+        items.forEach(function (item) { list.appendChild(render(item)); });
+        markEmpty(list, emptyText);
         section.appendChild(list); host.appendChild(section);
     }
     function pinAction(s, after) {
@@ -272,16 +278,14 @@ var LibraryUI = (function () {
          * library changes; an empty one says so instead of disappearing. */
         var saved = document.getElementById('saved-streams');
         saved.classList.remove('hidden');
-        host.classList.toggle('empty', !host.children.length);
-        host.dataset.empty = t('saved.noSaved');
+        markEmpty(host, t('saved.noSaved'));
         var recent = document.getElementById('recent-streams-list'); recent.innerHTML = '';
         Library.recents().forEach(function (s) {
             var info = streamInfo(s.url);
             recent.appendChild(card({ key: 'recent:' + s.url, title: s.name, kind: 'url', path: s.url, icon: info.icon, subtitle: info.subtitle }, function () { VlcApp.openStream(s.url, s.name); }, function (node) { streamMenu(s, node, true); }));
         });
         document.getElementById('recent-streams').classList.remove('hidden');
-        recent.classList.toggle('empty', !recent.children.length);
-        recent.dataset.empty = t('stream.noRecent');
+        markEmpty(recent, t('stream.noRecent'));
         UI.refreshFocusables(); if (focus) restore(focus);
     }
     function streamMenu(s, node, recent) {
