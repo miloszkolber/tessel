@@ -32,7 +32,7 @@ function loadSmb(fields) {
         Debug:  { send: function (tag, msg) { lines.push('[' + tag + '] ' + msg); } },
         I18n:   I18n,
         FileTypes: require('../../tizen-app/js/filetypes.js'),
-        UI:     { toast: function (m) { toasts.push(m); } },
+        UI:     { toast: function (m) { toasts.push(m); }, focusOn: function () {} },
         localStorage: {
             getItem: function (k) { return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null; },
             setItem: function (k, v) { store[k] = String(v); }

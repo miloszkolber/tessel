@@ -871,7 +871,7 @@ var SMB = (function () {
     function findShares() {
         if (findingShares) return;
         var c = readSettingsForm();
-        if (!c.host) { UI.toast(I18n.t('smb.hostMissing')); return; }
+        if (!c.host) { UI.toast(I18n.t('smb.hostMissing')); UI.focusOn(document.getElementById('smb-host')); return; }
         findingShares = true;
         UI.toast(I18n.t('smb.findingShares'));
         ensureService(function (err) {
@@ -917,7 +917,12 @@ var SMB = (function () {
             var hostEl = document.getElementById('smb-host');
             var typedHost = hostEl ? hostEl.value.trim() : '';
             var nc = readSettingsForm();
-            if (!nc.host || !nc.share) { dbg('save: host and share are both required'); UI.toast(I18n.t(nc.host ? 'smb.shareMissing' : 'smb.hostMissing')); return; }
+            if (!nc.host || !nc.share) {
+                dbg('save: host and share are both required');
+                UI.toast(I18n.t(nc.host ? 'smb.shareMissing' : 'smb.hostMissing'));
+                UI.focusOn(document.getElementById(nc.host ? 'smb-share' : 'smb-host'));
+                return;
+            }
             var id = saveServer(nc);
             if (id === null) { UI.toast(I18n.t('smb.duplicate')); return; }
             editing = id;

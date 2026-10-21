@@ -129,8 +129,9 @@ button:focus { outline: none; }
 #view-home .home-tiles { display: flex; flex: 0 0 auto; gap: var(--card-gap); justify-content: flex-start; width: calc(100% + 24px); overflow-x: auto; padding: 12px; margin: -12px; scrollbar-width: none; scroll-padding: 12px; scroll-snap-type: x mandatory; }
 #view-home .home-tiles::-webkit-scrollbar { display: none; }
 #view-url .url-input-wrap { max-width: var(--form-width); width: 100%; margin: 0 0 24px; }
-#view-url .url-input-wrap input { height: 78px; padding: 0 24px; text-align: start; border: 2px solid var(--input-border); border-radius: 8px; background: var(--bg-card-h); font-size: 24px; }
-#view-url .url-input-wrap input.focused, #view-url .url-input-wrap input:focus { border-color: var(--focus-ring); background: var(--bg-card-h); box-shadow: 0 0 0 1px var(--bg-card-h); }
+#view-url .url-input-wrap input, .playlist-filter input { height: 78px; padding: 0 24px; text-align: start; border: 2px solid var(--input-border); border-radius: 8px; background: var(--bg-card-h); color: var(--fg); font-size: 24px; }
+#view-url .url-input-wrap input.focused, #view-url .url-input-wrap input:focus,
+.playlist-filter input.focused, .playlist-filter input:focus { outline: none; border-color: var(--focus-ring); background: var(--bg-card-h); box-shadow: 0 0 0 1px var(--bg-card-h); }
 #view-url .url-input-wrap > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 #view-url .actions { display: flex; flex: 0 0 auto; gap: 26px; justify-content: flex-start; margin: 0 0 52px; width: 100%; }
 #view-url .actions > button { width: var(--card-width); margin: 0; }
@@ -208,7 +209,7 @@ button:focus { outline: none; }
 .storage-root .browse-media-action { display: none; }
 /* The row heading under the page title doubles as the breadcrumb trail:
  * "Devices / Movies / Season 1" — it names the surface in every flow. */
-.device-heading { display: block; }
+.device-heading { display: block; flex: 0 0 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── Views: full screen, vertically + horizontally centred contents ────
  * Each non-player view paints its own opaque background — required because
@@ -398,7 +399,7 @@ button:focus { outline: none; }
 .browse-list {
     flex: 1;
     width: 100%;
-    max-width: 1400px;
+    max-width: var(--form-width);
     list-style: none;
     margin: 0;
     padding: 0;
@@ -503,6 +504,8 @@ button:focus { outline: none; }
     color: var(--accent);
 }
 .browse-list .name { flex: 1; }
+.browse-list:not(.grid) .name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.browse-list:not(.grid) .meta { min-width: 0; max-width: 35%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .browse-list .meta {
     color: var(--fg-mute);
     font-size: 18px;
@@ -518,24 +521,13 @@ button:focus { outline: none; }
 }
 .browse-list li.watched-item .name { color: var(--fg-soft); }
 /* Playlist filter (issue #122), above the list. */
-.playlist-filter { width: 100%; max-width: 1400px; margin-bottom: 16px; }
+.playlist-filter { flex: 0 0 auto; width: 100%; max-width: var(--form-width); margin-bottom: 24px; }
 .playlist-filter input {
     width: 100%;
-    background: var(--bg-card);
-    color: var(--fg);
-    font: inherit;
-    font-size: 22px;
-    border: 2px solid var(--border);
-    border-radius: var(--r-sm);
-    padding: 14px 24px;
+    font-family: inherit;
+    transition: border-color var(--motion) var(--ease), background-color var(--motion) var(--ease);
 }
 .playlist-filter input::placeholder { color: var(--fg-dim); }
-.playlist-filter input:focus, .playlist-filter input.focused {
-    outline: none;
-    border-color: var(--accent);
-    background: var(--bg-card-h);
-    box-shadow: 0 0 0 4px var(--accent-soft);
-}
 /* Channel logos (issue #123): a fixed box so rows don't shift when one
  * arrives; the plain icon shows until it has loaded. */
 .browse-list .channel-icon { width: 64px; flex: 0 0 64px; height: 40px; display: flex; align-items: center; justify-content: center; }
@@ -1472,8 +1464,9 @@ button.settings-row:focus, button.settings-row.focused {
 #view-player .track-level ul { list-style: none; margin: 0; padding: 0; }
 #view-player .track-level li, #view-player .track-section li, .player-view #picker li {
     position: relative; padding-right: 56px; color: var(--fg); cursor: pointer;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    white-space: normal; overflow: hidden; overflow-wrap: break-word; word-break: break-word;
 }
+.option-label { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; flex: 1 1 auto; min-width: 0; max-width: 100%; overflow: hidden; overflow-wrap: break-word; word-break: break-word; }
 #view-player .track-level li.focused, #view-player .track-level li:focus,
 #view-player .track-section li.focused, #view-player .track-section li:focus,
 .player-view #picker li.focused, .player-view #picker li:focus {
@@ -1504,7 +1497,7 @@ button.settings-row:focus, button.settings-row.focused {
 /* A level replaces its card's own rows: the next level of the same modal. */
 .track-level { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 .track-level > h2, #view-player .track-menu > h2 {
-    display: block; margin: 0 0 16px; padding: 4px 18px;
+    display: block; flex: 0 0 auto; margin: 0 0 16px; padding: 4px 18px;
     font-size: 26px; line-height: 1.25; white-space: nowrap; overflow: hidden;
     text-overflow: ellipsis;
 }

@@ -16,7 +16,7 @@ function harness(nested, player) {
         return node.children.reduce(function (all, child) { return all.concat(child, descendants(child)); }, []);
     }
     function Element(tag) {
-        var self = this, classes = {};
+        var self = this, classes = {}, text = '';
         this.tagName = tag.toUpperCase(); this.children = []; this.style = {}; this.attributes = {}; this.handlers = {};
         this.classList = {
             add: function (name) { classes[name] = true; }, remove: function () { Array.from(arguments).forEach(function (name) { delete classes[name]; }); },
@@ -60,6 +60,10 @@ function harness(nested, player) {
         this.blur = function () { document.activeElement = document.body; };
         this.addEventListener = function (type, fn) { self.handlers[type] = fn; };
         this.click = function () { if (self.handlers.click) self.handlers.click(); };
+        Object.defineProperty(this, 'textContent', {
+            get: function () { return self.children.length ? self.children.map(function (c) { return c.textContent; }).join('') : text; },
+            set: function (value) { text = String(value); self.children = []; }
+        });
         Object.defineProperty(this, 'offsetParent', { get: function () { return self.closest('.hidden') ? null : self.parentNode; } });
         Object.defineProperty(this, 'innerHTML', { set: function () { self.children.forEach(function (c) { c.parentNode = null; }); self.children = []; } });
     }
@@ -102,6 +106,8 @@ function harness(nested, player) {
     }
     var app = read('js/app.js'), start = app.indexOf('    var pickerSetting = null;'), end = app.indexOf("    /* The app's own language", start);
     assert.ok(start >= 0 && end > start);
+    var label = app.indexOf('    function labelOption(');
+    vm.runInContext(app.slice(label, app.indexOf('    var cardLevel =', label)), context);
     vm.runInContext(app.slice(start, end), context);
     return { context: context, document: document, view: view, origin: origin, panel: panel, list: list, listeners: listeners,
         open: function (callback, anchor) {
@@ -220,4 +226,53 @@ test('File info arrows scroll its read-only body instead of navigating away from
         });
         assert.equal(distance, direction === 'UP' ? -200 : 200);
     });
+});
+
+test('in-card playback choices expose their selected state and restore their parent row', function () {
+    var h = harness(false, true), context = h.context, doc = h.document;
+    var owner = h.view.appendChild(doc.createElement('div')); owner.id = 'player-more';
+    var row = owner.appendChild(doc.createElement('button'));
+    var level = owner.appendChild(doc.createElement('div')); level.id = 'more-level'; level.classList.add('hidden');
+    var title = level.appendChild(doc.createElement('h2')); title.id = 'more-level-title';
+    var options = level.appendChild(doc.createElement('ul')); options.id = 'more-level-options';
+    var sync = h.view.appendChild(doc.createElement('div')); sync.id = 'track-level-sync';
+    context.osdHideTimer = 1; context.clearTimeout = function () {}; context.scheduleOSDHide = function () {};
+    var app = read('js/app.js'), start = app.indexOf('    var LEVEL_IDS ='), end = app.indexOf('    /* The synchronization control', start);
+    vm.runInContext(app.slice(start, end), context);
+    context.openCardLevel('player-more', 'Speed', [{ code: '1', name: 'Normal' }, { code: '2', name: 'Double' }], '1', function () { return true; }, row);
+    assert.equal(options.children[0].getAttribute('role'), 'menuitemradio');
+    assert.equal(options.children[0].getAttribute('aria-checked'), 'true');
+    options.children[1].click();
+    assert.equal(options.children[0].getAttribute('aria-checked'), 'false');
+    assert.equal(options.children[1].getAttribute('aria-checked'), 'true');
+    assert.equal(doc.activeElement, options.children[1]);
+    context.closeCardLevel(true);
+    assert.equal(doc.activeElement, row);
+    assert.ok(level.classList.contains('hidden'));
+});
+
+test('DLNA discovery keeps focus while pending and ignores replies after cancellation', function () {
+    var h = harness(false), context = h.context, pending;
+    context.I18n = { t: function (key) { return key; } };
+    context.t = context.I18n.t;
+    context.el = function (tag, cls, text) {
+        var n = h.document.createElement(tag); n.className = cls;
+        if (text !== undefined) n.textContent = text;
+        return n;
+    };
+    context.addSource = function () {}; context.sourceSaved = function () {};
+    context.DLNA = { discover: function (cb) { pending = cb; }, servers: function () { return []; } };
+    vm.runInContext(read('js/dialog.js'), context);
+    var source = read('js/library-ui.js'), start = source.indexOf('    function addDlna()'), end = source.indexOf('    function sourceSaved(', start);
+    vm.runInContext(source.slice(start, end) + '\naddDlna();', context);
+    assert.equal(h.document.activeElement.textContent, 'dlna.searchAgain', 'pending discovery must not leave native focus on the body');
+    var root = h.document.getElementById('library-modal'), body = root.children[0].children[1];
+    assert.equal(body.children[0].getAttribute('role'), 'status');
+    pending(null, [{ id: 'one', name: 'A long source name' }]);
+    assert.equal(h.document.activeElement.title, 'A long source name');
+    assert.equal(h.document.activeElement.children[0].className, 'option-label');
+    context.Dialog.close();
+    pending(null, [{ id: 'late', name: 'Late server' }]);
+    assert.equal(h.document.getElementById('library-modal'), null);
+    assert.equal(h.document.activeElement, h.origin, 'late discovery cannot replace focus restored after cancellation');
 });

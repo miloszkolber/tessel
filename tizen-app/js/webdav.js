@@ -522,7 +522,7 @@ var WebDAV = (function () {
             var s = readSettingsForm();
             var id = saveServer(s);
             if (id === null) { UI.toast(I18n.t('dav.duplicate')); return; }
-            if (id === '')   { UI.toast(I18n.t('smb.hostMissing')); return; }
+            if (id === '')   { UI.toast(I18n.t('dav.addressInvalid')); UI.focusOn(document.getElementById('dav-url')); return; }
             editing = id;
             paintEditing();
             dbg('settings saved [' + id + ']: url=' + s.url + ' user=' + JSON.stringify(s.user || '') +

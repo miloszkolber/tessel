@@ -17,6 +17,8 @@ Serve `tizen-app/` statically and open `demo.html` for the interactive simulator
 
 For annotated visual corrections, inspect the actual layout at the annotation's CSS viewport as well as 1920×1080. Check the computed cascade for normal, focus and hover states, the complete focus ring inside each scroll owner, mixed folder/file title alignment and the last focused item after scrolling. Wait for the requested route, fonts and finite transitions to settle. Source-string assertions and resized screenshots do not establish these conditions. Record any forced-state checks separately from real pointer or keyboard input.
 
+Stress nested menus with long unbroken labels and enough rows to require scrolling. Confirm fixed headings cannot shrink, multiline clamps do not expose partial extra lines inside padded options, and pending discovery keeps visible native focus before results arrive. Playlist files must remain browseable without entering the folder's audio/video playback queue.
+
 The audio and video demo routes offer `default`, `queue`, `loading`, `buffering` and `error` states. Default plays one item. Queue plays the folder queue. Loading and buffering hold the simulated decoder until playback is resumed or the route changes. Error drives the application's normal playback-error callback. Scenario selection applies only to the next simulated open, so a later ordinary launch is not forced to fail. These states exercise production markup and recovery code, not a second interface fixture.
 
 ## Code map

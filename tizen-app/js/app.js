@@ -763,7 +763,7 @@
             var art = null;
             entries.forEach(function (e) { if (!e.isDir && e.name === artName) art = e.uri; });
             // Media-only browser: folders, video, audio and playlists.
-            entries = entries.filter(function (e) { return e.isDir || e.playable; });
+            entries = entries.filter(function (e) { return e.isDir || e.playable || e.kind === 'playlist'; });
             // Pinned folders lead the listing; everything else keeps order.
             entries.sort(function (a, b) {
                 var pa = a.isDir && Favorites.find(usbFavorite(a.file, a.name)) ? 0 : 1;
@@ -913,7 +913,10 @@
         var description = document.getElementById('browse-description');
         if (description) description.textContent = I18n.t(browsePage === 'network' ? 'network.description' : 'usb.description');
         var heading = document.getElementById('browse-heading') || (view && view.querySelector && view.querySelector('.device-heading'));
-        if (heading) heading.textContent = [I18n.t('library.devices')].concat(browseCrumbs).join(' / ');
+        if (heading) {
+            heading.textContent = [I18n.t('library.devices')].concat(browseCrumbs).join(' / ');
+            heading.title = heading.textContent;
+        }
     }
     function currentPageName() {
         // Read from the visible view: the preview harness drives views
@@ -1210,6 +1213,7 @@
                 var li = document.createElement('li');
                 li.dataset.dir = '1';
                 li.dataset.playlist = '1';
+                li.title = groupName(g.name);
                 li.innerHTML = '<span class="icon"><img class="remix-icon" src="assets/remix/folder-fill.svg" alt=""></span>' +
                                '<span class="name">' + escapeHtml(groupName(g.name)) + '</span>' +
                                '<span class="meta">' + g.count + '</span>';
@@ -1242,6 +1246,7 @@
                 li.dataset.playlist = '1';
                 li.dataset.uri = e.uri;
                 li.dataset.channel = e.title;
+                li.title = e.title;
                 if (e.art) li.dataset.logo = e.art;
                 li.innerHTML = '<span class="icon channel-icon"><span class="glyph">' + FileTypes.icon(entryKind(e)) + '</span></span>' +
                                '<span class="name">' + escapeHtml(e.title) + '</span>' +
@@ -2014,6 +2019,12 @@
         'player-more': { level: 'more-level', title: 'more-level-title', options: 'more-level-options' },
         'track-menu':  { level: 'track-level', title: 'track-level-title', options: 'track-level-options' }
     };
+    function labelOption(li, text) {
+        var label = document.createElement('span');
+        label.className = 'option-label'; label.textContent = text;
+        li.appendChild(label); li.title = text;
+        return label;
+    }
     var cardLevel = null;   // { owner, returnEl }
 
     function setCardLevel(ownerId, open) {
@@ -2045,8 +2056,9 @@
         options.forEach(function (opt) {
             var li = document.createElement('li');
             li.tabIndex = 0;
-            li.textContent = opt.name;
-            li.title = opt.name;
+            labelOption(li, opt.name);
+            li.setAttribute('role', 'menuitemradio');
+            li.setAttribute('aria-checked', opt.code === currentValue ? 'true' : 'false');
             if (opt.code === currentValue) li.classList.add('active');
             li.addEventListener('click', function () {
                 // Choosing updates the parent card's value and stays put, so
@@ -2054,6 +2066,7 @@
                 if (onPick(opt.code) === false) return;
                 Array.prototype.forEach.call(ul.children, function (row) {
                     row.classList.toggle('active', row === li);
+                    row.setAttribute('aria-checked', row === li ? 'true' : 'false');
                 });
                 UI.focusOn(li);
             });
@@ -2460,7 +2473,7 @@
         options.forEach(function (opt) {
             var li = document.createElement('li');
             li.tabIndex = 0;
-            li.textContent = opt.name;
+            labelOption(li, opt.name);
             var choice = currentValue !== undefined && currentValue !== null;
             li.setAttribute('role', choice ? 'menuitemradio' : 'menuitem');
             if (choice) li.setAttribute('aria-checked', opt.code === currentValue ? 'true' : 'false');
@@ -2905,7 +2918,9 @@
             t.audio.forEach(function (tr) {
                 var li = document.createElement('li');
                 li.tabIndex = 0;
-                li.textContent = tr.name;
+                labelOption(li, tr.name);
+                li.setAttribute('role', 'menuitemradio');
+                li.setAttribute('aria-checked', tr.active ? 'true' : 'false');
                 li.setAttribute('aria-label', I18n.t('toast.audio', tr.name));
                 if (tr.active) li.classList.add('active');
                 li.addEventListener('click', function () {
@@ -2926,13 +2941,17 @@
         // Subtitle list always has at least the "Off" entry from getTracks()
         t.subtitle.forEach(function (tr) {
             var li = document.createElement('li');
-            li.textContent = tr.name;
+            var label = labelOption(li, tr.name);
+            if (!tr.muted) {
+                li.setAttribute('role', 'menuitemradio');
+                li.setAttribute('aria-checked', tr.active ? 'true' : 'false');
+            }
             li.setAttribute('aria-label', I18n.t('toast.subtitle', tr.name));
             if (tr.beyondAvplay && !tr.extractable) {
                 var warning = document.createElement('img');
                 warning.className = 'remix-icon track-warning';
                 warning.src = 'assets/remix/error-warning-line.svg'; warning.alt = '';
-                li.appendChild(warning);
+                label.appendChild(warning);
                 li.title = I18n.t('tracks.cantShow', tr.name);
                 li.setAttribute('aria-label', li.title);
             }

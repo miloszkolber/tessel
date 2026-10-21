@@ -191,7 +191,38 @@ test('the page title stays put; the row heading carries the trail', function () 
     assert.ok(read('js/smb.js').indexOf("setBrowsePage('network', crumbs)") >= 0, 'SMB names its surface');
     assert.ok(read('js/webdav.js').indexOf("setBrowsePage('network', crumbs)") >= 0, 'WebDAV names its surface');
     assert.ok(read('js/dlna.js').indexOf("setBrowsePage('network', crumbs)") >= 0, 'DLNA names its surface');
-    assert.ok(css().indexOf('.device-heading { display: block; }') >= 0, 'the heading shows on every browse page');
+    var heading = rule(css(), '.device-heading {', 240).split('}')[0];
+    assert.ok(heading.includes('display: block'), 'the heading shows on every browse page');
+    assert.ok(heading.includes('text-overflow: ellipsis'), 'a long trail cannot overflow the page');
+    assert.ok(app.includes('heading.title = heading.textContent'), 'the complete trail stays available');
+});
+
+test('playlist rows bound long names and reuse the Stream field geometry', function () {
+    var source = css();
+    var input = rule(source, '#view-url .url-input-wrap input, .playlist-filter input {', 500).split('}')[0];
+    assert.ok(input.includes('height: 78px') && input.includes('border: 2px solid var(--input-border)'), 'one field silhouette');
+    ['.browse-list {', '.playlist-filter {'].forEach(function (selector) {
+        assert.ok(rule(source, selector, 400).split('}')[0].includes('max-width: var(--form-width)'), 'list and filter follow the shared form column');
+    });
+    ['.browse-list:not(.grid) .name {', '.browse-list:not(.grid) .meta {'].forEach(function (selector) {
+        var row = rule(source, selector, 300).split('}')[0];
+        assert.ok(row.includes('min-width: 0') && row.includes('text-overflow: ellipsis'), 'long labels cannot widen the row');
+    });
+    assert.ok(read('index.html').includes('data-i18n-aria-label="playlist.filter"'), 'filter has a translated accessible name beyond its placeholder');
+});
+
+test('playback option rows share bounded multiline labels and announced selection', function () {
+    var source = css(), start = source.indexOf('#view-player .track-level li, #view-player .track-section li, .player-view #picker li {');
+    var labels = source.slice(start, source.indexOf('}', start));
+    assert.ok(labels.includes('white-space: normal'), 'long track and option labels can wrap');
+    var text = rule(source, '.option-label {', 400).split('}')[0];
+    assert.ok(text.includes('-webkit-line-clamp: 3') && text.includes('overflow: hidden'), 'the unpadded inner label owns the three-line clamp, avoiding partial-line bleed');
+    assert.ok(rule(source, '.track-level > h2, #view-player .track-menu > h2 {', 400).split('}')[0].includes('flex: 0 0 auto'), 'long lists cannot collapse the menu heading');
+    var html = read('index.html');
+    ['audio-tracks', 'subtitle-tracks', 'more-level-options', 'track-level-options'].forEach(function (id) {
+        assert.ok(html.includes('id="' + id + '" role="menu" aria-labelledby='), 'choice lists have an accessible name');
+    });
+    assert.ok(html.includes('id="toast" class="toast hidden" role="status"'), 'form feedback is announced without taking focus');
 });
 
 test('a toggle row paints itself as a switch', function () {

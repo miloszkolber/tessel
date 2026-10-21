@@ -248,14 +248,17 @@ var LibraryUI = (function () {
         d.root.classList.add('source-dialog');
         var again = el('button', 'btn ghost', t('dlna.searchAgain')); again.addEventListener('click', refresh); d.footer.appendChild(again);
         function refresh() {
-            var request = ++seq; d.body.innerHTML = ''; d.body.appendChild(el('p', 'muted', t('dlna.searching')));
+            var request = ++seq;
+            var message = el('p', 'muted', t('dlna.searching')); message.setAttribute('role', 'status');
+            d.body.innerHTML = ''; d.body.appendChild(message); d.focus();
             DLNA.discover(function (err, devices) {
                 if (request !== seq || !document.body.contains(d.root)) return;
                 d.body.innerHTML = '';
-                if (err || !devices.length) d.body.appendChild(el('p', 'muted', t('dlna.none')));
+                if (err || !devices.length) { message.textContent = t('dlna.none'); d.body.appendChild(message); }
                 devices.forEach(function (s) {
-                    var b = el('button', 'dialog-option', s.name); b.disabled = DLNA.servers().some(function (old) { return old.id === s.id; });
-                    if (b.disabled) b.textContent += ' — ' + t('network.added');
+                    var b = el('button', 'dialog-option'); b.disabled = DLNA.servers().some(function (old) { return old.id === s.id; });
+                    var name = s.name + (b.disabled ? ' — ' + t('network.added') : '');
+                    b.title = name; b.appendChild(el('span', 'option-label', name));
                     b.addEventListener('click', function () { DLNA.addServer(s); Dialog.close(false); sourceSaved('dlna', s.id); });
                     d.body.appendChild(b);
                 });

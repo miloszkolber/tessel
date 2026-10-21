@@ -23,7 +23,7 @@ function load(opts) {
     var sent = [];
     var registered = [];     // bodies posted to /api/dav
     var probes = [];
-    var picker = null, toasts = [];
+    var picker = null, toasts = [], focused;
     var inputs = {};
     ['name', 'url', 'user', 'pass'].forEach(function (k) { inputs['dav-' + k] = { value: '' }; });
     var handlers = {};
@@ -70,7 +70,7 @@ function load(opts) {
         SMB: { ensureService: function (cb) { sent.push('launch'); cb(null); } },
         Settings: { get: function (k) { return k === 'smartRouting' ? opts.smart !== false : false; } },
         Browser: { listRoots: function (cb) { cb(null, []); } },
-        UI: { toast: function (m) { toasts.push(m); }, focusOn: function () {} },
+        UI: { toast: function (m) { toasts.push(m); }, focusOn: function (el) { focused = el; } },
         localStorage: {
             getItem: function (k) { return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null; },
             setItem: function (k, v) { store[k] = String(v); }
@@ -88,6 +88,7 @@ function load(opts) {
     vm.runInContext(SRC + '\nvar W_ = WebDAV;', sandbox);
     return {
         W: sandbox.W_, store: store, sent: sent, toasts: toasts, known: known,
+        focused: function () { return Object.keys(inputs).filter(function (id) { return inputs[id] === focused; })[0]; },
         registered: registered, probes: probes,
         resolve: function (uri) {
             var out = null;
@@ -171,8 +172,13 @@ test('the same address and user twice is refused; a missing address is said so',
     t.pick('new');
     t.type({ url: '', user: '', pass: '' });
     t.save();
-    assert.strictEqual(t.toasts.pop(), 'Server address is missing');
+    assert.strictEqual(t.toasts.pop(), 'Enter an HTTP or HTTPS server address.');
+    assert.strictEqual(t.focused(), 'dav-url');
     assert.strictEqual(t.saved().length, 2);
+    t.type({ url: 'ftp://example.com/' }); t.save();
+    assert.strictEqual(t.toasts.pop(), 'Enter an HTTP or HTTPS server address.');
+    assert.strictEqual(t.focused(), 'dav-url');
+    assert.strictEqual(t.saved().length, 2, 'an unsupported scheme is not persisted');
 });
 
 test('removing the server asks first', function () {

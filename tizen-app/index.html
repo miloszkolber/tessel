@@ -166,7 +166,7 @@
     <div class="browse-path hidden" id="browse-path"></div>
     <!-- Only while a playlist is listed (issue #122). -->
     <div class="playlist-filter hidden" id="playlist-filter-wrap">
-        <input id="playlist-filter" type="text" data-i18n-placeholder="playlist.filter" placeholder="Filter channels…">
+        <input id="playlist-filter" type="text" data-i18n-placeholder="playlist.filter" data-i18n-aria-label="playlist.filter" aria-label="Filter channels…" placeholder="Filter channels…" aria-controls="browse-list">
     </div>
     <h2 class="row-heading device-heading" id="browse-heading" data-i18n="library.devices">Devices</h2>
     <ul    class="browse-list" id="browse-list"></ul>
@@ -251,7 +251,7 @@
         <!-- An option list opens as the next level of this card. -->
         <div class="track-level hidden" id="more-level">
             <h2 id="more-level-title"></h2>
-            <div class="track-menu-body"><ul id="more-level-options"></ul></div>
+            <div class="track-menu-body"><ul id="more-level-options" role="menu" aria-labelledby="more-level-title"></ul></div>
         </div>
     </div>
 
@@ -264,18 +264,18 @@
         <div class="track-menu-body" id="track-menu-body">
             <div class="track-section">
                 <h3 id="audio-tracks-title" data-i18n="tracks.audio">Audio</h3>
-                <ul id="audio-tracks"></ul>
+                <ul id="audio-tracks" role="menu" aria-labelledby="audio-tracks-title"></ul>
             </div>
             <div class="track-section">
                 <h3 id="subtitle-tracks-title" data-i18n="tracks.subtitle">Subtitle</h3>
-                <ul id="subtitle-tracks"></ul>
+                <ul id="subtitle-tracks" role="menu" aria-labelledby="subtitle-tracks-title"></ul>
             </div>
         </div>
         <!-- Sub-levels of this card: an option list, or the sync control. -->
         <div class="track-level hidden" id="track-level">
             <h2 id="track-level-title"></h2>
             <div class="track-menu-body">
-                <ul id="track-level-options"></ul>
+                <ul id="track-level-options" role="menu" aria-labelledby="track-level-title"></ul>
                 <div class="hidden" id="track-level-sync">
                     <button class="sync-control" data-step="sync" id="subtitle-sync-control">
                         <img src="assets/remix/subtract-line.svg" alt="">
@@ -340,7 +340,7 @@
 </div>
 
 <!-- ── Toast / status flash ──────────────────────────────────────────── -->
-<div id="toast" class="toast hidden"></div>
+<div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script src="js/debug.js"></script>
 <script src="js/remote.js"></script>

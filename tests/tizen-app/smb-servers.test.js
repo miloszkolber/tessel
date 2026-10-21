@@ -24,7 +24,7 @@ function load(opts) {
     var connected = [];        // server ids the fake service holds
     var sent = [];             // every request, for the assertions
     var picker = null;
-    var toasts = [];
+    var toasts = [], focused;
     var inputs = {};
     ['host', 'port', 'share', 'user', 'pass', 'domain'].forEach(function (k) { inputs['smb-' + k] = { value: '' }; });
     var handlers = {};
@@ -65,7 +65,7 @@ function load(opts) {
         Debug: { send: function () {}, net: function () {} },
         I18n: I18n,
         FileTypes: require('../../tizen-app/js/filetypes.js'),
-        UI: { toast: function (m) { toasts.push(m); }, focusOn: function () {} },
+        UI: { toast: function (m) { toasts.push(m); }, focusOn: function (el) { focused = el; } },
         Settings: { get: function (k) { return k === 'smartRouting' ? opts.smart !== false : false; } },
         localStorage: {
             getItem: function (k) { return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null; },
@@ -87,6 +87,7 @@ function load(opts) {
 
     return {
         SMB: SMB, store: store, sent: sent, toasts: toasts, connected: connected,
+        focused: function () { return Object.keys(inputs).filter(function (id) { return inputs[id] === focused; })[0]; },
         extra: function () { return JSON.parse(store.vlctv_smb_extra_v1 || '[]'); },
         first: function () { return JSON.parse(store.vlctv_smb_v1 || '{}'); },
         type: function (c) { for (var k in c) if (inputs['smb-' + k]) inputs['smb-' + k].value = String(c[k]); },
@@ -98,6 +99,16 @@ function load(opts) {
 
 // Objects made inside the vm context don't deepEqual ones made out here.
 function plain(x) { return JSON.parse(JSON.stringify(x)); }
+
+test('missing SMB fields return focus to the correction without changing saved sources', function () {
+    var t = load({ creds: NAS }); t.pick('new');
+    t.type({ host: '', share: '' }); t.save();
+    assert.strictEqual(t.focused(), 'smb-host');
+    t.type({ host: 'another-nas' }); t.save();
+    assert.strictEqual(t.focused(), 'smb-share');
+    assert.deepStrictEqual(t.first(), NAS);
+    assert.deepStrictEqual(t.extra(), []);
+});
 
 test('a single-server setup keeps the URLs it always had', function () {
     var t = load({ creds: NAS, paired: false });

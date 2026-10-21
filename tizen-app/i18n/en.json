@@ -147,6 +147,7 @@
   "smb.duplicate": "That share is already in the list",
   "dav.section": "Add WebDAV server",
   "dav.url": "Address (URL)",
+  "dav.addressInvalid": "Enter an HTTP or HTTPS server address.",
   "dav.name": "Name (optional)",
   "dav.insecure": "Accept a self-signed certificate",
   "dav.save": "Save WebDAV server",
