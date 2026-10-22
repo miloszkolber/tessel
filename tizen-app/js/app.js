@@ -379,8 +379,8 @@
         UI.showView('view-home');
         refreshHome();
         // Keep the queue's focus marker stable across card-to-card moves.
-        // Its clip uses :focus-within. Transport and cue clearance do not
-        // depend on this marker.
+        // Its clip uses :focus-within; the body marker lets the transport
+        // and cue reserve follow the open strip.
         var upNextBox = document.getElementById('up-next');
         if (upNextBox) {
             upNextBox.addEventListener('focusin', function () {

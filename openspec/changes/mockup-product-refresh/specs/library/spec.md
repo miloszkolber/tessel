@@ -70,17 +70,18 @@ Home, Stream, Network, USB device roots and playback queue cards SHALL share a 1
 - **AND** idle rows settle on whole-card boundaries
 
 ### Requirement: Complete playback queue
-The queue SHALL show full cards while it holds focus and a peek at the bottom of the OSD otherwise. The transport controls and timeline SHALL keep their place in both states by reserving the expanded queue height. Bottom-positioned subtitles SHALL retain clearance above that stationary timeline and the complete queue. Hiding the OSD SHALL NOT introduce a page scrollbar or shrink playback controls.
+The queue SHALL show full cards while it holds focus and a peek at the bottom of the OSD otherwise. The control bar SHALL reserve only the peek while the queue is closed and the full cards while it holds focus, so closing the queue frees the strip's unused height. Bottom-positioned subtitles SHALL follow that reserve and keep clearance above the current timeline and queue. Hiding the OSD SHALL NOT introduce a page scrollbar or shrink playback controls.
 
 #### Scenario: Return focus to transport
 - **WHEN** the viewer navigates from the queue to transport controls
-- **THEN** the transport controls stay where they were
+- **THEN** the strip collapses to its peek and the control bar reserves only that peek
+- **AND** the transport and timeline settle above the peek, freeing the height between the peek and the full strip
 - **AND** the queue shows the top of its cards rather than a cropped sliver of its titles
-- **AND** bottom subtitles remain clear of the timeline
+- **AND** bottom subtitles remain clear of the current timeline
 
 #### Scenario: Enter the queue
 - **WHEN** the viewer moves focus onto a queue card
-- **THEN** the strip grows to the full cards
+- **THEN** the strip grows to the full cards and the control bar makes room for it
 - **AND** the queue heading stays visible at the top of the strip
 
 #### Scenario: Identify the playing item

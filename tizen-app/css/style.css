@@ -701,9 +701,11 @@ body:not(.player-view) #subtitle-overlay { display: none; }
 /* Without the queue below (single file, audio) the transport can sit
  *  closer to the bottom edge. */
 body:not(.has-queue) .osd-bottom { padding-bottom: 24px; }
-/* Reserve the expanded strip even while it peeks, so navigation never
- * moves the timeline or the transport row. Only the queue's clip grows. */
-body.has-queue { --queue-reserve: var(--queue-open); }
+/* Reserve only the clipped peek while the queue is closed, then the full
+ * cards while it holds focus. The OSD (and the video behind it) gains the
+ * difference instead of leaving an empty band above the peek. */
+body.has-queue { --queue-reserve: var(--queue-peek); }
+body.has-queue.up-next-open { --queue-reserve: var(--queue-open); }
 body.player-view { --player-popup-bottom: calc(24px + var(--transport-height) + 16px); }
 body.has-queue.player-view { --player-popup-bottom: calc(48px + var(--queue-reserve) + var(--transport-height) + 16px); }
 body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-reserve)); }
@@ -795,7 +797,8 @@ body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-reserve)); 
  * card — thumbnail tiles sit directly on the OSD gradient, artwork on
  * top, title underneath, progress drawn over the picture.  The strip is
  * positioned out of the flow and clipped to a peek. The control bar
- * reserves the full height while the D-pad opens or leaves the strip. */
+ * reserves the peek while closed and the full height while the D-pad
+ * holds focus, so the strip's state sets the control-bar reserve. */
 .up-next {
     position: absolute; left: calc(var(--page-inset) - 4px); right: calc(var(--page-inset) - 4px); bottom: 12px;
     margin: 0; padding: 4px; text-align: left;
@@ -879,8 +882,13 @@ body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-reserve)); 
     .up-next { transition: none; }
 }
 .player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 260px; }
-/* Cue clearance follows the stationary queue transport, not queue focus. */
-body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: calc(var(--card-height) + 320px); }
+/* The cue clears the peeking strip while it watches; when focus opens the
+ * strip, it travels up with the controls and stays above the queue. The
+ * reserve and transport height keep the cue aligned with the OSD top at
+ * every viewport, without a second focus-state rule. */
+body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom {
+    bottom: calc(48px + var(--queue-reserve) + var(--transport-height) + 110px);
+}
 .more-option {
     display: flex; align-items: center;
     width: 100%; padding: 14px 18px;

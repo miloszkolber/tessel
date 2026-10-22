@@ -123,8 +123,9 @@ test('the queue is a peek until it holds focus', function () {
     assert.ok(up.indexOf('position: absolute') >= 0, 'out of the transport flow');
     assert.ok(up.indexOf('max-height: var(--queue-peek)') >= 0, 'peek by default');
     assert.ok(source.indexOf('.up-next:focus-within { max-height: var(--queue-open); }') >= 0, 'opens on focus');
-    assert.ok(source.includes('body.has-queue { --queue-reserve: var(--queue-open); }'), 'both states reserve the full strip so transport does not move');
-    assert.ok(!source.includes('body.has-queue.up-next-open { --queue-reserve:'), 'queue focus cannot change transport reservation');
+    assert.ok(source.includes('body.has-queue { --queue-reserve: var(--queue-peek); }'), 'the peek reserves only the clipped strip');
+    assert.ok(source.includes('body.has-queue.up-next-open { --queue-reserve: var(--queue-open); }'), 'focusing the strip reserves the full cards');
+    assert.ok(source.includes('bottom: calc(48px + var(--queue-reserve) + var(--transport-height) + 110px);'), 'the cue follows the queue and transport');
     assert.ok(source.includes('--queue-open: calc(var(--card-height) + 66px)'), 'large-viewport cards fit in the open queue');
     var special = source.indexOf('body.player-osd-visible .audio-card');
     assert.ok(special < 0, 'the album cover does not jump when the OSD fades in');
