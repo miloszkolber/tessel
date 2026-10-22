@@ -1693,6 +1693,28 @@ button.settings-row:focus, button.settings-row.focused {
     .ctrl.big img { width: 48px; height: 48px; }
     .time { font-size: 26px; }
     #osd-title { font-size: 34px; }
+    #view-player .track-menu { width: 675px; padding: 30px; }
+    .track-menu h2 { font-size: 30px; margin-bottom: 24px; }
+    .track-level > h2, #view-player .track-menu > h2 { font-size: 32px; margin-bottom: 20px; padding: 4px 22px; }
+    .track-section { margin-bottom: 30px; }
+    .track-section h3 { font-size: 18px; margin-bottom: 16px; }
+    #view-player .track-level li, #view-player .track-section li, .player-view #picker li {
+        min-height: 70px; padding: 16px 64px 16px 22px; font-size: 30px;
+    }
+    #view-player .more-option { min-height: 70px; padding: 16px 22px; font-size: 30px; }
+    .more-option .more-icon { width: 30px; height: 30px; margin-right: 18px; }
+    .more-option .more-value { margin-left: 30px; }
+    .more-option .chevron { width: 30px; height: 30px; margin-left: 20px; }
+    #view-player .track-level li.active::after,
+    #view-player .track-section li.active::after, .player-view #picker li.active::after {
+        right: 22px; width: 30px; height: 30px;
+    }
+    #view-player .sync-control { min-height: 70px; padding: 16px 22px; font-size: 30px; }
+    #view-player .sync-control img { width: 30px; height: 30px; }
+    #view-player .track-menu.file-info { width: 950px; padding: 40px; }
+    #view-player .track-menu.file-info > h2 { font-size: 32px; margin-bottom: 30px; }
+    #view-player .file-info dl { font-size: 30px; gap: 16px 50px; }
+    #view-player .file-info > .btn.ghost { margin-top: 30px; padding: 18px 22px; font-size: 30px; }
     .audio-card { width: 800px; }
     .audio-art, .audio-note { width: 400px; height: 400px; }
     .audio-title { font-size: 44px; }

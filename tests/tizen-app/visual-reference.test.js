@@ -225,6 +225,24 @@ test('playback option rows share bounded multiline labels and announced selectio
     assert.ok(html.includes('id="toast" class="toast hidden" role="status"'), 'form feedback is announced without taking focus');
 });
 
+test('playback popups follow the wide shell while reference menus keep their rhythm', function () {
+    var source = css();
+    var wide = source.slice(source.indexOf('@media (min-width: 2400px)'));
+    assert.ok(wide.indexOf('#view-player .track-menu { width: 675px; padding: 30px; }') >= 0, 'wide popup width');
+    var wideRowsAt = wide.indexOf('#view-player .track-level li, #view-player .track-section li, .player-view #picker li {');
+    assert.ok(wideRowsAt >= 0, 'wide popup row selector');
+    var wideRows = wide.slice(wideRowsAt, wide.indexOf('}', wideRowsAt));
+    assert.ok(wideRows.includes('min-height: 70px') && wideRows.includes('font-size: 30px'), 'wide popup rows');
+    assert.ok(wide.indexOf('#view-player .more-option { min-height: 70px; padding: 16px 22px; font-size: 30px; }') >= 0, 'wide More rows');
+    assert.ok(wide.indexOf('#view-player .sync-control { min-height: 70px; padding: 16px 22px; font-size: 30px; }') >= 0, 'wide sync control');
+    assert.ok(wide.indexOf('#view-player .track-menu.file-info { width: 950px; padding: 40px; }') >= 0, 'wide info panel');
+    assert.ok(wide.indexOf('#view-player .file-info dl { font-size: 30px; gap: 16px 50px; }') >= 0, 'wide info table');
+    var referenceRows = rule(source, '#view-player .track-section li, #view-player .more-option, .player-view #picker li,', 280).split('}')[0];
+    assert.ok(referenceRows.includes('min-height: 56px') && referenceRows.includes('font-size: 26px'), 'reference popup rows');
+    assert.ok(rule(source, '#view-player .track-menu {', 180).includes('width: 540px'), 'reference popup width');
+    assert.ok(rule(source, '.track-menu {', 300).includes('padding: 24px'), 'reference popup padding');
+});
+
 test('status feedback wraps long diagnostics and uses shared reduced-motion-aware entrance styling', function () {
     var source = css(), toast = rule(source, '.toast {', 800).split('}')[0];
     assert.ok(toast.includes('overflow-wrap: break-word') && toast.includes('word-break: break-word'), 'an unbroken host name cannot paint outside the notice');
