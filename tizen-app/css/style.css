@@ -168,13 +168,13 @@ input::selection { background: var(--focus-ring); color: var(--bg); }
 .dialog-footer > button.focused, .dialog-footer > button:focus { border-color: var(--focus-ring); background: var(--bg-card-h); box-shadow: 0 0 0 2px var(--focus-ring); }
 .dialog-footer > .primary:focus, .dialog-footer > .primary.focused,
 .dialog-footer > .settings-row:focus, .dialog-footer > .settings-row.focused { background: var(--focus-ring); color: #151515; box-shadow: 0 0 0 3px rgba(244,244,244,.4); }
-.dialog-body input, .dialog-body .settings-row-input input { width: 100%; min-height: 64px; padding: 14px 18px; background: var(--bg); border: 2px solid var(--surface-border); border-radius: 8px; color: white; font: inherit; font-size: 22px; }
+.dialog-body input, .dialog-body .settings-row-input input { width: 100%; min-height: 64px; padding: 14px 18px; background: var(--bg-card-h); border: 2px solid var(--input-border); border-radius: 8px; color: var(--fg); font: inherit; font-size: 22px; }
 .dialog-option { min-height: 78px; flex-shrink: 0; padding: 18px 24px; font-size: 24px; line-height: 1.35; text-align: start; overflow-wrap: break-word; word-break: break-word; border: 2px solid var(--surface-border); border-radius: 8px; background: var(--bg-card); }
 .dialog-option:disabled { opacity: .45; }
 .dialog-option.focused, .dialog-body input.focused, .dialog-body .settings-row.focused { outline: none; border-color: var(--focus-ring); background: var(--bg-card-h); }
 .dialog-body .settings-group { margin: 0; }
 .dialog-body .settings-row-input { display: flex; flex-direction: column; align-items: stretch; padding: 0; border: none; background: none; gap: 10px; margin-bottom: 20px; }
-.dialog-body .settings-row-input input { max-width: none; text-align: start; }
+.dialog-body .settings-row-input input { max-width: none; text-align: start; scroll-margin-top: 44px; }
 .dialog-body .settings-row { font-size: 24px; }
 .source-dialog .dialog-card { height: auto; max-height: calc(100vh - 80px); }
 .source-dialog.discovery-dialog .dialog-card { height: 600px; }
@@ -1574,6 +1574,7 @@ button.settings-row:focus, button.settings-row.focused {
     width: 600px; max-width: calc(100% - 130px);
 }
 .audio-card.is-loading { visibility: hidden; }
+.audio-details { width: 100%; min-width: 0; }
 .audio-card:not(.hidden):not(.is-loading) { animation: view-enter var(--motion) var(--ease); }
 .audio-note {
     display: flex; align-items: center; justify-content: center;
@@ -1683,6 +1684,24 @@ button.settings-row:focus, button.settings-row.focused {
     .up-next-thumb { margin-bottom: 8px; }
     .up-next-glyph { flex-shrink: 0; width: 40px; height: 40px; margin-bottom: 8px; }
     .up-next-glyph .remix-icon { width: 24px; height: 24px; }
+}
+/* Short frames trade header whitespace for content. Audio cannot stack a
+ * cover and metadata above a queue, so use one stable artwork/details row. */
+@media (max-height: 900px) {
+    .page-heading { margin-top: 16px; margin-bottom: 32px; }
+    .audio-card {
+        --audio-cover-size: calc(100vh - var(--queue-open) - var(--transport-height) - 210px);
+        top: calc((100vh - var(--queue-open) - var(--transport-height) - 50px) / 2);
+        width: 800px; flex-direction: row; gap: 32px; text-align: start;
+    }
+    .audio-art, .audio-note {
+        flex: 0 0 auto; width: var(--audio-cover-size); height: var(--audio-cover-size);
+        max-width: 216px; max-height: 216px; margin: 0;
+    }
+    .audio-note .remix-icon { width: 64px; height: 64px; }
+    .audio-details { flex: 1 1 auto; }
+    .audio-title { font-size: 30px; }
+    .audio-sub { margin-top: 10px; font-size: 22px; }
 }
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

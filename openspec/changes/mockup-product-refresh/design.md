@@ -40,6 +40,10 @@ Connect configured SMB and WebDAV sessions independently with bounded timeouts. 
 
 ## Consolidated visual evidence
 
+Task 31 extends the review to compact landscape. At heights up to 900px, audio uses a shared artwork/details row sized against the expanded queue reserve, even during single-item playback or hidden OSD. Cover and fallback share dimensions. Above that breakpoint the existing centred column remains. Short page headings reduce vertical margins rather than changing the reference-size typography or horizontal insets. Dialog fields now use the common input fill/border tokens, and labelled source fields keep 44px of scroll margin above the input so its label remains visible when focused.
+
+The 1280×720 before image showed the timeline crossing the cover and transport obscuring metadata. After correction, the 216px cover and metadata occupy y=87.15625–303.15625 with 31.171875px clearance to the visible timeline. At 1920×720 clearance is 24.015625px. Native Down plus focus changes preserve identical album/timeline bounds through queue peek/open/return. At 1920×1080 the original y=217.390625–603.390625 album and approximately 19px clearance remain unchanged. Geometry was also checked at 1920×900, 1153×1297 and 3029×1704. Rendered fallback/long-title probes at compact size remain bounded and ellipsised. These are DOM fixtures, not decoded metadata failures. Short Settings and SMB forms were inspected before/after, including focused Share with its label retained after scrolling. Physical input/TV acceptance remains open.
+
 Task 30 uses the production interface in MCP Chromium through `demo.html`, at 100% zoom in the monochrome theme. Reference, compact and wide CSS viewports are 1920×1080, 1153×1297 and 3029×1704. Short-height stress uses 1920×600. Tasks 27–29 retain preceding rendered comparisons. Screenshots were inspected during review, not committed as baselines. This is acceptance of the listed browser conditions, not whole-product or physical-TV acceptance.
 
 | Active library requirement | Evidence and result | Limit |

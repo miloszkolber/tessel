@@ -98,6 +98,13 @@ Playback menus and pickers SHALL use opaque shared surfaces so video, subtitles 
 - **AND** opening a nested level preserves that anchor and a visible focus ring on the selected option
 
 ### Requirement: Stable page rhythm
+Short landscape layouts SHALL retain readable audio metadata without overlap with the timeline, transport or queue. They MAY place artwork beside metadata while taller layouts retain the centred column. Artwork and fallback geometry SHALL agree, and OSD/queue focus changes SHALL NOT move the audio presentation. Short-screen headings MAY reduce their vertical margins while retaining shared type and horizontal insets.
+
+#### Scenario: Audio queue in a 720px-high landscape frame
+- **WHEN** audio playback presents a queue at 1280×720 or 1920×720
+- **THEN** cover and metadata remain above the visible timeline with positive clearance
+- **AND** moving focus into and out of the queue does not move the audio presentation
+
 A section that has no items SHALL keep its place on the page and name its empty state instead of disappearing. The music card SHALL sit still on the screen's centre line.
 
 #### Scenario: Empty library section

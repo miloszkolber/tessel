@@ -14,6 +14,11 @@
 
 ## Product screens
 
+- [x] 31. Continue visual-first review at compact landscape sizes. Repair audio/queue collisions, rebalance short-screen page rhythm and unify dialog input surfaces. Recheck tall layouts, fallback art, long metadata, focus scrolling and transitions before the software gate.
+- Rendered comparisons in MCP Chromium exposed audio queue controls covering metadata at 1280×720. Audio now switches to a shared artwork/details row at short heights, reserving the same region for fallback, loaded art, single playback and queue playback. Compact cover/metadata retain 31px timeline clearance at 1280×720 and 24px at 1920×720. Peek/open/return keep identical album and visible timeline bounds. Tall reference geometry remains unchanged. Additional geometry checks cover 1920×900, 1153×1297 and 3029×1704. Temporary long-metadata/fallback DOM probes stay bounded. Existing entrance fades remain intact.
+- Short Home, Settings and Network comparisons confirm the reduced heading margins expose more useful content without changing the reference-size layout. SMB form inputs now share Stream's surface tokens. Focused Share retains its label above the input after scrolling via shared scroll margin. No new control variant or dependency was introduced. Evidence and limitations are retained in `design.md`. Decoder cleanup returns IDLE, playback flags clear and the saved simulator playback keys are restored.
+- Gate after rendered inspection: all 346 existing tests pass without removal or new source-string tests. Unsigned packaging, strict OpenSpec validation (3/3) and whitespace checks pass. This completes the compact-landscape slice, not whole-product or physical-TV acceptance.
+
 - [x] 7. Implement Home pins for roots, folders, network sources and URLs, with unavailable-source indicators.
 - [x] 8. Persist unfinished queues and aggregate Home recommendations across all sources, deduplicated and capped at ten, removable via context menu.
 - [x] 9. Rebuild Stream saved/recent cards, automatic names, rename/manage/pin menus and QR listening modal with cancellation.
