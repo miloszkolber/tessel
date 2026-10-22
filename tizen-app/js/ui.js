@@ -139,6 +139,14 @@ var UI = (function () {
         ev.target.classList.add('focused');
     });
 
+    // Reflow can strand the current row beyond a bounded menu's viewport.
+    // Preserve the cursor and reveal it immediately rather than refocusing.
+    if (window.addEventListener) window.addEventListener('resize', function () {
+        var el = document.activeElement;
+        if (!el || !el.classList.contains('focused') || el.offsetParent === null) return;
+        try { el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' }); } catch (e) {}
+    });
+
     /* Geometric next-element search by direction.  Returns true if focus
      * moved geometrically, false otherwise.
      *

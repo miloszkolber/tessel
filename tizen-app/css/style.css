@@ -537,7 +537,10 @@ input::selection { background: var(--focus-ring); color: var(--bg); }
 }
 .browse-list li.watched-item .name { color: var(--fg-soft); }
 /* Playlist filter (issue #122), above the list. */
-.playlist-filter { flex: 0 0 auto; width: 100%; max-width: var(--form-width); margin-bottom: 24px; }
+.playlist-filter { position: relative; flex: 0 0 auto; width: 100%; max-width: var(--form-width); margin-bottom: 24px; }
+.playlist-count { position: absolute; right: 24px; top: 50%; transform: translateY(-50%); max-width: 180px; color: var(--fg-soft); font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+#playlist-filter { padding-inline-end: 220px; }
+[dir="rtl"] .playlist-count { right: auto; left: 24px; }
 .playlist-filter input {
     width: 100%;
     font-family: inherit;
@@ -546,7 +549,7 @@ input::selection { background: var(--focus-ring); color: var(--bg); }
 .playlist-filter input::placeholder { color: var(--fg-dim); }
 /* Channel logos (issue #123): a fixed box so rows don't shift when one
  * arrives; the plain icon shows until it has loaded. */
-.browse-list .channel-icon { width: 64px; flex: 0 0 64px; height: 40px; display: flex; align-items: center; justify-content: center; }
+.browse-list:not(.grid) .icon { width: 64px; flex: 0 0 64px; height: 40px; display: flex; align-items: center; justify-content: center; }
 .browse-list .channel-icon > img { display: none; max-width: 64px; max-height: 40px; object-fit: contain; }
 .browse-list .channel-icon.has-logo > img { display: block; }
 .browse-list .channel-icon.has-logo .glyph { display: none; }
@@ -1089,11 +1092,16 @@ body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: cal
     padding: 0;
     margin: 0;
 }
-/* The scrollbar is decoration on a TV — nobody drags it — but a visible
- * track is the only cue that there's more list below. */
-.track-menu-body::-webkit-scrollbar { width: 8px; }
-.track-menu-body::-webkit-scrollbar-thumb {
-    background: var(--bg-3);
+/* Bounded vertical lists share a quiet but legible position/overflow cue.
+ * Horizontal card strips and the Settings page keep their existing treatment. */
+.track-menu-body, .dialog-body, .picker ul, .browse-list:not(.grid) {
+    scrollbar-width: thin; scrollbar-color: var(--fg-dim) transparent;
+}
+.track-menu-body::-webkit-scrollbar, .dialog-body::-webkit-scrollbar,
+.picker ul::-webkit-scrollbar, .browse-list:not(.grid)::-webkit-scrollbar { width: 8px; }
+.track-menu-body::-webkit-scrollbar-thumb, .dialog-body::-webkit-scrollbar-thumb,
+.picker ul::-webkit-scrollbar-thumb, .browse-list:not(.grid)::-webkit-scrollbar-thumb {
+    background: var(--fg-dim);
     border-radius: 4px;
 }
 .track-menu h2 {
@@ -1620,7 +1628,8 @@ button.settings-row:focus, button.settings-row.focused {
 .view:not(.hidden):not(#view-player) > :not(.hint) { animation: view-enter var(--motion) var(--ease); }
 .dialog-scrim { animation: view-enter var(--motion) var(--ease); }
 .picker:not(.hidden), .track-menu:not(.hidden), .toast:not(.hidden) { animation: view-enter var(--motion) var(--ease); }
-.track-level:not(.hidden) { animation: view-enter var(--motion) var(--ease); }
+.track-level:not(.hidden), .track-menu > .track-menu-body:not(.hidden),
+.track-menu > h2:not(.hidden) { animation: view-enter var(--motion) var(--ease); }
 .spinner:not(.hidden), .error-overlay:not(.hidden) > * { animation: view-enter var(--motion) var(--ease); }
 .dialog-card { animation: dialog-enter var(--motion) var(--ease); }
 @keyframes view-enter { from { opacity: 0; } to { opacity: 1; } }
@@ -1689,6 +1698,13 @@ button.settings-row:focus, button.settings-row.focused {
  * cover and metadata above a queue, so use one stable artwork/details row. */
 @media (max-height: 900px) {
     .page-heading { margin-top: 16px; margin-bottom: 32px; }
+    .browse-list:not(.grid) li { min-height: 64px; padding: 12px 24px; font-size: 20px; }
+    .browse-list:not(.grid) .icon { width: 56px; flex: 0 0 56px; height: 36px; }
+    .browse-list:not(.grid) .channel-icon > img { max-width: 56px; max-height: 36px; }
+    #view-player .track-menu, .player-view #picker { padding: 18px; }
+    #view-player .track-section li, #view-player .more-option, .player-view #picker li,
+    #view-player .track-level li { min-height: 50px; padding-top: 12px; padding-bottom: 12px; font-size: 22px; }
+    .track-level > h2, #view-player .track-menu > h2 { font-size: 22px; margin-bottom: 12px; }
     .audio-card {
         --audio-cover-size: calc(100vh - var(--queue-open) - var(--transport-height) - 210px);
         top: calc((100vh - var(--queue-open) - var(--transport-height) - 50px) / 2);

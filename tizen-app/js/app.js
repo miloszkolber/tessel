@@ -1213,6 +1213,13 @@
         var groups = Playlist.groups(pv.entries);
         var grouped = groups.length > 1;
         var query = foldText(pv.filter || '');
+        var items = !query && grouped && pv.group === null ? pv.entries : pv.entries.filter(function (e) {
+            if (query) return foldText(e.title).indexOf(query) >= 0 ||
+                (grouped && foldText(groupName(e.group)).indexOf(query) >= 0);
+            return !grouped || pv.group === null || (e.group || '') === pv.group;
+        });
+        var countLabel = document.getElementById('playlist-count');
+        if (countLabel) countLabel.textContent = I18n.t('playlist.resultCount', items.length, pv.entries.length);
         if (!keepFocus) { UI.showView('view-browse'); state.view = 'browse'; state.browseAtRoot = false; }
         var crumbs = (pv.baseCrumbs || []).concat([pv.src.title]);
         if (!query && grouped && pv.group !== null) crumbs.push(groupName(pv.group));
@@ -1244,11 +1251,6 @@
                 : grouped
                 ? function () { var was = pv.group; pv.group = null; renderPlaylist('group:' + was); }
                 : pv.src.back;
-            var items = pv.entries.filter(function (e) {
-                if (query) return foldText(e.title).indexOf(query) >= 0 ||
-                                  (grouped && foldText(groupName(e.group)).indexOf(query) >= 0);
-                return !grouped || (e.group || '') === pv.group;
-            });
             // What the keyboard really typed, for a layout that doesn't find
             // what it should (Cyrillic was reported, issue #126).
             if (query && typeof Debug !== 'undefined')

@@ -59,7 +59,7 @@ test('video preview retains multiple audio tracks, subtitles and video metadata'
 });
 
 test('laid-out descendants of an exiting OSD are excluded from remote focus', function () {
-    var focused = null, focusOptions, scrollOptions;
+    var focused = null, focusOptions, scrollOptions, resize;
     function element(hidden) {
         return {
             tagName: 'BUTTON', offsetParent: {},
@@ -71,7 +71,7 @@ test('laid-out descendants of an exiting OSD are excluded from remote focus', fu
     var hidden = element(true), visible = element(false);
     var view = element(false);
     view.querySelectorAll = function (selector) { return selector === '[data-focus]' ? [] : [hidden, visible]; };
-    var context = { window: { matchMedia: function () { return { matches: true }; } }, document: {
+    var context = { window: { matchMedia: function () { return { matches: true }; }, addEventListener: function (type, fn) { if (type === 'resize') resize = fn; } }, document: {
         activeElement: null,
         body: { classList: { toggle: function () {} } },
         getElementById: function (id) { return id === 'view-player' ? view : null; },
@@ -84,6 +84,13 @@ test('laid-out descendants of an exiting OSD are excluded from remote focus', fu
     assert.equal(focusOptions.preventScroll, true, 'native focus must not jump before smooth scrolling');
     assert.equal(scrollOptions.inline, 'nearest');
     assert.equal(scrollOptions.behavior, 'auto', 'reduced motion also disables smooth focus scrolling');
+    context.document.activeElement = visible;
+    visible.classList.contains = function (name) { return name === 'focused'; };
+    focused = null; scrollOptions = null; resize();
+    assert.equal(focused, null, 'resize reveals without refocusing');
+    assert.equal(scrollOptions.behavior, 'auto');
+    visible.offsetParent = null; scrollOptions = null; resize();
+    assert.equal(scrollOptions, null, 'resize cannot reveal a hidden control');
 });
 
 test('stopping playback clears the OSD and queue layout state before returning to the library', function () {

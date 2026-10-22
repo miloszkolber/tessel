@@ -98,6 +98,17 @@ Playback menus and pickers SHALL use opaque shared surfaces so video, subtitles 
 - **AND** opening a nested level preserves that anchor and a visible focus ring on the selected option
 
 ### Requirement: Stable page rhythm
+Playlist groups and channels SHALL share an icon slot and title alignment. Compact landscape lists and playback menus SHALL use restrained density without shrinking their focused hit regions below 50px. Playlist filtering SHALL expose a live visible result count, including empty results, without adding a second filtering pass. Reflow SHALL reveal the current visible focused control without changing focus ownership.
+
+#### Scenario: Filter a large playlist
+- **WHEN** a viewer filters channels across groups
+- **THEN** a visible live status reports the number of matches relative to the full playlist
+- **AND** playing a match and returning retains the filter, result count and originating channel focus
+
+#### Scenario: Resize a focused playback menu
+- **WHEN** viewport reflow moves the focused option outside its scrolling body
+- **THEN** the shared focus manager immediately reveals that option without refocusing it
+
 Short landscape layouts SHALL retain readable audio metadata without overlap with the timeline, transport or queue. They MAY place artwork beside metadata while taller layouts retain the centred column. Artwork and fallback geometry SHALL agree, and OSD/queue focus changes SHALL NOT move the audio presentation. Short-screen headings MAY reduce their vertical margins while retaining shared type and horizontal insets.
 
 #### Scenario: Audio queue in a 720px-high landscape frame
