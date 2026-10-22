@@ -378,10 +378,9 @@
 
         UI.showView('view-home');
         refreshHome();
-        // While an Up Next card holds focus the strip stands tall, so cues
-        // lift above it too (see the up-next-open subtitle rule).  focusout
-        // fires before the incoming focus lands, hence the relatedTarget
-        // guard so card-to-card moves don't flicker the lift.
+        // Keep the queue's focus marker stable across card-to-card moves.
+        // Its clip uses :focus-within. Transport and cue clearance do not
+        // depend on this marker.
         var upNextBox = document.getElementById('up-next');
         if (upNextBox) {
             upNextBox.addEventListener('focusin', function () {
@@ -675,7 +674,23 @@
     }
 
     /* ── File browser ─────────────────────────────────────────────── */
-    function openBrowserAtRoot() {
+    function storageStatus(ul, message, iconName) {
+        var li = document.createElement('li'); li.setAttribute('role', 'button');
+        var icon = document.createElement('span'); icon.className = 'icon';
+        icon.innerHTML = '<img class="remix-icon" src="assets/remix/' + iconName + '.svg" alt="">';
+        var name = document.createElement('span'); name.className = 'name'; name.textContent = message;
+        var action = document.createElement('span'); action.className = 'meta'; action.textContent = I18n.t('browse.refresh');
+        li.appendChild(icon); li.appendChild(name); li.appendChild(action);
+        li.addEventListener('click', function () {
+            if (li.getAttribute('aria-busy') === 'true') return;
+            li.setAttribute('aria-busy', 'true'); action.textContent = I18n.t('common.loading');
+            openBrowserAtRoot(true);
+        });
+        ul.appendChild(li);
+        ul.classList.add('empty-devices'); UI.refreshFocusables(); UI.focusOn(li);
+    }
+    function openBrowserAtRoot(refresh) {
+        var preserveEmpty = refresh === true && state.view === 'browse' && state.browseAtRoot;
         releaseBrowsers();
         var seq = ++browseSequence;
         state.browseAtRoot = true;
@@ -686,6 +701,10 @@
         setBrowseGrid(true);
         document.getElementById('browse-list').classList.add('device-roots');
         document.getElementById('view-browse').classList.add('storage-root');
+        if (preserveEmpty) {
+            document.getElementById('view-browse').classList.add('empty-storage');
+            document.getElementById('browse-list').classList.add('empty-devices');
+        }
         document.getElementById('browse-path').textContent = '/';
 
         Browser.listRoots(function (err, roots) {
@@ -693,20 +712,17 @@
             document.getElementById('view-browse').classList.toggle('empty-storage', !!err || !roots.length);
             var ul = document.getElementById('browse-list');
             ul.innerHTML = '';
+            ul.classList.remove('empty-devices');
             /* The carousel is drawn from the drive that is attached right now,
              * so it goes up before the two "nothing to show" cases — with no
              * drive it hides itself rather than keeping the last listing's
              * cards on screen. */
             if (err) {
-                ul.innerHTML = '<li><span class="icon"><img class="remix-icon" src="assets/remix/error-warning-line.svg" alt=""></span><span class="name">' +
-                               err.message + '</span></li>';
-                ul.classList.add('empty-devices'); UI.refreshFocusables(); UI.focusOn(ul.firstElementChild);
+                storageStatus(ul, err.message || String(err), 'error-warning-line');
                 return;
             }
             if (!roots.length) {
-                ul.innerHTML = '<li><span class="icon"><img class="remix-icon" src="assets/remix/information-fill.svg" alt=""></span>'
-                             + '<span class="name">' + escapeHtml(I18n.t('browse.noStorage')) + '</span></li>';
-                ul.classList.add('empty-devices'); UI.refreshFocusables(); UI.focusOn(ul.firstElementChild);
+                storageStatus(ul, I18n.t('browse.noStorage'), 'information-fill');
                 return;
             }
             roots.forEach(function (r, i) {

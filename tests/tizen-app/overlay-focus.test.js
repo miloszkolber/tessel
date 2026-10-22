@@ -284,13 +284,38 @@ test('DLNA discovery keeps focus while pending and ignores replies after cancell
     assert.equal(h.document.activeElement.textContent, 'dlna.searchAgain', 'pending discovery must not leave native focus on the body');
     var root = h.document.getElementById('library-modal'), body = root.children[0].children[1];
     assert.equal(body.children[0].getAttribute('role'), 'status');
+    assert.equal(body.getAttribute('aria-busy'), 'true');
+    assert.equal(body.children[0].children[0].getAttribute('aria-hidden'), 'true');
     pending(null, [{ id: 'one', name: 'A long source name' }]);
+    assert.equal(body.getAttribute('aria-busy'), 'false');
     assert.equal(h.document.activeElement.title, 'A long source name');
     assert.equal(h.document.activeElement.children[0].className, 'option-label');
     context.Dialog.close();
     pending(null, [{ id: 'late', name: 'Late server' }]);
     assert.equal(h.document.getElementById('library-modal'), null);
     assert.equal(h.document.activeElement, h.origin, 'late discovery cannot replace focus restored after cancellation');
+});
+
+test('storage recovery renders literal errors and suppresses repeated refresh activation', function () {
+    var h = harness(false), context = h.context, calls = 0;
+    context.I18n = { t: function (key) { return key; } };
+    context.UI.refreshFocusables = function () {};
+    context.UI.focusOn = function (node) { node.focus(); };
+    context.openBrowserAtRoot = function (refresh) { assert.equal(refresh, true); calls++; };
+    var source = read('js/app.js'), start = source.indexOf('    function storageStatus('), end = source.indexOf('    function openBrowserAtRoot(', start);
+    vm.runInContext(source.slice(start, end), context);
+    var list = h.document.body.appendChild(h.document.createElement('ul'));
+    context.storageStatus(list, 'Cannot read <USB drive>', 'error-warning-line');
+    var tile = list.children[0];
+    assert.equal(tile.children[1].textContent, 'Cannot read <USB drive>');
+    assert.equal(tile.children[1].children.length, 0, 'error detail never becomes markup');
+    assert.equal(tile.getAttribute('role'), 'button');
+    assert.equal(h.document.activeElement, tile);
+    tile.click(); tile.click();
+    assert.equal(calls, 1);
+    assert.equal(tile.getAttribute('aria-busy'), 'true');
+    assert.equal(tile.children[2].textContent, 'common.loading');
+    assert.equal(h.document.activeElement, tile);
 });
 
 test('closing an SMB source form invalidates share discovery before returning its reusable fields', function () {

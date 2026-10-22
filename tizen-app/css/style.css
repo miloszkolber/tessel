@@ -177,6 +177,8 @@ input::selection { background: var(--focus-ring); color: var(--bg); }
 .dialog-body .settings-row-input input { max-width: none; text-align: start; }
 .dialog-body .settings-row { font-size: 24px; }
 .source-dialog .dialog-card { height: auto; max-height: calc(100vh - 80px); }
+.source-dialog.discovery-dialog .dialog-card { height: 600px; }
+.dialog-body > .status-line { margin: 0; min-height: 78px; flex: 0 0 auto; }
 .source-dialog .settings-row { min-height: 56px; font-size: 24px; }
 .source-dialog .settings-row-input .settings-label { font-size: 22px; line-height: 1.3; margin: 0; }
 .source-dialog .dialog-footer .settings-label { font-size: inherit; font-weight: inherit; }
@@ -188,8 +190,9 @@ input::selection { background: var(--focus-ring); color: var(--bg); }
 .receive-qr img { width: 320px; max-width: 100%; height: auto; border-radius: 12px; }
 .receive-address { overflow-wrap: anywhere; font-family: monospace; font-size: 20px; }
 /* The waiting line carries a small ring, like the reference receipt dialog. */
-.receive-state { display: inline-flex; align-items: center; gap: 14px; margin-top: 32px; }
-.receive-state .spinner-ring { width: 32px; height: 32px; border-width: 3px; margin: 0; }
+.status-line { display: inline-flex; align-items: center; gap: 14px; }
+.status-line .spinner-ring { flex: 0 0 32px; width: 32px; height: 32px; border-width: 3px; margin: 0; }
+.receive-state { margin-top: 32px; }
 .muted { color: #aaa; font-size: 22px; }
 .info-panel { background: var(--bg-card); border: 2px solid var(--surface-border); border-radius: 12px; padding: 28px; margin-bottom: 32px; }
 .info-panel.focused { outline: none; border-color: var(--focus-ring); }
@@ -215,6 +218,8 @@ input::selection { background: var(--focus-ring); color: var(--bg); }
 .shortcut-row .card-title { max-width: 100%; }
 .browse-list.grid.device-roots.empty-devices { justify-content: center; padding-top: 100px; }
 .browse-list.grid.device-roots.empty-devices li { width: 600px; flex-basis: 600px; max-width: 100%; height: auto; border: none; text-align: center; background: transparent; }
+.browse-list.grid.device-roots.empty-devices .name { white-space: normal; overflow-wrap: break-word; word-break: break-word; }
+.browse-list.grid.device-roots.empty-devices .meta { display: block; position: static; margin: 12px 0 0; font-size: var(--card-meta-size); line-height: 1.4; color: var(--fg-soft); }
 .browse-list.grid.device-roots.empty-devices li.focused { outline: none; }
 .empty-storage .browse-actions, .empty-storage #hint-fav, .empty-storage #hint-save { display: none !important; }
 .storage-root .browse-media-action { display: none; }
@@ -689,12 +694,9 @@ body:not(.player-view) #subtitle-overlay { display: none; }
 /* Without the queue below (single file, audio) the transport can sit
  *  closer to the bottom edge. */
 body:not(.has-queue) .osd-bottom { padding-bottom: 24px; }
-/* The queue strip is out of the flow.  While it only peeks the cards' tops
- * the control bar stays compact; when the D-pad moves into the strip it
- * grows to the full cards and the bar keeps that height until focus leaves
- * it (body.up-next-open is toggled on the strip's focusin/out). */
-body.has-queue { --queue-reserve: var(--queue-peek); }
-body.has-queue.up-next-open { --queue-reserve: var(--queue-open); }
+/* Reserve the expanded strip even while it peeks, so navigation never
+ * moves the timeline or the transport row. Only the queue's clip grows. */
+body.has-queue { --queue-reserve: var(--queue-open); }
 body.player-view { --player-popup-bottom: calc(24px + var(--transport-height) + 16px); }
 body.has-queue.player-view { --player-popup-bottom: calc(48px + var(--queue-reserve) + var(--transport-height) + 16px); }
 body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-reserve)); }
@@ -786,7 +788,7 @@ body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-reserve)); 
  * card — thumbnail tiles sit directly on the OSD gradient, artwork on
  * top, title underneath, progress drawn over the picture.  The strip is
  * positioned out of the flow and clipped to a peek. The control bar
- * reserves the matching height as the D-pad opens or leaves the strip. */
+ * reserves the full height while the D-pad opens or leaves the strip. */
 .up-next {
     position: absolute; left: calc(var(--page-inset) - 4px); right: calc(var(--page-inset) - 4px); bottom: 12px;
     margin: 0; padding: 4px; text-align: left;
@@ -870,11 +872,8 @@ body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-reserve)); 
     .up-next { transition: none; }
 }
 .player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 260px; }
-/* The queue adds the strip's height under the transport.  The cue clears
- * the peeking strip while it watches; when focus opens the strip the cue
- * moves a card-height higher with it. */
-body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: calc(var(--card-height) + 215px); }
-body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: calc(var(--card-height) + 320px); }
+/* Cue clearance follows the stationary queue transport, not queue focus. */
+body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: calc(var(--card-height) + 320px); }
 .more-option {
     display: flex; align-items: center;
     width: 100%; padding: 14px 18px;
@@ -1184,19 +1183,17 @@ body.has-queue.up-next-open.player-osd-visible #subtitle-overlay.sub-pos-bottom 
  * carry a scrim and the key chips sit 50px above the bottom edge. */
 .hint {
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;
-    display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; column-gap: 24px; row-gap: 8px;
     margin: 0 !important;
     padding: 50px 64px 50px 0;
     font-size: 20px; line-height: 28px; color: var(--fg-mute);
     text-align: end; pointer-events: none;
     background: linear-gradient(to bottom, rgba(10,10,10,0), rgba(10,10,10,1));
 }
-.hint span { margin: 0 24px 0 0; }
-.hint span:last-child { margin-right: 0; }
-.hint .browse-actions { display: inline-flex; align-items: center; }
+.hint-action { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; }
 .key {
     display: inline-flex; align-items: center; justify-content: center; gap: 2px;
-    height: 28px; padding: 0 10px; margin: 0 10px 0 0;
+    height: 28px; padding: 0 10px;
     background: rgba(255,255,255,.078);
     border-radius: 4px;
     font-family: 'Consolas', monospace;
@@ -1394,7 +1391,7 @@ button.settings-row:focus, button.settings-row.focused {
     padding: 8px 0;
     font-size: 20px;
 }
-.tvinfo .codec .name { flex: 0 0 220px; color: var(--fg-soft); }
+.tvinfo .codec .name { flex: 0 0 220px; max-width: 55%; padding-inline-end: 12px; color: var(--fg-soft); }
 .tvinfo .codec .status { display: inline-flex; align-items: center; gap: 8px; }
 .tvinfo .codec .status .remix-icon { width: 20px; height: 20px; }
 .tvinfo .codec .status.ok    { color: #58a770; }
@@ -1603,9 +1600,20 @@ button.settings-row:focus, button.settings-row.focused {
 /* Shared motion avoids different timing on cards, forms and remote focus. */
 .media-card, #view-home .tile, .browse-list li, .btn, .ctrl, .preset,
 .dialog-option, .dialog-body input, .settings-row, .info-panel, .more-option,
-#up-next-list button {
+.picker li, .track-level li, .track-section li, #up-next-list button {
     transition: background-color var(--motion) var(--ease), border-color var(--motion) var(--ease),
         color var(--motion) var(--ease), box-shadow var(--motion) var(--ease), transform var(--motion) var(--ease);
+}
+/* Pointer feedback stays quieter than the remote's hard focus ring. */
+@media (hover: hover) {
+    .media-card:hover:not(.focused):not(:focus), .tile:hover:not(.focused):not(:focus),
+    .browse-list li:hover:not(.focused):not(:focus), #up-next-list button:hover:not(.focused):not(:focus),
+    .dialog-option:hover:not(:disabled):not(.focused):not(:focus), .more-option:hover:not(.focused):not(:focus),
+    .picker li:hover:not(.focused):not(:focus), .track-level li:hover:not(.focused):not(:focus),
+    .track-section li:hover:not(.focused):not(:focus) {
+        background-color: var(--bg-card-h); border-color: var(--input-border);
+    }
+    .ctrl:hover:not(.focused):not(:focus):not(.disabled) { background-color: var(--accent-soft); border-color: var(--focus-ring); }
 }
 /* Keep the view's opaque backdrop intact above the native video plane. */
 .view:not(.hidden):not(#view-player) > :not(.hint) { animation: view-enter var(--motion) var(--ease); }
@@ -1638,6 +1646,8 @@ button.settings-row:focus, button.settings-row.focused {
 }
 /* Keep five columns at the portrait review size without oversized contents. */
 @media (max-width: 1400px) {
+    .hint { font-size: 18px; column-gap: 16px; }
+    .hint-action { gap: 8px; }
     .page-heading h1 { font-size: 40px; }
     .page-heading p { font-size: 22px; }
     .library-row { margin-bottom: 36px; }
@@ -1664,6 +1674,7 @@ button.settings-row:focus, button.settings-row.focused {
     .browse-list.grid .icon .remix-icon { width: 24px; height: 24px; }
     .browse-list.grid .name { margin-top: 4px; margin-bottom: 0; }
     .browse-list.grid .meta { display: none; }
+    .browse-list.grid.device-roots.empty-devices .meta { font-size: 14px; }
     #view-home .tile-icon .remix-icon { width: 24px; height: 24px; }
     .missing-source, .browse-list.grid li.is-fav .fav-mark, .browse-list.grid li.watched-item .watched { width: 28px; height: 28px; top: 6px; right: 6px; padding: 0; }
     .missing-source .remix-icon, .browse-list.grid li.is-fav .fav-mark .remix-icon, .browse-list.grid li.watched-item .watched .remix-icon { width: 18px; height: 18px; }

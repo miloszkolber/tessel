@@ -45,6 +45,12 @@ Network SHALL display separately configured SMB, WebDAV and DLNA source cards pl
 - **THEN** only that device appears as a configured card
 - **AND** subsequent connections target that device ID
 
+#### Scenario: Discovery results arrive
+- **WHEN** a source search changes from pending to empty or populated results
+- **THEN** the discovery panel and its refresh action retain their positions
+- **AND** the pending state uses the shared inline activity ring
+- **AND** long results scroll within the bounded panel
+
 ### Requirement: Settings capability reporting
 Settings SHALL show compact switches for casting and logging, with the corresponding URL toasted when enabled. Device information, browser codec probes and protocol notes SHALL be separated. Protocol notes SHALL not assert hardware acceptance from browser hints or simulator behavior.
 
@@ -64,7 +70,7 @@ Home, Stream, Network, USB device roots and playback queue cards SHALL share a 1
 - **AND** idle rows settle on whole-card boundaries
 
 ### Requirement: Complete playback queue
-The queue SHALL remain fully visible whenever the OSD is visible and it holds focus, including when focus returns to transport controls. While the queue does not hold focus it SHALL show a peek of the cards at the bottom of the OSD, and the transport controls SHALL keep their place in both states. Bottom-positioned subtitles SHALL remain above the timeline and complete queue. Hiding the OSD SHALL NOT introduce a page scrollbar or shrink playback controls.
+The queue SHALL show full cards while it holds focus and a peek at the bottom of the OSD otherwise. The transport controls and timeline SHALL keep their place in both states by reserving the expanded queue height. Bottom-positioned subtitles SHALL retain clearance above that stationary timeline and the complete queue. Hiding the OSD SHALL NOT introduce a page scrollbar or shrink playback controls.
 
 #### Scenario: Return focus to transport
 - **WHEN** the viewer navigates from the queue to transport controls
@@ -139,8 +145,13 @@ Library surfaces SHALL use the reference outline and fill values. Content cards,
 - **THEN** it shows a 2px light outline and a lighter fill
 - **AND** its height and neighbours' positions do not change
 
+#### Scenario: Pointer over a content card
+- **WHEN** a pointer hovers a card or choice without moving remote focus
+- **THEN** the hovered surface shows restrained fill and border feedback without scaling
+- **AND** the remotely focused card retains the stronger hard ring
+
 ### Requirement: Page field, footer strip and modal
-Library pages SHALL paint the baked halftone field over the #0A0A0A page colour without a live blended layer. The fixed remote-hint footer SHALL fade the page into a 128px scrim and place 28px key chips 50px above the bottom edge. Modals SHALL be 678px wide with a 16px radius over a 50% scrim, and source dialogs SHALL keep their action at the bottom of the panel.
+Library pages SHALL paint the baked halftone field over the #0A0A0A page colour without a live blended layer. At reference scale, the fixed remote-hint footer SHALL fade the page into a 128px scrim and place 28px key chips 50px above the bottom edge. Key-and-label pairs SHALL stay together when hints wrap. Modals SHALL be 678px wide with a 16px radius over a 50% scrim, and source dialogs SHALL keep their action at the bottom of the panel.
 
 #### Scenario: Footer over the page field
 - **WHEN** a library page is shown
@@ -151,6 +162,15 @@ Library pages SHALL paint the baked halftone field over the #0A0A0A page colour 
 - **WHEN** a source configuration dialog opens
 - **THEN** the panel keeps its action button at the bottom
 - **AND** the list of discovered sources stays at the top
+
+### Requirement: Storage recovery
+An empty or failed USB root listing SHALL offer an actionable refresh tile. Refresh SHALL keep its status geometry and visible focus while pending, suppress duplicate activation and replace the status with current roots when available. Error messages SHALL render as text rather than markup.
+
+#### Scenario: Refresh after connecting a drive
+- **GIVEN** the USB root listing shows no accessible storage
+- **WHEN** the viewer activates Refresh devices and a drive is found
+- **THEN** the current root listing replaces the empty state
+- **AND** focus selects the discovered drive
 
 ### Requirement: One icon disc
 Every glyph that stands for a card, a source or a file SHALL use the shared responsive disc scale, and a focused card SHALL invert it. The reference disc is 80px at 1920px viewport width, grows to 112px at widths of at least 2400px and uses the compact 40px scale at widths of at most 1400px. Poster art replaces the disc when a file carries artwork.

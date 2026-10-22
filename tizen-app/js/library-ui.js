@@ -259,13 +259,18 @@ var LibraryUI = (function () {
         var seq = 0;
         var d = Dialog.open(t('network.addDlna'), { back: addSource, dispose: function () { seq++; } });
         d.root.classList.add('source-dialog');
+        d.root.classList.add('discovery-dialog');
         var again = el('button', 'btn ghost', t('dlna.searchAgain')); again.addEventListener('click', refresh); d.footer.appendChild(again);
         function refresh() {
             var request = ++seq;
-            var message = el('p', 'muted', t('dlna.searching')); message.setAttribute('role', 'status');
+            var message = el('p', 'muted status-line'); message.setAttribute('role', 'status');
+            var ring = el('span', 'spinner-ring'); ring.setAttribute('aria-hidden', 'true');
+            message.appendChild(ring); message.appendChild(el('span', '', t('dlna.searching')));
+            d.body.setAttribute('aria-busy', 'true');
             d.body.innerHTML = ''; d.body.appendChild(message); d.focus();
             DLNA.discover(function (err, devices) {
                 if (request !== seq || !document.body.contains(d.root)) return;
+                d.body.setAttribute('aria-busy', 'false');
                 d.body.innerHTML = '';
                 if (err || !devices.length) { message.textContent = t('dlna.none'); d.body.appendChild(message); }
                 devices.forEach(function (s) {
@@ -323,7 +328,7 @@ var LibraryUI = (function () {
         d.body.classList.add('receive-body');
         d.body.parentNode.classList.add('receive-card');
         var qr = el('div', 'receive-qr'), address = el('p', 'receive-address', t('common.loading'));
-        var stateLine = el('div', 'receive-state'), ring = el('span', 'spinner-ring'), state = el('span', 'muted', t('cast.waiting'));
+        var stateLine = el('div', 'receive-state status-line'), ring = el('span', 'spinner-ring'), state = el('span', 'muted', t('cast.waiting'));
         stateLine.appendChild(ring); stateLine.appendChild(state);
         var heading = d.body.parentNode.querySelector('h2');
         d.body.appendChild(qr); d.body.appendChild(heading); d.body.appendChild(el('p', 'muted', t('cast.scan'))); d.body.appendChild(address); d.body.appendChild(stateLine); d.focus();

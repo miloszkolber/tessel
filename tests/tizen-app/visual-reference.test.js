@@ -88,7 +88,7 @@ test('dialogs use the reference 678px modal', function () {
 test('the receipt dialog waits with a ring, like the reference', function () {
     var source = read('js/library-ui.js');
     assert.ok(source.indexOf("el('span', 'spinner-ring')") >= 0, 'waiting ring');
-    assert.ok(css().indexOf('.receive-state .spinner-ring') >= 0, 'ring styling');
+    assert.ok(css().indexOf('.status-line .spinner-ring') >= 0, 'receipt and discovery share inline ring styling');
 });
 
 test('the receipt dialog carries no simulator form', function () {
@@ -121,10 +121,8 @@ test('the queue is a peek until it holds focus', function () {
     assert.ok(up.indexOf('position: absolute') >= 0, 'out of the transport flow');
     assert.ok(up.indexOf('max-height: var(--queue-peek)') >= 0, 'peek by default');
     assert.ok(source.indexOf('.up-next:focus-within { max-height: var(--queue-open); }') >= 0, 'opens on focus');
-    /* The control bar shrinks to the peek; opening the strip is the only
-     * time the bar grows to the full card height. */
-    assert.ok(source.indexOf('body.has-queue { --queue-reserve: var(--queue-peek); }') >= 0, 'the peek reserves only the peek');
-    assert.ok(source.indexOf('body.has-queue.up-next-open { --queue-reserve: var(--queue-open); }') >= 0, 'opening the strip reserves the cards');
+    assert.ok(source.includes('body.has-queue { --queue-reserve: var(--queue-open); }'), 'both states reserve the full strip so transport does not move');
+    assert.ok(!source.includes('body.has-queue.up-next-open { --queue-reserve:'), 'queue focus cannot change transport reservation');
     assert.ok(source.includes('--queue-open: calc(var(--card-height) + 66px)'), 'large-viewport cards fit in the open queue');
     var special = source.indexOf('body.player-osd-visible .audio-card');
     assert.ok(special < 0, 'the album cover does not jump when the OSD fades in');
