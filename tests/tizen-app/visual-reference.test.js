@@ -80,7 +80,9 @@ test('the page heading uses the reference type scale', function () {
 
 test('dialogs use the reference 678px modal', function () {
     var dialog = rule(css(), '.dialog-card {', 400);
-    assert.ok(dialog.indexOf('width: 678px') >= 0, 'modal width');
+    assert.ok(css().includes('--dialog-width: 678px'), 'reference modal width');
+    assert.ok(dialog.includes('width: var(--dialog-width)'), 'shared responsive modal width');
+    assert.ok(css().includes('--dialog-width: 840px'), 'wide modal scale');
     assert.ok(dialog.indexOf('border-radius: 16px') >= 0, 'modal radius');
     assert.ok(rule(css(), '.dialog-scrim {').indexOf('rgba(0,0,0,.5)') >= 0, 'scrim opacity');
 });
@@ -154,7 +156,7 @@ test('one button component, not a pill with a scale', function () {
 test('the picker is a modal whose action stays at the bottom', function () {
     var source = css();
     var picker = rule(source, '.picker {', 700);
-    assert.ok(picker.indexOf('width: 678px') >= 0, 'the reference modal width');
+    assert.ok(picker.includes('width: var(--dialog-width)'), 'picker shares the reference modal width token');
     assert.ok(picker.indexOf('border: 2px solid var(--surface-border)') >= 0, 'the surface outline');
     assert.ok(picker.indexOf('display: flex; flex-direction: column') >= 0, 'the panel is a column');
     assert.ok(rule(source, '.picker ul {', 300).indexOf('overflow-y: auto') >= 0, 'the list scrolls');
@@ -299,8 +301,10 @@ test('source forms size to content and use one label/input scale', function () {
     var source = css();
     assert.ok(rule(source, '.source-dialog .dialog-card {', 200).includes('height: auto'), 'no fixed-height empty form body');
     assert.ok(rule(source, '.dialog-body > .settings-group {', 100).includes('flex: 0 0 auto'), 'long forms scroll rather than compress');
-    assert.ok(rule(source, '.source-dialog .settings-row-input .settings-label', 200).includes('font-size: 22px'), 'label matches input');
-    assert.ok(rule(source, '.dialog-body input, .dialog-body .settings-row-input input', 400).split('}')[0].includes('font-size: 22px'), 'one input scale for source and management forms');
+    assert.ok(source.includes('--dialog-field-size: 22px'), 'reference field scale');
+    assert.ok(source.includes('--dialog-field-height: 64px'), 'reference field height');
+    assert.ok(rule(source, '.source-dialog .settings-row-input .settings-label', 200).includes('font-size: var(--dialog-field-size)'), 'label matches input');
+    assert.ok(rule(source, '.dialog-body input, .dialog-body .settings-row-input input', 500).split('}')[0].includes('font-size: var(--dialog-field-size)'), 'one input scale for source and management forms');
     assert.ok(!source.includes('.settings-row:hover {\n'), 'field labels do not inherit button hover');
     assert.ok(rule(source, '.dialog-footer > button.primary,', 300).split('}')[0].includes('font-weight: 400'), 'actions use regular weight even when they share the primary button class');
     var primaryFocus = rule(source, '.dialog-footer > .primary:focus', 400).split('}')[0];

@@ -48,6 +48,9 @@
     --card-meta-size: 18px;
     --card-inset: 18px;
     --transport-height: 96px;
+    --dialog-width: 678px;
+    --dialog-field-size: 22px;
+    --dialog-field-height: 64px;
     --motion: 240ms;
     --ease: cubic-bezier(.22, .61, .36, 1);
 }
@@ -152,7 +155,7 @@ input::selection { background: var(--focus-ring); color: var(--bg); }
 #view-url .actions > .primary .remix-icon { filter: none; }
 #view-url .saved-streams { width: 100%; max-width: none; }
 .dialog-scrim { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; padding: 40px; }
-.dialog-card { width: 678px; max-width: 100%; max-height: calc(100vh - 80px); display: flex; flex-direction: column;
+.dialog-card { width: var(--dialog-width); max-width: 100%; max-height: calc(100vh - 80px); display: flex; flex-direction: column;
     background: var(--bg-card); border: 2px solid var(--surface-border); border-radius: 16px; padding: 32px; text-align: start;
 }
 .dialog-card, .picker, .track-menu { box-shadow: 0 24px 64px rgba(0,0,0,.6); }
@@ -163,12 +166,12 @@ input::selection { background: var(--focus-ring); color: var(--bg); }
 .dialog-body > .settings-group { flex: 0 0 auto; }
 .dialog-footer { display: flex; flex: 0 0 auto; gap: 16px; margin-top: 24px; }
 .dialog-footer:empty { display: none; }
-.dialog-footer > button, .dialog-footer > button.settings-row { width: 100%; min-height: 64px; margin: 0; padding: 14px 24px; border: 2px solid var(--surface-border); border-radius: 8px; font-size: 22px; }
+.dialog-footer > button, .dialog-footer > button.settings-row { width: 100%; min-height: var(--dialog-field-height); margin: 0; padding: 14px 24px; border: 2px solid var(--surface-border); border-radius: 8px; font-size: var(--dialog-field-size); }
 .dialog-footer > button.primary, .dialog-footer > button.settings-row { justify-content: center; text-align: center; background: var(--focus-ring); color: #151515; font-weight: 400; }
 .dialog-footer > button.focused, .dialog-footer > button:focus { border-color: var(--focus-ring); background: var(--bg-card-h); box-shadow: 0 0 0 2px var(--focus-ring); }
 .dialog-footer > .primary:focus, .dialog-footer > .primary.focused,
 .dialog-footer > .settings-row:focus, .dialog-footer > .settings-row.focused { background: var(--focus-ring); color: #151515; box-shadow: 0 0 0 3px rgba(244,244,244,.4); }
-.dialog-body input, .dialog-body .settings-row-input input { width: 100%; min-height: 64px; padding: 14px 18px; background: var(--bg-card-h); border: 2px solid var(--input-border); border-radius: 8px; color: var(--fg); font: inherit; font-size: 22px; }
+.dialog-body input, .dialog-body .settings-row-input input { width: 100%; min-height: var(--dialog-field-height); padding: 14px 18px; background: var(--bg-card-h); border: 2px solid var(--input-border); border-radius: 8px; color: var(--fg); font: inherit; font-size: var(--dialog-field-size); }
 .dialog-option { min-height: 78px; flex-shrink: 0; padding: 18px 24px; font-size: 24px; line-height: 1.35; text-align: start; overflow-wrap: break-word; word-break: break-word; border: 2px solid var(--surface-border); border-radius: 8px; background: var(--bg-card); }
 .dialog-option:disabled { opacity: .45; }
 .dialog-option.focused, .dialog-body input.focused, .dialog-body .settings-row.focused { outline: none; border-color: var(--focus-ring); background: var(--bg-card-h); }
@@ -179,8 +182,9 @@ input::selection { background: var(--focus-ring); color: var(--bg); }
 .source-dialog .dialog-card { height: auto; max-height: calc(100vh - 80px); }
 .source-dialog.discovery-dialog .dialog-card { height: 600px; }
 .dialog-body > .status-line { margin: 0; min-height: 78px; flex: 0 0 auto; }
+.dialog-scrim .muted { font-size: var(--dialog-field-size); }
 .source-dialog .settings-row { min-height: 56px; font-size: 24px; }
-.source-dialog .settings-row-input .settings-label { font-size: 22px; line-height: 1.3; margin: 0; }
+.source-dialog .settings-row-input .settings-label { font-size: var(--dialog-field-size); line-height: 1.3; margin: 0; }
 .source-dialog .dialog-footer .settings-label { font-size: inherit; font-weight: inherit; }
 .receive-body { align-items: center; text-align: center; }
 .receive-card { padding: 48px; }
@@ -1010,14 +1014,14 @@ body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: cal
     pointer-events: auto;
 }
 .spinner-ring {
-    width: 80px; height: 80px;
+    width: var(--card-disc-size); height: var(--card-disc-size);
     border: 6px solid rgba(255,255,255,.15);
     border-top-color: var(--accent);
     border-radius: 50%;
     margin: 0 auto 24px;
     animation: spin 1s linear infinite;
 }
-.spinner-text { font-size: 24px; color: var(--fg-mute); }
+.spinner-text { font-size: var(--card-label-size); color: var(--fg-mute); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Error overlay ────────────────────────────────────────────────── */
@@ -1039,14 +1043,14 @@ body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: cal
 
 /* The error surface uses the same monochrome contrast as playback controls. */
 .error-icon {
-    width: 80px; height: 80px;
+    width: var(--card-disc-size); height: var(--card-disc-size);
     border-radius: 50%;
     background: #212121;
     color: var(--accent);
     display: flex; align-items: center; justify-content: center;
     line-height: 1;
 }
-.error-icon .remix-icon { width: 38px; height: 38px; }
+.error-icon .remix-icon { width: var(--card-glyph-size); height: var(--card-glyph-size); }
 .error-title {
     font-size: 32px;
     font-weight: 600;
@@ -1054,7 +1058,7 @@ body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: cal
     max-width: 1200px;
     width: 100%; overflow-wrap: break-word; word-break: break-word;
 }
-.error-message { font-size: 24px; line-height: 1.4; color: var(--fg-soft); width: 100%; max-width: 960px; overflow-wrap: break-word; word-break: break-word; }
+.error-message { font-size: var(--card-label-size); line-height: 1.4; color: var(--fg-soft); width: 100%; max-width: 960px; overflow-wrap: break-word; word-break: break-word; }
 .error-hint:empty { display: none; }
 .error-overlay .btn { margin-top: 32px; font-weight: 500; }
 .error-hint {
@@ -1413,7 +1417,7 @@ button.settings-row:focus, button.settings-row.focused {
     position: fixed;
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
-    width: 678px; max-width: 90%;
+    width: var(--dialog-width); max-width: 90%;
     max-height: 80vh;
     display: flex; flex-direction: column;
     overflow: hidden;
@@ -1637,9 +1641,49 @@ button.settings-row:focus, button.settings-row.focused {
 
 /* Broad cards need proportionate contents, not an oversized empty picture. */
 @media (min-width: 2400px) {
-    :root { --card-disc-size: 112px; --card-glyph-size: 52px; --card-label-size: 30px; --card-meta-size: 22px; --card-inset: 24px; --transport-height: 120px; }
+    :root { --card-disc-size: 112px; --card-glyph-size: 52px; --card-label-size: 30px; --card-meta-size: 22px; --card-inset: 24px; --transport-height: 120px;
+        --dialog-width: 840px; --dialog-field-size: 26px; --dialog-field-height: 78px; }
+    .dialog-card { padding: 40px; }
+    .dialog-card h2 { font-size: 34px; margin-bottom: 48px; }
+    .dialog-option { min-height: 88px; font-size: 26px; }
+    .dialog-body .settings-row, .source-dialog .settings-row { font-size: 26px; }
+    .dialog-body .settings-row .settings-label { font-size: var(--dialog-field-size); }
+    .dialog-body .settings-row-input input { scroll-margin-top: 48px; }
+    #view-settings .settings-row { min-height: 98px; padding: 0 32px; margin-bottom: 16px; }
+    #view-settings .settings-label, #view-settings .settings-value { font-size: 30px; }
+    #view-settings .settings-switch { width: 76px; height: 44px; }
+    #view-settings .settings-switch::after { width: 34px; height: 34px; top: 5px; inset-inline-start: 5px; }
+    #view-settings .settings-switch.on::after { inset-inline-start: 37px; }
+    #view-settings .settings-group { margin-bottom: 16px; }
+    #view-settings .tvinfo { margin-top: 64px; padding: 32px; font-size: 25px; }
+    #view-settings .tvinfo h3 { font-size: 30px; margin-bottom: 16px; }
+    #view-settings .tvinfo .row { padding: 10px 0; }
+    #view-settings .tvinfo .k { flex-basis: 400px; }
+    #view-settings .tvinfo .codec { padding: 10px 0; font-size: 25px; }
+    #view-settings .tvinfo .codec .name { flex-basis: 275px; }
+    #view-settings .tvinfo .codec .status .remix-icon { width: 25px; height: 25px; }
+    .picker.anchored { width: 675px; padding: 30px 30px 22px; }
+    .picker.anchored h2 { font-size: 34px; margin-bottom: 16px; }
+    .picker.anchored li { min-height: 98px; padding: 18px 30px; font-size: 30px; }
+    .picker.anchored li.active::before { width: 30px; height: 30px; flex-basis: 30px; margin-right: 10px; }
+    .source-dialog.discovery-dialog .dialog-card { height: 740px; }
+    .receive-card { padding: 56px; }
+    .receive-body > h2 { margin: 20px 0 0; font-size: 38px; }
+    .receive-address { font-size: 24px; }
+    .receive-qr img { width: 384px; }
+    .status-line .spinner-ring { flex-basis: 40px; width: 40px; height: 40px; border-width: 4px; }
+    .spinner { min-width: 300px; padding: 32px; }
+    .spinner > .spinner-ring { border-width: 8px; }
+    .error-title { font-size: 44px; }
+    .error-message, .error-hint { max-width: 1280px; }
+    .error-hint { font-size: 24px; }
+    .error-overlay .btn { min-height: var(--dialog-field-height); font-size: var(--dialog-field-size); }
     .page-heading h1 { font-size: 64px; }
     .page-heading p { font-size: 32px; }
+    .hint { font-size: 25px; line-height: 35px; column-gap: 30px; }
+    .hint-action { gap: 12px; }
+    .key { height: 35px; padding: 0 13px; font-size: 20px; }
+    .key .remix-icon { width: 18px; height: 18px; }
     .library-row h2, .row-heading, .up-next-title { font-size: 26px; line-height: 34px; }
     #view-url .url-input-wrap input, .playlist-filter input { height: 88px; font-size: 26px; }
     #view-url .actions > button { min-height: 74px; font-size: 26px; }

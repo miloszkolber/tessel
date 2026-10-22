@@ -169,7 +169,7 @@ Library surfaces SHALL use the reference outline and fill values. Content cards,
 - **AND** the remotely focused card retains the stronger hard ring
 
 ### Requirement: Page field, footer strip and modal
-Library pages SHALL paint the baked halftone field over the #0A0A0A page colour without a live blended layer. At reference scale, the fixed remote-hint footer SHALL fade the page into a 128px scrim and place 28px key chips 50px above the bottom edge. Key-and-label pairs SHALL stay together when hints wrap. Modals SHALL be 678px wide with a 16px radius over a 50% scrim, and source dialogs SHALL keep their action at the bottom of the panel.
+Library pages SHALL paint the baked halftone field over the #0A0A0A page colour without a live blended layer. At reference scale, the fixed remote-hint footer SHALL fade the page into a 128px scrim and place 28px key chips 50px above the bottom edge. Key-and-label pairs SHALL stay together when hints wrap. Modals SHALL be 678px wide at reference scale with a 16px radius over a 50% scrim, and source dialogs SHALL keep their action at the bottom of the panel.
 
 #### Scenario: Footer over the page field
 - **WHEN** a library page is shown
@@ -180,6 +180,20 @@ Library pages SHALL paint the baked halftone field over the #0A0A0A page colour 
 - **WHEN** a source configuration dialog opens
 - **THEN** the panel keeps its action button at the bottom
 - **AND** the list of discovered sources stays at the top
+
+### Requirement: Shared wide scale
+Wide viewports SHALL apply shared proportional modal, field, action, settings and status scales rather than per-form or per-page variants, without losing viewport bounds or moving discovery actions when results arrive.
+
+#### Scenario: Wide source and management dialogs
+- **WHEN** source or management dialogs render at widths of at least 2400px
+- **THEN** shared panels measure 840px with 78px fields/actions and 26px field/action text
+- **AND** reference and compact viewports retain their existing 678px panels and 64px controls
+
+#### Scenario: Wide settings and remote hints
+- **WHEN** Settings and its fixed remote hints render at widths of at least 2400px
+- **THEN** rows measure 98px with 30px labels and 76×44 switches, and info rows and remote hints grow with them
+- **AND** anchored option panels measure 675px with 34px titles and 98px rows using 30px text
+- **AND** widths below 2400px retain the reference row, switch, info, hint and picker sizes
 
 ### Requirement: Storage recovery
 An empty or failed USB root listing SHALL offer an actionable refresh tile. Refresh SHALL keep its status geometry and visible focus while pending, suppress duplicate activation and replace the status with current roots when available. Error messages SHALL render as text rather than markup.
