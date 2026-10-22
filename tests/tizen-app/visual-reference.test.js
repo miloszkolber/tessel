@@ -225,6 +225,21 @@ test('playback option rows share bounded multiline labels and announced selectio
     assert.ok(html.includes('id="toast" class="toast hidden" role="status"'), 'form feedback is announced without taking focus');
 });
 
+test('wide row lists and transient notices keep the shell type scale', function () {
+    var source = css();
+    var wide = source.slice(source.indexOf('@media (min-width: 2400px)'));
+    var rowAt = wide.indexOf('.browse-list:not(.grid) li {');
+    assert.ok(rowAt >= 0, 'wide list row rule');
+    var row = wide.slice(rowAt, wide.indexOf('}', rowAt));
+    assert.ok(row.includes('font-size: 30px') && row.includes('padding: 24px 40px'), 'wide list rows');
+    assert.ok(wide.indexOf('.browse-list:not(.grid) .icon { width: 80px; flex-basis: 80px; height: 50px; font-size: 26px; }') >= 0, 'wide list icon slot');
+    assert.ok(wide.indexOf('.browse-list:not(.grid) .meta { font-size: 24px; max-width: 40%; }') >= 0, 'wide list metadata');
+    assert.ok(wide.indexOf('.playlist-count { max-width: 240px; font-size: 20px; }') >= 0, 'wide live count');
+    assert.ok(wide.indexOf('.toast { padding: 22px 35px; font-size: 25px; }') >= 0, 'wide transient notice');
+    assert.ok(rule(source, '.browse-list li {', 400).split('}')[0].includes('font-size: 22px'), 'reference row type');
+    assert.ok(rule(source, '.toast {', 700).split('}')[0].includes('font-size: 20px'), 'reference notice type');
+});
+
 test('playback popups follow the wide shell while reference menus keep their rhythm', function () {
     var source = css();
     var wide = source.slice(source.indexOf('@media (min-width: 2400px)'));

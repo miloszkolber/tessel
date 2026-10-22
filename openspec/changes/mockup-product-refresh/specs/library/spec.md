@@ -182,7 +182,7 @@ Library pages SHALL paint the baked halftone field over the #0A0A0A page colour 
 - **AND** the list of discovered sources stays at the top
 
 ### Requirement: Shared wide scale
-Wide viewports SHALL apply shared proportional modal, field, action, settings, playback-overlay and status scales rather than per-form or per-page variants, without losing viewport bounds or moving discovery actions when results arrive.
+Wide viewports SHALL apply shared proportional modal, field, action, settings, browse-row, playback-overlay and status scales rather than per-form or per-page variants, without losing viewport bounds or moving discovery actions when results arrive.
 
 #### Scenario: Wide source and management dialogs
 - **WHEN** source or management dialogs render at widths of at least 2400px
@@ -200,6 +200,11 @@ Wide viewports SHALL apply shared proportional modal, field, action, settings, p
 - **THEN** More and track panels measure 675px with 32px headings and 70px rows using 30px text
 - **AND** File info measures 950px with 30px table text and retains its close action
 - **AND** reference and short-frame playback retain 540px panels and their existing row heights
+
+#### Scenario: Wide browse rows and notices
+- **WHEN** non-grid browse lists, playlist counts or notices render at widths of at least 2400px
+- **THEN** rows use 30px names with 80×50 icon slots and 24px metadata, counts use 20px and notices use 25px
+- **AND** reference and short-frame lists retain their existing row type and count sizes
 
 ### Requirement: Storage recovery
 An empty or failed USB root listing SHALL offer an actionable refresh tile. Refresh SHALL keep its status geometry and visible focus while pending, suppress duplicate activation and replace the status with current roots when available. Error messages SHALL render as text rather than markup.
