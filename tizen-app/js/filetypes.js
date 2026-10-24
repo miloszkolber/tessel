@@ -33,6 +33,17 @@ var FileTypes = (function () {
     /* 'video' | 'audio' | 'image' | 'text' | 'playlist' | 'other' */
     function kind(name) { return byExt[ext(name)] || 'other'; }
 
+    /* A user-facing title: a known media extension and the underscores that
+     * often stand in for spaces leave the display, while the raw file name
+     * stays available to the browser, decoder and diagnostics. */
+    function displayName(name) {
+        var original = String(name == null ? '' : name).trim();
+        var type = ext(original);
+        var clean = byExt[type] ? original.slice(0, original.length - type.length - 1) : original;
+        clean = clean.replace(/_+/g, ' ').trim();
+        return clean || original;
+    }
+
     /* Goes to the player, and so into the folder's next / prev list. */
     function isPlayable(name) {
         var k = kind(name);
@@ -78,7 +89,7 @@ var FileTypes = (function () {
         return '<img class="remix-icon" src="assets/remix/' + name + '.svg" alt="">';
     }
 
-    return { ext: ext, kind: kind, isPlayable: isPlayable, folderArt: folderArt, icon: icon,
+    return { ext: ext, kind: kind, displayName: displayName, isPlayable: isPlayable, folderArt: folderArt, icon: icon,
         subtitleMatches: subtitleMatches, subtitleLanguage: subtitleLanguage };
 })();
 

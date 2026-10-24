@@ -8,6 +8,7 @@
 var UI = (function () {
     var currentView = null;
     var viewRevision = 0;
+    var settledTimer = 0;
     var focusable = [];
     var focusIdx  = 0;
 
@@ -23,6 +24,13 @@ var UI = (function () {
         var v = document.getElementById(id);
         if (!v) return;
         v.classList.remove('hidden');
+        /* Replay the entrance on arrival only: later in-place renders
+         * (a dismissed card, a refreshed row) must not replay it. */
+        v.classList.remove('settled');
+        if (typeof setTimeout !== 'undefined') {
+            if (settledTimer) clearTimeout(settledTimer);
+            settledTimer = setTimeout(function () { v.classList.add('settled'); }, 300);
+        }
         currentView = v;
         document.body.classList.toggle('player-view', id === 'view-player');
         refreshFocusables();

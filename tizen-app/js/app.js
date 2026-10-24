@@ -63,6 +63,15 @@
      * button when there is neither a previous item nor anything to rewind. */
     var RESTART_THRESHOLD_MS = 3000;
 
+    /* Titles on Home, in the queue and over the picture are labels, not
+     * file-browser rows: a known extension leaves the display. The raw
+     * name still travels through playback, diagnostics and the browser. */
+    function displayTitle(value) {
+        var text = String(value == null ? '' : value);
+        return text && typeof FileTypes !== 'undefined' && FileTypes.displayName
+            ? FileTypes.displayName(text) : text;
+    }
+
     function getResumeMap() {
         try { return JSON.parse(localStorage.getItem(RESUME_KEY) || '{}'); }
         catch (e) { return {}; }
@@ -1513,17 +1522,18 @@
                 : null;
         }
 
+        var shownTitle = title ? displayTitle(title) : Library.title(uri);
         state.playingUri = uri;
-        state.playingTitle = title || uri;
+        state.playingTitle = shownTitle;
         updateNextPrevButtons();
         UI.showView('view-player'); state.view = 'player';
         if (typeof Debug !== 'undefined') Debug.view('player');
 
-        document.getElementById('osd-title').textContent = title || uri;
+        document.getElementById('osd-title').textContent = shownTitle;
         var isAudio = FileTypes.kind(title || '') === 'audio' ||
                       FileTypes.kind(String(uri).split('?')[0]) === 'audio';
         document.getElementById('audio-card').classList.toggle('hidden', !isAudio);
-        document.getElementById('audio-title').textContent = isAudio ? (title || uri) : '';
+        document.getElementById('audio-title').textContent = isAudio ? shownTitle : '';
         state.playingIsAudio = isAudio;
         refreshPlaybackOptions();
         showAudioTags(isAudio ? uri : null, opts);
@@ -1647,8 +1657,9 @@
             Debug.player('tags: ' + JSON.stringify({ title: t.title, artist: artist, album: t.album,
                                                      art: t.picture ? (t.picture.url || t.picture.bytes.length) : 0 }));
         if (t.title) {
-            document.getElementById('audio-title').textContent = t.title;
-            document.getElementById('osd-title').textContent = (artist ? artist + ' — ' : '') + t.title;
+            var shown = displayTitle(t.title);
+            document.getElementById('audio-title').textContent = shown;
+            document.getElementById('osd-title').textContent = (artist ? artist + ' — ' : '') + shown;
         }
         document.getElementById('audio-sub').textContent =
             [artist, t.album].filter(Boolean).join('  ·  ');
@@ -1661,10 +1672,12 @@
     function setCoverArt(pic) {
         var img = document.getElementById('audio-art');
         var note = document.getElementById('audio-note');
+        var glow = document.getElementById('audio-glow');
         if (artUrl) { try { URL.revokeObjectURL(artUrl); } catch (e) {} artUrl = null; }
         img.onerror = null;
         img.removeAttribute('src');
         img.classList.add('hidden');
+        if (glow) { glow.removeAttribute('src'); glow.classList.add('hidden'); }
         note.classList.remove('hidden');
         if (!pic) return;
         var src = pic.url;
@@ -1674,7 +1687,7 @@
             } catch (e) { return; }
         }
         // A picture the TV can't decode leaves the note up.
-        img.onload  = function () { img.classList.remove('hidden'); note.classList.add('hidden'); };
+        img.onload  = function () { img.classList.remove('hidden'); note.classList.add('hidden'); if (glow) { glow.src = src; glow.classList.remove('hidden'); } };
         img.onerror = function () { setCoverArt(null); };
         img.src = src;
     }
@@ -1734,7 +1747,7 @@
         if (ni < 0) return false;
         var item = state.playlist[ni];
         state.playlistIndex = ni;
-        if (isAuto) UI.toast(I18n.t('player.upNext', item.title));
+        if (isAuto) UI.toast(I18n.t('player.upNext', displayTitle(item.title) || Library.title(item.uri)));
         playUri(item.uri, item.title, { subtitles: item.subtitles || [], file: item.file || null, tagSrc: item.tagSrc || null,
                                         });
         return true;
@@ -1857,10 +1870,11 @@
                 var ci = state.playlist[at];
                 var li = document.createElement('li');
                 li.className = 'up-next-card';
+                var label = ci.title ? displayTitle(ci.title) : Library.title(ci.uri);
                 var btn = document.createElement('button');
                 btn.dataset.action = 'play-queue-index';
                 btn.dataset.index = String(at);
-                btn.title = ci.title || ci.uri;
+                btn.title = label;
                 if (at === state.playlistIndex) {
                     btn.classList.add('active');
                     btn.setAttribute('aria-current', 'true');
@@ -1868,7 +1882,7 @@
                 btn.appendChild(queueThumb(ci));
                 var name = document.createElement('span');
                 name.className = 'up-next-name';
-                name.textContent = ci.title || ci.uri;
+                name.textContent = label;
                 btn.appendChild(name);
                 li.appendChild(btn);
                 ul.appendChild(li);

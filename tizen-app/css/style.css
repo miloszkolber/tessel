@@ -48,6 +48,9 @@
     --card-meta-size: 18px;
     --card-inset: 18px;
     --transport-height: 96px;
+    /* The timeline row above the transport (22px readout plus its 32px
+     * margin). Popups clear the whole OSD content, not just the buttons. */
+    --player-timeline: 58px;
     --dialog-width: 678px;
     --dialog-field-size: 22px;
     --dialog-field-height: 64px;
@@ -249,9 +252,13 @@ input::selection { background: var(--focus-ring); color: var(--bg); }
      * a live layer every frame. */
     background: var(--bg) url("../assets/texture-halftone.png") no-repeat 0 0 / 100% 100%;
     /* On the TV everything fits 1080p; in narrow preview windows wrapped
-     * rows must stay reachable instead of spilling out of view. */
+     * rows must stay reachable instead of spilling out of view. Page
+     * scrolling stays available, but the remote owns navigation and the
+     * native bar would paint over the reference field. */
     overflow-y: auto;
+    scrollbar-width: none;
 }
+.view::-webkit-scrollbar { display: none; }
 
 /* Player view stays transparent so the AVPlay hardware video plane shows
  * through.  Without this, the body's black would be covered by this view's
@@ -706,8 +713,8 @@ body:not(.has-queue) .osd-bottom { padding-bottom: 24px; }
  * difference instead of leaving an empty band above the peek. */
 body.has-queue { --queue-reserve: var(--queue-peek); }
 body.has-queue.up-next-open { --queue-reserve: var(--queue-open); }
-body.player-view { --player-popup-bottom: calc(24px + var(--transport-height) + 16px); }
-body.has-queue.player-view { --player-popup-bottom: calc(48px + var(--queue-reserve) + var(--transport-height) + 16px); }
+body.player-view { --player-popup-bottom: calc(24px + var(--transport-height) + var(--player-timeline) + 16px); }
+body.has-queue.player-view { --player-popup-bottom: calc(48px + var(--queue-reserve) + var(--transport-height) + var(--player-timeline) + 16px); }
 body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-reserve)); }
 .osd-bottom { transition: opacity var(--motion) var(--ease), transform var(--motion) var(--ease), visibility 0s, padding-bottom var(--motion) var(--ease); }
 .osd-bottom.hidden { transition: opacity var(--motion) var(--ease), transform var(--motion) var(--ease), visibility 0s var(--motion), padding-bottom var(--motion) var(--ease); }
@@ -749,6 +756,8 @@ body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-reserve)); 
     width: 18px; height: 18px;
     border-radius: 50%;
     background: #fff;
+    transition: width var(--motion) var(--ease), height var(--motion) var(--ease),
+        right var(--motion) var(--ease), box-shadow var(--motion) var(--ease);
 }
 /* Scrub mode: the fill previews the seek destination, so it must track key
  * repeats instantly (no easing) and read as "not the real position yet". */
@@ -954,7 +963,7 @@ body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom {
 /* Focus lands on the position dot, not the whole time row. */
 #player-timeline:focus .progress-fill::after,
 #player-timeline.focused .progress-fill::after {
-    width: 22px; height: 22px;
+    width: 22px; height: 22px; right: -11px;
     box-shadow: 0 0 0 8px rgba(255,255,255,.28);
 }
 #osd-bottom .ctrl.big { background: rgba(255,255,255,.2); color: white; }
@@ -1594,6 +1603,19 @@ button.settings-row:focus, button.settings-row.focused {
     width: 600px; max-width: calc(100% - 130px);
 }
 .audio-card.is-loading { visibility: hidden; }
+/* Ambient halo behind the music card: the same cover art, blurred and
+ * desaturated so the glow stays inside the monochrome language. Hidden
+ * while loading and whenever the fallback note is up. */
+.audio-glow {
+    position: absolute; left: 50%; top: 50%;
+    width: 640px; height: 640px;
+    transform: translate(-50%, -50%);
+    object-fit: cover;
+    border-radius: 50%;
+    filter: blur(120px) grayscale(1);
+    opacity: .3;
+    pointer-events: none;
+}
 .audio-details { width: 100%; min-width: 0; }
 .audio-card:not(.hidden):not(.is-loading) { animation: view-enter var(--motion) var(--ease); }
 .audio-note {
@@ -1625,6 +1647,10 @@ button.settings-row:focus, button.settings-row.focused {
     transition: background-color var(--motion) var(--ease), border-color var(--motion) var(--ease),
         color var(--motion) var(--ease), box-shadow var(--motion) var(--ease), transform var(--motion) var(--ease);
 }
+/* The disc and switch are part of the same focus surface: when the border
+ * fades, their fills fade with it instead of snapping a frame later. */
+.card-picture::before, .browse-list.grid .icon::before, .browse-list.grid.device-roots .icon,
+.settings-switch, .tile-icon { transition: background-color var(--motion) var(--ease); }
 /* Pointer feedback stays quieter than the remote's hard focus ring. */
 @media (hover: hover) {
     .media-card:hover:not(.focused):not(:focus), .tile:hover:not(.focused):not(:focus),
@@ -1636,15 +1662,33 @@ button.settings-row:focus, button.settings-row.focused {
     }
     .ctrl:hover:not(.focused):not(:focus):not(.disabled) { background-color: var(--accent-soft); border-color: var(--focus-ring); }
 }
-/* Keep the view's opaque backdrop intact above the native video plane. */
-.view:not(.hidden):not(#view-player) > :not(.hint) { animation: view-enter var(--motion) var(--ease); }
+/* Keep the view's opaque backdrop intact above the native video plane.
+ * The content settles a few pixels upward on arrival; the fixed backdrop
+ * itself never moves, so the native video plane stays covered. */
+.view:not(.hidden):not(#view-player) > :not(.hint) { animation: screen-enter var(--motion) var(--ease); }
+/* The entrance belongs to arrival: once a page has settled, later renders
+ * (a dismissed card, a refreshed row) must not replay it underneath focus.
+ * The player is a stage rather than a page, so its overlays keep animating. */
+.view.settled:not(#view-player) > :not(.hint) { animation: none; }
 .dialog-scrim { animation: view-enter var(--motion) var(--ease); }
-.picker:not(.hidden), .track-menu:not(.hidden), .toast:not(.hidden) { animation: view-enter var(--motion) var(--ease); }
+.picker:not(.hidden) { animation: view-enter var(--motion) var(--ease); }
+/* Anchored player menus rise a few pixels as they fade in, like the view
+ * contents above them. Centred surfaces keep the plain fade: a translate
+ * keyframe would override their centring transform mid-entrance. */
+.track-menu:not(.hidden):not(.file-info) { animation: menu-enter var(--motion) var(--ease); }
+.track-menu.file-info:not(.hidden) { animation: view-enter var(--motion) var(--ease); }
+/* The anchored picker is positioned, never centred, so it shares the popup
+ * rise instead of the centred-modal fade. */
+.picker.anchored:not(.hidden), .player-view #picker:not(.hidden) { animation: menu-enter var(--motion) var(--ease); }
+.toast:not(.hidden) { animation: toast-enter var(--motion) var(--ease); }
 .track-level:not(.hidden), .track-menu > .track-menu-body:not(.hidden),
 .track-menu > h2:not(.hidden) { animation: view-enter var(--motion) var(--ease); }
 .spinner:not(.hidden), .error-overlay:not(.hidden) > * { animation: view-enter var(--motion) var(--ease); }
 .dialog-card { animation: dialog-enter var(--motion) var(--ease); }
 @keyframes view-enter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes menu-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes screen-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes toast-enter { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes dialog-enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
 /* Broad cards need proportionate contents, not an oversized empty picture. */
@@ -1731,6 +1775,7 @@ button.settings-row:focus, button.settings-row.focused {
     #view-player .file-info dl { font-size: 30px; gap: 16px 50px; }
     #view-player .file-info > .btn.ghost { margin-top: 30px; padding: 18px 22px; font-size: 30px; }
     .audio-card { width: 800px; }
+    .audio-glow { width: 880px; height: 880px; }
     .audio-art, .audio-note { width: 400px; height: 400px; }
     .audio-title { font-size: 44px; }
     .audio-sub { font-size: 32px; }

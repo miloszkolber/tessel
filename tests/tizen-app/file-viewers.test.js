@@ -48,6 +48,14 @@ test('only video and audio go to the player', function () {
     assert.ok(!FileTypes.isPlayable('a.m3u'));
 });
 
+test('display titles drop known extensions and filename underscores', function () {
+    assert.strictEqual(FileTypes.displayName('Big Buck Bunny.mp4'), 'Big Buck Bunny');
+    assert.strictEqual(FileTypes.displayName('S01E04_-_Home.mkv'), 'S01E04 - Home');
+    assert.strictEqual(FileTypes.displayName('Friendly channel'), 'Friendly channel');
+    assert.strictEqual(FileTypes.displayName('setup.exe'), 'setup.exe');
+    assert.strictEqual(FileTypes.displayName(''), '');
+});
+
 /* ── TextDecode (issue #107) ────────────────────────────────────────── */
 
 test('UTF-8 with and without a byte-order mark', function () {

@@ -264,7 +264,8 @@ test('status feedback wraps long diagnostics and uses shared reduced-motion-awar
     assert.ok(toast.includes('overflow-wrap: break-word') && toast.includes('word-break: break-word'), 'an unbroken host name cannot paint outside the notice');
     assert.ok(toast.includes('width: max-content') && toast.includes('max-width: 70%'), 'centred notices use their available reading width rather than shrink-to-fit half the screen');
     assert.ok(toast.includes('pointer-events: none'), 'noninteractive status cannot steal a pointer action');
-    assert.ok(source.includes('.toast:not(.hidden) { animation: view-enter var(--motion) var(--ease); }'), 'notices share the existing finite entrance fade');
+    assert.ok(source.includes('.toast:not(.hidden) { animation: toast-enter var(--motion) var(--ease); }'), 'notices rise as they fade in');
+    assert.ok(source.includes('@keyframes toast-enter { from { opacity: 0; transform: translate(-50%, 10px); }'), 'the shared toast keeps its centred anchor while moving');
 });
 
 test('reading-direction styles mirror labels without reversing technical inputs or transport', function () {
@@ -329,6 +330,19 @@ test('scroll owners reserve space for the outside focus ring', function () {
         assert.ok(block.includes('margin: -4px'), selector + ' preserves content alignment');
     });
     assert.ok(rule(source, '.settings-content {', 650).includes('padding: 4px 4px 24px'), 'settings focus also clears the scrollport');
+    assert.ok(rule(source, '.view {', 900).includes('scrollbar-width: none'), 'the remote-owned page does not paint a native bar');
+    assert.ok(source.includes('.view::-webkit-scrollbar { display: none; }'), 'WebKit page scrollbars are hidden too');
+});
+
+test('view and toast motion settle without moving the opaque backdrop', function () {
+    var source = css();
+    assert.ok(source.includes('.view:not(.hidden):not(#view-player) > :not(.hint) { animation: screen-enter var(--motion) var(--ease); }'), 'view contents share one entrance');
+    assert.ok(source.includes('@keyframes screen-enter { from { opacity: 0; transform: translateY(6px); }'), 'view content rises into place');
+    assert.ok(source.indexOf('.view:not(.hidden):not(#view-player) { animation:') < 0, 'the opaque page backdrop never animates');
+    assert.ok(source.includes('.view.settled:not(#view-player) > :not(.hint) { animation: none; }'), 'the entrance replays on arrival, not on later renders');
+    assert.ok(source.includes('.audio-glow {'), 'music carries an ambient halo');
+    assert.ok(source.includes('filter: blur(120px) grayscale(1);'), 'the halo stays inside the monochrome language');
+    assert.ok(source.includes('.card-picture::before, .browse-list.grid .icon::before, .browse-list.grid.device-roots .icon,\n.settings-switch, .tile-icon { transition: background-color var(--motion) var(--ease); }'), 'focus discs and switches fade with their surface');
 });
 
 test('source forms size to content and use one label/input scale', function () {
@@ -357,7 +371,16 @@ test('queue resizing preserves the OSD fade and popup motion honours reduced mot
     ['opacity', 'transform', 'padding-bottom'].forEach(function (property) {
         assert.ok(osd.includes(property), 'OSD transitions ' + property);
     });
-    assert.ok(source.includes('.picker:not(.hidden), .track-menu:not(.hidden)'), 'menus use the shared entrance fade');
+    assert.ok(source.includes('.picker:not(.hidden) { animation: view-enter var(--motion) var(--ease); }'), 'centred modals keep the plain fade');
+    assert.ok(source.includes('.track-menu:not(.hidden):not(.file-info) { animation: menu-enter var(--motion) var(--ease); }'), 'anchored player menus rise as they fade in');
+    assert.ok(source.includes('.track-menu.file-info:not(.hidden) { animation: view-enter var(--motion) var(--ease); }'), 'the centred file panel keeps the plain fade');
+    assert.ok(source.includes('.picker.anchored:not(.hidden), .player-view #picker:not(.hidden) { animation: menu-enter var(--motion) var(--ease); }'), 'positioned pickers share the popup rise, centred modals do not');
+    assert.ok(source.includes('@keyframes menu-enter { from { opacity: 0; transform: translateY(8px); }'), 'menu rise matches the shared cadence');
+    assert.ok(source.includes('.progress-fill::after {'), 'the position dot owns its transition');
+    assert.ok(source.includes('right var(--motion) var(--ease), box-shadow var(--motion) var(--ease);'), 'the focus knob eases instead of snapping');
+    assert.ok(source.includes('width: 22px; height: 22px; right: -11px;'), 'the grown knob stays centred on the fill tip');
+    assert.ok(source.includes('--player-timeline: 58px;'), 'the timeline row has a shared height token');
+    assert.ok(source.includes('--player-popup-bottom: calc(48px + var(--queue-reserve) + var(--transport-height) + var(--player-timeline) + 16px);'), 'popups clear the timeline as well as the transport');
     assert.ok(source.includes('animation: none !important; transition: none !important;'), 'reduced-motion covers every animated component');
 });
 

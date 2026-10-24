@@ -153,9 +153,12 @@ var LibraryUI = (function () {
         var focus = document.activeElement && document.activeElement.dataset.cardKey;
         host.innerHTML = '';
         row(host, t('strip.continue'), Library.recommendations(resume || {}, watched || {}), function (r) {
-            var c = card({ key: r.key, title: r.title, subtitle: r.subtitle, art: r.art, pos: r.pos, dur: r.dur, source: descriptor(r.uri, r.source), icon: streamInfo(r.uri || r.title).icon },
+            var label = r.title;
+            if (label && typeof FileTypes !== 'undefined' && FileTypes.displayName) label = FileTypes.displayName(label);
+            label = label || Library.title(r.uri);
+            var c = card({ key: r.key, title: label, subtitle: r.subtitle, art: r.art, pos: r.pos, dur: r.dur, source: descriptor(r.uri, r.source), icon: streamInfo(r.uri || r.title).icon },
                 function () { launch(r); }, function (node) {
-                    Dialog.menu(r.title, [{ name: t('library.removeContinue'), run: function () {
+                    Dialog.menu(label, [{ name: t('library.removeContinue'), run: function () {
                         var next = adjacentCardKey(node);
                         Library.dismiss(r.key, r.uri); home(resume, watched); restore(next);
                     } }], node);
