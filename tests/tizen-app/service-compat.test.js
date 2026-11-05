@@ -53,7 +53,7 @@ function launchHarness(options) {
     var context = {
         BASE: 'http://127.0.0.1:8127', dbg: function () {},
         tizen: { systeminfo: { getCapability: function () { return options.version || '5.0'; } },
-            application: { getCurrentApplication: function () { return { appInfo: { id: 'tesselapp.player' } }; }, launch: function (id, ok) { legacy.push(id); ok(); } } },
+            application: { getCurrentApplication: function () { return { appInfo: { id: 'tesselfork.player' } }; }, launch: function (id, ok) { legacy.push(id); ok(); } } },
         document: { createElement: function () { return {}; }, body: { appendChild: function (s) { scripts.push(s); } } },
         window: { addEventListener: function (name, cb) { events[name] = cb; }, removeEventListener: function (name) { delete events[name]; } },
         setTimeout: function (fn) { timers.push(fn); return timers.length; }, clearTimeout: function () {},
@@ -73,19 +73,19 @@ test('modern startup loads one module and coalesces callers, preserving the loca
     h.c.ensureService(function (err) { assert.ifError(err); count++; });
     h.c.ensureService(function (err) { assert.ifError(err); count++; });
     assert.equal(h.scripts.length, 1); assert.equal(h.scripts[0].type, 'module'); h.ready();
-    assert.deepEqual(h.modern, ['tesselapp.smbproxy']); assert.equal(h.legacy.length, 0);
+    assert.deepEqual(h.modern, ['tesselfork.smbproxy']); assert.equal(h.legacy.length, 0);
     assert.equal(h.pings[0].url, 'http://127.0.0.1:8127/smb/ping'); assert.equal(h.pings[0].timeout, 1000);
     h.done[0](null, { ok: true }); assert.equal(count, 2);
 });
 test('old runtime and failed modern imports use legacy startup without extra module injection', function () {
     var old = launchHarness(), count = 0;
     old.c.ensureService(function () { count++; }); assert.equal(count, 1); assert.equal(old.scripts.length, 0);
-    assert.deepEqual(old.legacy, ['tesselapp.smbproxy']);
+    assert.deepEqual(old.legacy, ['tesselfork.smbproxy']);
     var modern = launchHarness({ version: '10.0' });
     modern.c.ensureService(function () {}); modern.scripts[0].onerror();
     modern.c.ensureService(function () {}); assert.equal(modern.scripts.length, 1); assert.equal(modern.legacy.length, 2);
     var failed = launchHarness({ version: '10.0' }); failed.c.ensureService(function () {}); failed.ready(true);
-    assert.deepEqual(failed.legacy, ['tesselapp.smbproxy']);
+    assert.deepEqual(failed.legacy, ['tesselfork.smbproxy']);
 });
 
 test('startup rejects non-ping JSON, bounds retries and delivers failure once', function () {

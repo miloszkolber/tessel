@@ -4,8 +4,8 @@
         id="https://github.com/miloszkolber/tessel"
         version="1.27.0"
         viewmodes="maximized">
-    <tizen:application id="tesselapp.player"
-                       package="tesselapp"
+    <tizen:application id="tesselfork.player"
+                       package="tesselfork"
                        required_version="4.0"/>
     <content src="index.html"/>
     <icon src="icon.png"/>
@@ -18,9 +18,10 @@
     <!-- Hybrid background service: a Node.js HTTP↔SMB2 proxy on localhost:8127.
          The .wgt sandbox can't open raw TCP to port 445; this service can, and
          re-serves files over HTTP with Range support so AVPlay can stream them.
-         Started via wrt:service on modern sets, application launch otherwise.
+         Started via application launch, with a bounded wrt:service module
+         attempt on modern sets before falling back.
          Packaged as one wrapped file by scripts/bundle-service.js. -->
-    <tizen:service id="tesselapp.smbproxy">
+    <tizen:service id="tesselfork.smbproxy" type="service">
         <tizen:content src="service/service.js"/>
         <tizen:name>smbproxy</tizen:name>
     </tizen:service>
@@ -47,7 +48,6 @@
                    hwkey-event="enable"/>
 
     <feature name="http://tizen.org/feature/screen.size.normal.1080.1920"/>
-    <feature name="http://tizen.org/feature/web.service"/>
 
     <!-- Privileges — internet for streams, mediastorage/externalstorage for USB
          file enumeration, download for future remote-file caching. -->
