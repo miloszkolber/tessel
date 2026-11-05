@@ -69,6 +69,14 @@ if (typeof Buffer.from !== 'function') {
 var PORT        = 8127;
 var LISTEN_HOST = '127.0.0.1';
 
+/* Defense in depth: credential-bearing routes never answer a foreign
+ * peer, even if a later runtime changes the listener binding. */
+function fromLoopback(req) {
+    var socket = req && (req.socket || req.connection);
+    var ip = String(socket && socket.remoteAddress || '').replace(/^::ffff:/i, '');
+    return ip === '::1' || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip);
+}
+
 /* ── debug ring buffer, surfaced at GET /smb/debug/logs ──────────────────── */
 var LOGS = [];
 function log(msg, data) {
@@ -2558,6 +2566,7 @@ var castServer = http.createServer(function (req, res) {
 });
 
 var server = http.createServer(function (req, res) {
+    if (!fromLoopback(req)) { res.writeHead(403, { 'Content-Type': 'text/plain' }); res.end('Forbidden'); return; }
     var u = require('url').parse(req.url, true);
     if (req.method === 'OPTIONS') { cors(res, 204, 'text/plain'); return res.end(); }
 
@@ -2601,16 +2610,31 @@ var server = http.createServer(function (req, res) {
     cors(res, 404, 'text/plain'); res.end('Not Found');
 });
 
-server.listen(PORT, LISTEN_HOST, function () { log('SMB_PROXY_LISTENING', LISTEN_HOST + ':' + PORT); });
-castServer.listen(CAST_PORT, '0.0.0.0', function () {
-    var ip = lanAddress();
-    log('CAST_LISTENING', '0.0.0.0:' + CAST_PORT + (ip ? ' page=http://' + ip + ':' + CAST_PORT + '/cast' : ''));
-});
+var serverStarted = false;
+function startServer() {
+    if (serverStarted) return;
+    serverStarted = true;
+    if (typeof server.on === 'function') server.on('error', function (err) { log('SMB_PROXY_ERROR', err && err.message); });
+    if (typeof castServer.on === 'function') castServer.on('error', function (err) { log('CAST_ERROR', err && err.message); });
+    server.listen(PORT, LISTEN_HOST, function () { log('SMB_PROXY_LISTENING', LISTEN_HOST + ':' + PORT); });
+    castServer.listen(CAST_PORT, '0.0.0.0', function () {
+        var ip = lanAddress();
+        log('CAST_LISTENING', '0.0.0.0:' + CAST_PORT + (ip ? ' page=http://' + ip + ':' + CAST_PORT + '/cast' : ''));
+    });
 /* Not under the unit-test loader: there `process` is a stub and a real socket
  * would be bound for the lifetime of the test run. */
-if (typeof process !== 'undefined' && process && typeof process.pid === 'number') startDlnaPassive();
+    if (typeof process !== 'undefined' && process && typeof process.pid === 'number') startDlnaPassive();
+}
+startServer();
 
 process.on('uncaughtException', function (e) {
     var where = (e && e.stack) ? String(e.stack).split('\n').slice(0, 4).join(' <- ') : '';
     log('UNCAUGHT', (e && e.message) + (where ? ' | ' + where : ''));
 });
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports.onStart = function () { startServer(); };
+    module.exports.onRequest = function () { startServer(); };
+    module.exports.onStop = function () { log('service onStop'); };
+    module.exports.onExit = function () { log('service onExit'); };
+}

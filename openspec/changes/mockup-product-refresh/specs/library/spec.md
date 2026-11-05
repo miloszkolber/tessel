@@ -60,6 +60,73 @@ Settings SHALL show compact switches for casting and logging, with the correspon
 
 ## ADDED Requirements
 
+### Requirement: Subtitle sidecar compatibility
+External subtitles SHALL use bounded encoding-aware reads where byte readers are available, with a 16 MiB limit and a UTF-8 fallback for unavailable readers. Supported TXT subtitles SHALL include MicroDVD, MPL2, TMPlayer and renamed SRT.
+
+#### Scenario: Headerless MicroDVD file
+- **WHEN** a MicroDVD subtitle has no explicit FPS header
+- **THEN** its timing uses the documented 23.976 FPS fallback
+- **AND** plain notes without supported timecodes produce no cues
+
+### Requirement: Simultaneous subtitle positioning
+Overlapping ASS cues SHALL render together using style or inline alignment. Unpositioned dialogue SHALL follow the user's subtitle position. Bottom cues SHALL retain queue/OSD clearance.
+
+#### Scenario: Sign and dialogue overlap
+- **WHEN** a top-aligned ASS sign and unpositioned dialogue are active simultaneously
+- **THEN** both appear in their respective position bands
+- **AND** changing subtitle position moves unpositioned dialogue without moving the sign
+
+### Requirement: Automatic sidecar fallback
+Automatic subtitle selection SHALL preserve app-language preference, explicit Off and per-file choices.
+
+#### Scenario: Automatic sidecar fallback
+- **GIVEN** no explicit global or per-file subtitle preference
+- **WHEN** no available track matches the app language
+- **THEN** an untagged sidecar or the sole sidecar may be selected without seeking playback
+- **AND** explicit Off and per-file choices remain authoritative
+
+### Requirement: Recursive music playback
+USB, SMB and WebDAV folder context menus SHALL offer Play all music and Shuffle all music including subfolders. Scanning SHALL use the shared cancellable dialog, at most three concurrent listings, 5000 tracks, 2000 folders and depth 16. Cancellation SHALL suppress late results. Unreadable subfolders SHALL be skipped with partial-result feedback. Results SHALL use ordinary playback queue, next/previous and repeat behavior without changing the saved shuffle preference.
+
+#### Scenario: Cancel a folder scan
+- **WHEN** the viewer presses Back while a folder scan is pending
+- **THEN** the originating card regains focus
+- **AND** late results do not start playback or reopen a dialog
+
+### Requirement: Folder focus continuity
+Up navigation SHALL restore the child folder just left in USB, SMB and WebDAV. Fresh folder entry SHALL focus the most recently played item, or its next sibling after completion when one exists. Explicit playback-return and Up focus SHALL take precedence over history-based selection.
+
+#### Scenario: Reopen a series folder
+- **GIVEN** its most recently played episode is complete and another episode follows
+- **WHEN** the folder is entered without an explicit focus target
+- **THEN** focus selects the following episode without starting playback
+
+### Requirement: Bounded browsing metadata
+USB listings SHALL show cached durations in the existing metadata line without moving focus or adding a row. Cache validity SHALL depend on URI, size and modification time. Background probes SHALL be limited to two concurrent readers, 15 seconds, 256 reads and 20 MiB per file, matching the bounded Matroska header and track-element readers. Navigation and playback SHALL cancel pending probes. The disposable cache SHALL retain at most 400 records and 131072 serialized characters.
+
+#### Scenario: Leave during metadata probing
+- **WHEN** the viewer leaves a USB listing while a header read is pending
+- **THEN** the reader is closed and unstarted probes are dropped
+- **AND** late results do not change the new listing or write stale cache records
+
+### Requirement: Folder history reset
+USB, SMB and WebDAV folder context menus SHALL offer playback-history reset with confirmation defaulting to Cancel. Reset SHALL clear watched marks, resume positions and matching queue snapshots under that folder, including descendants. Sibling prefixes, other servers, media, pins, unrelated queue progress and playback preferences SHALL be preserved. Storage failure SHALL report failure and attempt rollback.
+
+#### Scenario: Reset a series folder
+- **GIVEN** history for Show, Show-2 and another server's Show
+- **WHEN** reset is confirmed for Show on the current source
+- **THEN** only that folder's history and queue progress are removed
+- **AND** Back or Cancel without confirmation leaves all history unchanged
+
+### Requirement: Compatible service startup
+Packaging SHALL wrap the self-contained service and preserve lifecycle exports. Tizen 9+ SHALL attempt the service module with a bounded wait and legacy launch fallback. Older runtimes SHALL not load that module. Startup requests SHALL be coalesced and service listeners SHALL start only once. The credential proxy SHALL remain loopback-only and reject foreign or unidentified peers before route dispatch. No additional privileges SHALL be introduced.
+
+#### Scenario: Modern module fails
+- **WHEN** the service module fails to load or start
+- **THEN** legacy application-control or application launch is attempted
+- **AND** readiness is checked against the existing loopback ping endpoint with bounded retries
+- **AND** software checks do not establish physical Tizen 10 acceptance
+
 ### Requirement: Shared content-card geometry
 Home, Stream, Network, USB device roots and playback queue cards SHALL share a 16:9 outer rectangle. Rows SHALL use five equal columns inside the page insets at 1920×1080 and 1153×1297. Optional secondary labels SHALL NOT change card height. Form controls, information panels and empty-state messages are not content cards.
 
@@ -117,13 +184,13 @@ Short landscape layouts SHALL retain readable audio metadata without overlap wit
 - **THEN** cover and metadata remain above the visible timeline with positive clearance
 - **AND** moving focus into and out of the queue does not move the audio presentation
 
-A section that has no items SHALL keep its place on the page and name its empty state instead of disappearing. The music card SHALL sit still on the screen's centre line.
+Home SHALL omit empty Continue playing and Pinned sections, including their headings and reserved space. Stream lists SHALL retain readable empty states. The music card SHALL sit still on the screen's centre line.
 
 #### Scenario: Empty library section
 - **GIVEN** a library with no pins
 - **WHEN** Home renders
-- **THEN** the Pinned heading and its empty row keep the same height as a filled one
-- **AND** the sections below do not move
+- **THEN** the Pinned heading and row are absent
+- **AND** Sources follows the remaining populated section, or the page heading when both optional sections are empty
 
 #### Scenario: Music playback
 - **WHEN** an audio file plays without cover art

@@ -609,16 +609,15 @@ input::selection { background: var(--focus-ring); color: var(--bg); }
  * the CC menu.  AVPlay fires onsubtitlechange(duration, text, ...) and we
  * paint into this element.  HTML5 <track> handles its own rendering. */
 /* Size + font come from the user's Settings via CSS custom properties set in
- * SubtitleStyle.apply(); position + background come from the sub-pos-XXX and
- * sub-bg classes toggled on this element.  Defaults below match the medium/
+ * SubtitleStyle.apply(); cue position comes from the sub-band containers and
+ * background from the sub-bg class. Defaults below match the medium/
  * sans/bottom/none preset so the overlay looks right even before apply() runs. */
 /* Cues are painted by the app: they belong to the player view and must not
  * linger over Home when audio plays on in the background. */
 body:not(.player-view) #subtitle-overlay { display: none; }
 #subtitle-overlay {
     position: absolute;
-    left: 8%; right: 8%;
-    bottom: 8%;
+    left: 0; right: 0; top: 0; bottom: 0;
     text-align: center;
     color: #fff;
     font-size: var(--sub-size, 36px);
@@ -636,13 +635,18 @@ body:not(.player-view) #subtitle-overlay { display: none; }
     z-index: 10;
     /* The OSD and the queue move the cue out of the way; let it travel
      * instead of jumping. */
+}
+/* Positioned signs and ordinary dialogue can share the screen. Preserve
+ * local queue/OSD clearance on the bottom band, not the full overlay. */
+.sub-band {
+    position: absolute; left: 8%; right: 8%;
+    display: flex; flex-direction: column; align-items: center;
     transition: bottom var(--motion) var(--ease), top var(--motion) var(--ease);
 }
-/* Position presets.  Bottom is the default; middle/top free the opposite
- * anchor so the block grows in the right direction. */
-#subtitle-overlay.sub-pos-bottom { top: auto; bottom: 8%; transform: none; }
-#subtitle-overlay.sub-pos-top    { bottom: auto; top: 8%; transform: none; }
-#subtitle-overlay.sub-pos-middle { top: 50%; bottom: auto; transform: translateY(-50%); }
+.sub-band-top { top: 8%; }
+.sub-band-middle { top: 50%; transform: translateY(-50%); }
+.sub-band-bottom { bottom: 8%; }
+#subtitle-overlay .sub-line + .sub-line { margin-top: .15em; }
 
 /* The cue text lives in a .sub-line span so a translucent box (when enabled)
  * hugs the text instead of spanning the full 8%-to-8% width. */
@@ -651,6 +655,7 @@ body:not(.player-view) #subtitle-overlay { display: none; }
      * absolutely-positioned text-align:center containers — pure inline
      * spans sometimes rendered invisibly there. */
     display: inline-block;
+    max-width: 100%;
     white-space: pre-line;
     -webkit-box-decoration-break: clone;
     box-decoration-break: clone;
@@ -890,12 +895,12 @@ body.has-queue .osd-bottom { padding-bottom: calc(48px + var(--queue-reserve)); 
 @media (prefers-reduced-motion: reduce) {
     .up-next { transition: none; }
 }
-.player-osd-visible #subtitle-overlay.sub-pos-bottom { bottom: 260px; }
+.player-osd-visible #subtitle-overlay .sub-band-bottom { bottom: 260px; }
 /* The cue clears the peeking strip while it watches; when focus opens the
  * strip, it travels up with the controls and stays above the queue. The
  * reserve and transport height keep the cue aligned with the OSD top at
  * every viewport, without a second focus-state rule. */
-body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom {
+body.has-queue.player-osd-visible #subtitle-overlay .sub-band-bottom {
     bottom: calc(48px + var(--queue-reserve) + var(--transport-height) + 110px);
 }
 .more-option {
@@ -968,13 +973,8 @@ body.has-queue.player-osd-visible #subtitle-overlay.sub-pos-bottom {
 }
 #osd-bottom .ctrl.big { background: rgba(255,255,255,.2); color: white; }
 #osd-bottom .ctrl.big.focused, #osd-bottom .ctrl.big:focus { background: rgba(255,255,255,.35); }
-/* Round controls retain a restrained blur over the video picture. */
-@supports ((backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px))) {
-    #osd-bottom .ctrl {
-        -webkit-backdrop-filter: blur(20px);
-        backdrop-filter: blur(20px);
-    }
-}
+/* Use the shared circular surface without per-button backdrop layers.
+ * Some TV/browser compositors paint those layers as rectangular wedges. */
 @media (max-width: 700px) {
     :root { --transport-height: 60px; }
     .osd-bottom { padding-left: 24px; padding-right: 24px; }
@@ -1370,7 +1370,7 @@ button.settings-row:focus, button.settings-row.focused {
     border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
     transform: rotate(45deg) translate(-3px,-3px);
 }
-#view-settings .tvinfo { margin-top: 48px; padding: 0; border: none; background: transparent; }
+#view-settings .tvinfo { margin-top: 32px; padding: 0; border: none; background: transparent; }
 #view-settings .tvinfo .codec .status { color: var(--fg-dim); }
 .settings-row .settings-value {
     display: inline-flex;
@@ -1707,7 +1707,7 @@ button.settings-row:focus, button.settings-row.focused {
     #view-settings .settings-switch::after { width: 34px; height: 34px; top: 5px; inset-inline-start: 5px; }
     #view-settings .settings-switch.on::after { inset-inline-start: 37px; }
     #view-settings .settings-group { margin-bottom: 16px; }
-    #view-settings .tvinfo { margin-top: 64px; padding: 32px; font-size: 25px; }
+    #view-settings .tvinfo { margin-top: 32px; padding: 0; font-size: 25px; }
     #view-settings .tvinfo h3 { font-size: 30px; margin-bottom: 16px; }
     #view-settings .tvinfo .row { padding: 10px 0; }
     #view-settings .tvinfo .k { flex-basis: 400px; }

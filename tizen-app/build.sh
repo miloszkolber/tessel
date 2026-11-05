@@ -17,15 +17,11 @@ mkdir -p "${ROOT}/dist"
 rm -f "${OUT}"
 
 cd "${SRC}"
-zip -rq "${OUT}" \
-    config.xml \
-    index.html \
-    icon.png \
-    assets \
-    css \
-    js \
-    i18n \
-    service
+stage=$(mktemp -d)
+trap 'rm -rf "$stage"' EXIT
+cp -r config.xml index.html icon.png assets css js i18n "$stage/"
+node "${ROOT}/scripts/bundle-service.js" "$stage/service/service.js"
+(cd "$stage" && zip -rq "${OUT}" config.xml index.html icon.png assets css js i18n service)
 
 ls -lh "${OUT}"
 echo ""

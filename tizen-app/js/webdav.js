@@ -205,7 +205,9 @@ var WebDAV = (function () {
     }
 
     var browseSequence = 0;
+    var listedFolder = '';
     function render(path, focusName) {
+        listedFolder = path || '';
         var seq = ++browseSequence;
         var srv = current, s = serverById(srv) || {};
         head([serverLabel(s)].concat(String(path || '').split('/').filter(Boolean)), serverLabel(s) + (path || '/'));
@@ -251,6 +253,7 @@ var WebDAV = (function () {
                 up.addEventListener('click', goUp);
                 list_.appendChild(up);
             }
+            var continueUri = !focusName && window.VlcApp && window.VlcApp.continueBrowseAt ? window.VlcApp.continueBrowseAt(playlist) : null;
             var focus = null;
             entries.forEach(function (e) {
                 var kind = e.isDir ? 'dir' : FileTypes.kind(e.name);
@@ -272,6 +275,7 @@ var WebDAV = (function () {
                 }
                 if (focusName && e.name === focusName) focus = li;
                 if (!e.isDir && FileTypes.isPlayable(e.name)) li.dataset.uri = playableUrl(join(path, e.name), srv);
+                if (continueUri && li.dataset.uri === continueUri) focus = li;
                 li.addEventListener('click', function () {
                     if (e.isDir) { pathStack.push(path); render(join(path, e.name)); return; }
                     if (openOther(kind, e)) return;
@@ -326,7 +330,7 @@ var WebDAV = (function () {
             exit();
             return;
         }
-        render(pathStack.pop());
+        render(pathStack.pop(), listedFolder.split('/').pop());
     }
     function exit() {
         teardownBack();
@@ -537,7 +541,23 @@ var WebDAV = (function () {
     else
         wireSettingsForm();
 
+    function listMusic(source, cb) {
+        list(source.srv, source.path, function (err, entries) {
+            if (err) return cb(err);
+            var sidecars = SMB.siblingSubtitles(entries, source.path, source.srv, streamUrl);
+            var artName = FileTypes.folderArt(entries.map(function (e) { return e.isDir ? '' : e.name; }));
+            cb(null, entries.map(function (e) {
+                var path = join(source.path, e.name);
+                return { name: e.name, isDir: e.isDir,
+                    node: { kind: 'webdav', srv: source.srv, path: path, name: e.name },
+                    track: { uri: playableUrl(path, source.srv), title: e.name,
+                        tagSrc: streamUrl(path, source.srv), subtitles: sidecars[e.name] || [],
+                        source: source, art: artName ? streamUrl(join(source.path, artName), source.srv) : null } };
+            }));
+        });
+    }
     return {
+        listMusic: listMusic,
         openBrowser:     openBrowser,
         openFolder:      openFolder,
         editServer:      editServer,

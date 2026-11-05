@@ -18,8 +18,9 @@
     <!-- Hybrid background service: a Node.js HTTP↔SMB2 proxy on localhost:8127.
          The .wgt sandbox can't open raw TCP to port 445; this service can, and
          re-serves files over HTTP with Range support so AVPlay can stream them.
-         Launched via tizen.application.launch('tesselapp.smbproxy'). -->
-    <tizen:service id="tesselapp.smbproxy" type="service">
+         Started via wrt:service on modern sets, application launch otherwise.
+         Packaged as one wrapped file by scripts/bundle-service.js. -->
+    <tizen:service id="tesselapp.smbproxy">
         <tizen:content src="service/service.js"/>
         <tizen:name>smbproxy</tizen:name>
     </tizen:service>
@@ -46,6 +47,7 @@
                    hwkey-event="enable"/>
 
     <feature name="http://tizen.org/feature/screen.size.normal.1080.1920"/>
+    <feature name="http://tizen.org/feature/web.service"/>
 
     <!-- Privileges — internet for streams, mediastorage/externalstorage for USB
          file enumeration, download for future remote-file caching. -->

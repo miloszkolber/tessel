@@ -269,7 +269,20 @@ var LanguageList = (function () {
         return 0;
     }
 
+    /* Local default still prefers the app language. If it is unavailable,
+     * use an untagged sidecar, then the only sidecar rather than guessing
+     * among several foreign languages. Adapted from upstream 1b05169826e8. */
+    function pickAutoSubtitle(subs, uiLang) {
+        uiLang = String(uiLang || '').toLowerCase().split(/[-_]/)[0];
+        var untagged = null, matched = null;
+        for (var i = 0; i < subs.length; i++) {
+            if (!subs[i].lang && !untagged) untagged = subs[i];
+            if (!matched && matchScore(uiLang, subs[i].lang, '') >= 90) matched = subs[i];
+        }
+        return matched || untagged || (subs.length === 1 ? subs[0] : null);
+    }
     return {
+        pickAutoSubtitle: pickAutoSubtitle,
         forAudio:    function () { return i18nList(langs); },
         forSubtitle: function () {
             return i18nList([{ code: 'off', name: 'Off (no subtitles)', nameKey: 'lang.off' }].concat(langs));
@@ -324,7 +337,6 @@ var SubtitleStyle = (function () {
         if (typeof Settings === 'undefined') return;
         var size = find(SIZE, Settings.get('subtitleSize'));
         var font = find(FONT, Settings.get('subtitleFont'));
-        var pos  = find(POSITION, Settings.get('subtitlePosition'));
         var bg   = Settings.get('subtitleBg');
 
         var root = document.documentElement;
@@ -333,10 +345,9 @@ var SubtitleStyle = (function () {
 
         var ov = document.getElementById('subtitle-overlay');
         if (ov) {
-            ov.classList.remove('sub-pos-bottom', 'sub-pos-middle', 'sub-pos-top');
-            ov.classList.add('sub-pos-' + pos.code);
             ov.classList.toggle('sub-bg', bg === 'box');
         }
+        if (typeof Player !== 'undefined' && Player.repaintSubtitles) Player.repaintSubtitles();
 
         // HTML5 <track> rendering: inject/update a ::cue rule.
         var styleEl = document.getElementById('subtitle-cue-style');

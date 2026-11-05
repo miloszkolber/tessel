@@ -23,7 +23,8 @@ function harness() {
         usbFavorite: function () { return {}; }, markFavoriteRow: function () {},
         UI: { showView: function () {}, refreshFocusables: function () {}, focusOn: function (n) { focused = n; } },
         FileTypes: FileTypes, Playlist: Playlist, foldText: Playlist.foldText, logoObserver: null,
-        loadLogos: function () {}, isWatched: function () { return false; },
+        loadLogos: function () {}, isWatched: function () { return false; }, continueBrowseAt: function () { return null; },
+        cancelLengths: function () {}, fillLengths: function () {},
         Favorites: { find: function () { return null; } }, SavedStreams: { findByUrl: function () { return null; } },
         I18n: require('./helpers/i18n.js'), escapeHtml: function (value) { return String(value); },
         groupName: function (name) { return name || 'Other'; }, clearPlaylistFilter: function () {}

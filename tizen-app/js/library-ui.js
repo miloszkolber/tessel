@@ -114,20 +114,19 @@ var LibraryUI = (function () {
         if (item.source || item.kind) decorateAvailability(b, item.source || item);
         return b;
     }
-    /* A section keeps its place whether or not it has items: the row stays
-     * on the page and says so, so the rows below never jump up and down as
-     * the library changes. */
+    /* Stream lists name their empty state. Optional Home sections are
+     * omitted entirely so Sources remains the first useful destination. */
     function markEmpty(list, message) {
         var empty = !list.children.length;
         list.classList.toggle('empty', empty);
         list.dataset.empty = message || '';
         if (empty) list.appendChild(el('p', 'empty-state', message));
     }
-    function row(host, title, items, render, emptyText, modName) {
+    function row(host, title, items, render, modName) {
+        if (!items.length) return;
         var section = el('section', modName ? 'library-row ' + modName : 'library-row'); section.appendChild(el('h2', '', title));
         var list = el('div', 'card-row');
         items.forEach(function (item) { list.appendChild(render(item)); });
-        markEmpty(list, emptyText);
         section.appendChild(list); host.appendChild(section);
     }
     function pinAction(s, after) {
@@ -135,7 +134,26 @@ var LibraryUI = (function () {
         return { name: t(old ? 'pin.unpin' : 'pin.pin'), run: function () { if (old) Favorites.remove(old.id); else Favorites.add(s); if (after) after(); } };
     }
     function bindFolder(node, s) {
-        bind(node, function () { Dialog.menu(s.name, [pinAction(s, function () { node.classList.toggle('is-fav', !!Favorites.find(s)); UI.refreshFocusables(); UI.focusOn(node); })], node); });
+        bind(node, function () {
+            var actions = [pinAction(s, function () { node.classList.toggle('is-fav', !!Favorites.find(s)); UI.refreshFocusables(); UI.focusOn(node); })];
+            if (s.kind === 'usb' || s.kind === 'smb' || s.kind === 'webdav') {
+                actions.push({ name: t('folderPlay.playAll'), run: function () { FolderPlay.start(s, false, node); } });
+                actions.push({ name: t('folderPlay.shuffleAll'), run: function () { FolderPlay.start(s, true, node); } });
+                actions.push({ name: t('history.reset'), run: function () {
+                    Dialog.menu(t('history.confirm', s.name), [
+                        { name: t('common.cancel'), run: function () { UI.restoreFocus(node); } },
+                        { name: t('history.reset'), run: function () {
+                            var revision = UI.viewRevision;
+                            VlcApp.forgetFolderHistory(s, function (err) {
+                                if (revision !== UI.viewRevision || !node.parentNode) return;
+                                UI.toast(t(err ? 'history.failed' : 'history.done')); UI.restoreFocus(node);
+                            });
+                        } }
+                    ], node);
+                } });
+            }
+            Dialog.menu(s.name, actions, node);
+        });
     }
     function restore(key, fallback) {
         UI.refreshFocusables();
@@ -165,7 +183,7 @@ var LibraryUI = (function () {
                 });
             c.classList.add('continue-card');
             return c;
-        }, t('library.noContinue'));
+        });
         row(host, t('library.pinned'), Favorites.list(), function (s) {
             return card(s, function () { openPin(s); }, function (node) {
                 Dialog.menu(s.name, [{ name: t('pin.unpin'), run: function () {
@@ -175,7 +193,7 @@ var LibraryUI = (function () {
                     Dialog.rename(t('library.rename'), s.name, function (name) { Favorites.rename(s.id, name); VlcApp.refreshHome(); restore(node.dataset.cardKey); }, node);
                 } }], node);
             });
-        }, t('library.noPinned'), 'shortcut-row');
+        }, 'shortcut-row');
         UI.refreshFocusables();
         if (focus && !Dialog.isOpen()) restore(focus);
         else if (!Dialog.isOpen() && !document.getElementById('view-home').classList.contains('hidden') &&

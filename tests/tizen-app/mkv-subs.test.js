@@ -56,6 +56,15 @@ function str(s) { return Array.prototype.slice.call(Buffer.from(s, 'utf8')); }
 function u8(n) { return [n & 0xff]; }
 function filler(n) { var a = []; for (var i = 0; i < n; i++) a.push(0); return a; }
 
+test('Matroska duration uses TimecodeScale regardless of Info element order', async function () {
+    var duration = Buffer.alloc(8); duration.writeDoubleBE(125000);
+    var info = el(0x1549A966, concat(el(0x4489, Array.from(duration)), el(0x2AD7B1, [0x0f, 0x42, 0x40])));
+    var result = await new Promise(function (resolve, reject) {
+        MkvSubs.listTracks(stubReader(mkvFile(info)), function (err, tracks, layout) { if (err) reject(err); else resolve(layout.duration); });
+    });
+    assert.equal(result, 125000);
+});
+
 /* A subtitle TrackEntry.  `opts` mirrors the elements a real muxer writes. */
 function subtitleTrack(number, opts) {
     opts = opts || {};

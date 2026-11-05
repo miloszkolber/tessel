@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'tizen-app/**'
+      - 'scripts/bundle-service.js'
       - '.github/workflows/build-wgt.yml'
 
 permissions:

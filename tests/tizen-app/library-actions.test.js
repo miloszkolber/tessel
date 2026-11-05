@@ -18,7 +18,7 @@ function harness() {
     }
     var context = {
         document: { activeElement: { dataset: { cardKey: 'old-render-focus' } }, getElementById: function (id) { return id === 'url-input' ? input : { classList: { contains: function () { return false; } } }; } },
-        row: function (host, title, items, render, empty, mode) {
+        row: function (host, title, items, render, mode) {
             var cards = items.map(render); cards.forEach(function (n) { n.row = cards; });
             rows[mode === 'shortcut-row' ? 'pins' : 'continue'] = cards;
         }, card: makeCard, t: function (key) { return key; },
@@ -52,7 +52,7 @@ test('Home rename restores the invoking pin rather than the render-time focus', 
     assert.equal(h.restores[h.restores.length - 1].key, 'https://example.com/3');
 });
 
-test('Home removal selects next or previous cards and leaves empty rows to the normal fallback', function () {
+test('Home removal selects next or previous cards and falls back after the last item', function () {
     var h = harness(); h.context.home();
     h.rows.pins[1].menu(); h.run(0);
     assert.equal(h.restores[h.restores.length - 1].key, 'https://example.com/3');
@@ -62,6 +62,25 @@ test('Home removal selects next or previous cards and leaves empty rows to the n
     assert.equal(h.restores[h.restores.length - 1].key, null);
     h.rows.continue[1].menu(); h.run(0);
     assert.equal(h.restores[h.restores.length - 1].key, 'queue:1');
+});
+
+test('Home row rendering omits empty sections and preserves populated shortcut rows', function () {
+    function el(tag, cls, text) {
+        return { tag: tag, className: cls, textContent: text, children: [], appendChild: function (child) { this.children.push(child); } };
+    }
+    var context = { el: el };
+    vm.createContext(context);
+    var start = source.indexOf('    function row('), end = source.indexOf('    function pinAction(', start);
+    vm.runInContext(source.slice(start, end), context);
+    var host = el('div');
+    context.row(host, 'Continue playing', [], function () { throw new Error('empty render'); });
+    context.row(host, 'Pinned', [], function () { throw new Error('empty render'); }, 'shortcut-row');
+    assert.equal(host.children.length, 0, 'neither heading nor placeholder nor reserved row is mounted');
+    context.row(host, 'Pinned', [{ name: 'Series' }], function (item) { return el('button', 'media-card', item.name); }, 'shortcut-row');
+    assert.equal(host.children.length, 1);
+    assert.equal(host.children[0].className, 'library-row shortcut-row');
+    assert.equal(host.children[0].children[0].textContent, 'Pinned');
+    assert.equal(host.children[0].children[1].children[0].textContent, 'Series');
 });
 
 test('saved/recent removal stays in its row until the row becomes empty', function () {

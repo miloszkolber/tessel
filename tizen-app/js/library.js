@@ -95,9 +95,24 @@ var Library = (function () {
             data.recent = data.recent.slice(0, 20); write(data);
         }
         function removeRecent(url) { var d = read(); d.recent = d.recent.filter(function (s) { return s.url !== url; }); write(d); }
+        /* Forget only matching files, including progress held solely by a
+         * queue snapshot. Mixed-source queues keep unrelated items/progress. */
+        function forgetMatching(matches) {
+            var d = read();
+            d.queues.forEach(function (q) {
+                var before = q.items, index = q.index;
+                q.items = before.filter(function (p) { return !matches(p.uri); });
+                q.index = before.slice(0, index).filter(function (p) { return !matches(p.uri); }).length;
+                if (!before[index] || matches(before[index].uri)) { q.pos = 0; q.dur = 0; }
+            });
+            d.queues = d.queues.filter(function (q) { return q.items.length; });
+            d.hidden = d.hidden.filter(function (uri) { return !matches(uri); });
+            return write(d);
+        }
         return { begin: begin, checkpoint: function (u, p, d) { change(u, p, d, false); },
             complete: function (u) { change(u, 0, 0, true); }, recommendations: recommendations, dismiss: dismiss,
-            title: title, recent: recent, recents: function () { return read().recent; }, removeRecent: removeRecent };
+            title: title, recent: recent, recents: function () { return read().recent; }, removeRecent: removeRecent,
+            forgetMatching: forgetMatching };
     }
     var api = create(typeof localStorage !== 'undefined' ? localStorage : null);
     api.create = create;

@@ -63,6 +63,33 @@ test('direct folder shortcuts retain the same USB identity as browsing from the 
     assert.ok(direct.startsWith('file:///removable1/Films/'));
 });
 
+test('direct simulator resolution preserves the parent chain and file kind', function () {
+    var filesystem = world().context.window.tizen.filesystem, file;
+    filesystem.resolve('/removable1/Series/Season 1', function (dir) { file = dir; });
+    assert.equal(file.parent.fullPath, '/removable1/Series'); assert.equal(file.parent.parent.fullPath, '/removable1');
+    filesystem.resolve('/removable1/Music/Theme song.mp3', function (f) { file = f; });
+    assert.equal(file.isDirectory, false); assert.equal(file.parent.fullPath, '/removable1/Music'); assert.equal(file.fileSize, 8600000);
+});
+
+test('simulated MP4 and Matroska headers expose their configured durations', async function () {
+    var filesystem = world().context.window.tizen.filesystem, mp4, mkv;
+    filesystem.resolve('/removable1/Films', function (dir) { dir.listFiles(function (files) {
+        mp4 = files.filter(function (f) { return f.name === 'Big Buck Bunny.mp4'; })[0];
+        mkv = files.filter(function (f) { return f.name === 'Documentary.mkv'; })[0];
+    }); });
+    var Mp4Subs = require('../../tizen-app/js/mp4-subs.js'), MkvSubs = require('../../tizen-app/js/mkv-subs.js');
+    var MediaInfo = require('../../tizen-app/js/media-info.js');
+    var cache = MediaInfo.create({ getItem: function () { return '{}'; }, setItem: function () {} }, { mp4: Mp4Subs, mkv: MkvSubs });
+    var record = await new Promise(function (resolve, reject) {
+        cache.lookup({ uri: mp4.toURI(), name: mp4.name, file: mp4, size: mp4.fileSize, mtime: mp4.modified }, function (err, value) { if (err) reject(err); else resolve(value); });
+    });
+    assert.equal(record.dur, 596000);
+    record = await new Promise(function (resolve, reject) {
+        cache.lookup({ uri: mkv.toURI(), name: mkv.name, file: mkv, size: mkv.fileSize, mtime: mkv.modified }, function (err, value) { if (err) reject(err); else resolve(value); });
+    });
+    assert.equal(record.dur, 2700000);
+});
+
 test('a virtual file reads like a Tizen file: node-style size, ranged bytes, text stream', function () {
     var w = world(), music = null;
     w.context.window.tizen.filesystem.resolve('removable1/Music', function (dir) {
@@ -141,7 +168,10 @@ function decoder(opts) {
     var context = {
         document: {
             getElementById: function (id) { return id === 'subtitle-overlay' ? overlay : null; },
-            createElement: function () { return { className: '', textContent: '' }; }
+            createElement: function () { return { className: '', _text: '', children: [],
+                get textContent() { return this._text + this.children.map(function (el) { return el.textContent; }).join(''); },
+                set textContent(value) { this._text = value; this.children = []; },
+                appendChild: function (el) { this.children.push(el); } }; }
         },
         Simulator: { DURATIONS: { 'Big Buck Bunny.mp4': 596000 } },
         Browser: opts.browser || undefined,
@@ -250,10 +280,11 @@ test('demo.html loads the real index.html and swaps in the simulator', function 
 });
 
 test('the packaged app leaves the simulator out of the .wgt', function () {
-    var build = read('build.sh');
-    var zipped = /zip -rq "\$\{OUT\}" \\\n([\s\S]*?)\n\n/.exec(build)[1];
-    assert.ok(!/demo/.test(zipped), 'demo files must not ship in the app package');
-    ['config.xml', 'index.html', 'css', 'js', 'i18n', 'service'].forEach(function (part) {
+    var child = require('node:child_process');
+    child.execFileSync('bash', ['tizen-app/build.sh']);
+    var zipped = child.execFileSync('unzip', ['-Z1', 'dist/tessel.wgt'], { encoding: 'utf8' }).trim().split('\n');
+    assert.ok(!zipped.some(function (name) { return /(^|\/)demo(?:\/|\.html)/.test(name); }), 'demo files must not ship in the app package');
+    ['config.xml', 'index.html', 'css/style.css', 'js/app.js', 'js/media-info.js', 'i18n/en.json', 'service/service.js'].forEach(function (part) {
         assert.ok(zipped.indexOf(part) >= 0, part + ' should still ship');
     });
 });

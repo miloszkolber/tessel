@@ -124,10 +124,10 @@ var SMB = (function () {
     function serverLabel(c) { return '\\\\' + c.host + '\\' + c.share; }
 
     /* ── tiny XHR helpers (the service sets permissive CORS) ───────────────*/
-    function getJson(url, cb) {
+    function getJson(url, cb, timeout) {
         var x = new XMLHttpRequest();
         x.open('GET', url, true);
-        x.timeout = 15000;
+        x.timeout = timeout || 15000;
         x.onload = function () {
             var result;
             try { result = JSON.parse(x.responseText); }
@@ -159,31 +159,76 @@ var SMB = (function () {
     function ensureService(cb) {
         if (serviceWaiters) { serviceWaiters.push(cb); return; }
         serviceWaiters = [cb];
+        var settled = false;
         startService(function (err) {
+            if (settled) return;
+            settled = true;
             var waiting = serviceWaiters; serviceWaiters = null;
             waiting.forEach(function (done) { done(err); });
         });
     }
-    function startService(cb) {
+    var wrtTried = false;
+    function withServiceModule(cb) {
+        var major = 0;
+        try { major = parseInt(tizen.systeminfo.getCapability('http://tizen.org/feature/platform.version'), 10) || 0; } catch (e) {}
+        if (major < 9 || wrtTried || (typeof window !== 'undefined' && window.tesselService)) { cb(); return; }
+        wrtTried = true;
+        var finished = false, timer;
+        function done() {
+            if (finished) return;
+            finished = true; clearTimeout(timer);
+            if (typeof window !== 'undefined' && window.removeEventListener) window.removeEventListener('tessel-service-ready', done);
+            cb();
+        }
+        try {
+            window.addEventListener('tessel-service-ready', done);
+            timer = setTimeout(done, 3000);
+            var script = document.createElement('script'); script.type = 'module';
+            script.text = "import { Service } from 'wrt:service'; window.tesselService = Service; window.dispatchEvent(new Event('tessel-service-ready'));";
+            script.onerror = done; document.body.appendChild(script);
+        } catch (e) { done(); }
+    }
+    function launchService() {
+        var id;
         try {
             var appId = tizen.application.getCurrentApplication().appInfo.id;
-            var pkgId = appId.split('.')[0];
-            dbg('launching service ' + pkgId + '.smbproxy');
-            tizen.application.launch(pkgId + '.smbproxy',
-                function () { dbg('service launch ok'); },
-                function (e) { dbg('service launch error: ' + (e && e.message)); });
-        } catch (e) {
-            dbg('service launch threw: ' + e.message);
+            id = appId.split('.')[0] + '.smbproxy';
+        } catch (e) { dbg('service identity unavailable: ' + e.message); return; }
+        var legacyTried = false;
+        function legacy() {
+            if (legacyTried) return;
+            legacyTried = true;
+            function launch() {
+                try { tizen.application.launch(id, function () { dbg('service launch ok'); }, function (err) { dbg('service launch error: ' + (err && err.message)); }); }
+                catch (e) { dbg('service launch threw: ' + e.message); }
+            }
+            try {
+                if (tizen.ApplicationControl && tizen.application.launchAppControl) {
+                    tizen.application.launchAppControl(new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service'), id,
+                        function () { dbg('service appcontrol ok'); }, launch);
+                } else launch();
+            } catch (e) { launch(); }
         }
-        // The service may already be running from a previous open; poll either way.
-        var tries = 0;
-        (function poll() {
-            getJson(BASE + '/smb/ping', function (err) {
-                if (!err) { dbg('service ping ok after ' + tries + ' tries'); return cb(null); }
-                if (++tries > 18) { dbg('service ping gave up after ' + tries + ' tries: ' + err.message); return cb(new Error('SMB service did not start')); }
-                setTimeout(poll, 300);
-            });
-        })();
+        try {
+            var Service = typeof window !== 'undefined' && window.tesselService;
+            if (typeof Service !== 'function') { legacy(); return; }
+            var started = new Service(id).start();
+            if (started && typeof started.then === 'function') started.then(function () { dbg('service module start ok'); }, legacy);
+        } catch (e) { legacy(); }
+    }
+    function startService(cb) {
+        withServiceModule(function () {
+            launchService();
+            // The service may already be running; poll loopback either way.
+            var tries = 0;
+            (function poll() {
+                getJson(BASE + '/smb/ping', function (err, result) {
+                    if (!err && result && result.ok) { dbg('service ping ok after ' + tries + ' tries'); return cb(null); }
+                    if (++tries > 18) { dbg('service ping gave up after ' + tries + ' tries'); return cb(new Error('SMB service did not start')); }
+                    setTimeout(poll, 300);
+                }, 1000);
+            })();
+        });
     }
 
     function connect(id, cb) {
@@ -275,8 +320,8 @@ var SMB = (function () {
         });
     }
 
-    function list(path, cb) {
-        getJson(BASE + '/smb/list?path=' + encodeURIComponent(path || '') + srvParam(current), function (err, res) {
+    function list(path, cb, serverId) {
+        getJson(BASE + '/smb/list?path=' + encodeURIComponent(path || '') + srvParam(serverId === undefined ? current : serverId), function (err, res) {
             if (err) return cb(err);
             if (!res.ok) return cb(new Error(res.error || 'list failed'));
             cb(null, res.entries || []);
@@ -328,7 +373,7 @@ var SMB = (function () {
     /* Text subtitle formats the player can paint.  Image subs (.sub/.idx,
      * .sup) are left out on purpose — same list as the USB browser. */
     function isSubtitle(name) {
-        return /\.(srt|vtt|ass|ssa|smi|sami)$/i.test(name);
+        return /\.(srt|vtt|ass|ssa|smi|sami|txt)$/i.test(name);
     }
     function join(dir, name) { return (dir ? dir.replace(/\/+$/, '') : '') + '/' + name; }
 
@@ -414,7 +459,9 @@ var SMB = (function () {
     }
 
     var browseSequence = 0;
+    var listedFolder = '';
     function render(path, focusName) {
+        listedFolder = path || '';
         var seq = ++browseSequence;
         UI.showView('view-browse');
         var srv = serverById(current) || {};
@@ -477,6 +524,7 @@ var SMB = (function () {
                 ul.appendChild(up);
             }
 
+            var continueUri = !focusName && window.VlcApp && window.VlcApp.continueBrowseAt ? window.VlcApp.continueBrowseAt(playlist) : null;
             var focus = null;
             entries.forEach(function (e) {
                 var kind = e.isDir ? 'dir' : FileTypes.kind(e.name);
@@ -505,6 +553,7 @@ var SMB = (function () {
                 }
                 if (focusName && e.name === focusName) focus = li;
                 if (!e.isDir && isPlayable(e.name)) li.dataset.uri = playableUrl(join(path, e.name), current);
+                if (continueUri && li.dataset.uri === continueUri) focus = li;
                 li.addEventListener('click', function () {
                     if (e.isDir) {
                         pathStack.push(path);
@@ -575,7 +624,7 @@ var SMB = (function () {
             return;
         }
         var parent = pathStack.pop();
-        render(parent);
+        render(parent, listedFolder.split('/').pop());
     }
     function exit() {
         teardownBack();
@@ -967,7 +1016,23 @@ var SMB = (function () {
     else
         wireSettingsForm();
 
+    function listMusic(source, cb) {
+        list(source.path, function (err, entries) {
+            if (err) return cb(err);
+            var sidecars = siblingSubtitles(entries, source.path, source.srv);
+            var artName = FileTypes.folderArt(entries.map(function (e) { return e.isDir ? '' : e.name; }));
+            cb(null, entries.map(function (e) {
+                var path = join(source.path, e.name);
+                return { name: e.name, isDir: e.isDir,
+                    node: { kind: 'smb', srv: source.srv, path: path, name: e.name },
+                    track: { uri: playableUrl(path, source.srv), title: e.name,
+                        tagSrc: streamUrl(path, source.srv), subtitles: sidecars[e.name] || [],
+                        source: source, art: artName ? streamUrl(join(source.path, artName), source.srv) : null } };
+            }));
+        }, source.srv);
+    }
     return {
+        listMusic: listMusic,
         openBrowser:     openBrowser,
         openFolder:      openFolder,
         editServer:      editServer,

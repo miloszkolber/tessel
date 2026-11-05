@@ -90,7 +90,11 @@ var Player = (function () {
         var line = document.createElement('span');
         line.className = 'sub-line';
         line.textContent = cue.text;
-        ov.appendChild(line);
+        var band = document.createElement('div');
+        var position = typeof Settings !== 'undefined' ? Settings.get('subtitlePosition') || 'bottom' : 'bottom';
+        band.className = 'sub-band sub-band-' + position;
+        band.appendChild(line);
+        ov.appendChild(band);
         ov.classList.remove('hidden');
     }
 
@@ -285,6 +289,7 @@ var Player = (function () {
                 hdr: null
             };
         },
+        repaintSubtitles: function () { paintCue(cueAt(time)); },
         getBackend: function () { return 'simulated'; },
         applyAspect: function () {},
         describeAspect: function () { return { mode: 'simulated' }; },

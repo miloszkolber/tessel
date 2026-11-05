@@ -229,8 +229,8 @@ var Player = (function () {
      * to pre-apply at file open before play() — the only point at which
      * setExternalSubtitlePath doesn't cause the seek bug. */
     function pickBestExternalSubtitle(prefLang) {
-        if (!prefLang || prefLang === 'off' || !playerSubtitles.length) return null;
-        var want = prefLang.toLowerCase();
+        if (prefLang === 'off' || !playerSubtitles.length) return null;
+        var want = String(prefLang || (typeof I18n !== 'undefined' && I18n.current ? I18n.current() : '')).toLowerCase();
         var best = null;
         var bestScore = 0;
         for (var i = 0; i < playerSubtitles.length; i++) {
@@ -242,8 +242,14 @@ var Player = (function () {
                    : ((s.lang || '').toLowerCase() === want ? 100 : 0);
             if (sc > bestScore) { bestScore = sc; best = s; }
         }
-        return best;
+        if (best) return best;
+        if (preplaySubtitleAuto && typeof LanguageList !== 'undefined' && LanguageList.pickAutoSubtitle) {
+            return LanguageList.pickAutoSubtitle(playerSubtitles.filter(function (s) { return !s._extracted; }), want);
+        }
+        return null;
     }
+    var preplaySubtitlePreference;
+    var preplaySubtitleAuto = false;
 
     /* AVPlay subtitle painter — three paths feed into the same overlay:
      *
@@ -264,6 +270,7 @@ var Player = (function () {
     var extCues = null;            // parsed external cues [{start, end, text}]
     var extPollTimer = null;
     var extLastCueIdx = -1;
+    var lastRenderedCues = null;
     var subtitleDelayMs = 0;
     var activeH5TextTrack = null;
     var extLoadToken = 0;
@@ -307,17 +314,9 @@ var Player = (function () {
         // Paint into a .sub-line span (not the overlay directly) so an
         // optional translucent background box hugs the text rather than the
         // full overlay width.  textContent keeps it injection-safe.
-        var line = el.firstChild;
-        if (!line || line.className !== 'sub-line') {
-            el.textContent = '';
-            line = document.createElement('span');
-            line.className = 'sub-line';
-            el.appendChild(line);
-        }
-        if (runs && runs.length) paintRuns(line, runs);
-        else                     line.textContent = s;
-        el.classList.remove('hidden');
-        if (typeof Debug !== 'undefined' && window.getComputedStyle) {
+        renderCues([{ text: text, runs: runs }]);
+        var line = el.firstChild && el.firstChild.firstChild;
+        if (line && typeof Debug !== 'undefined' && window.getComputedStyle) {
             var elCs   = window.getComputedStyle(el);
             var lineCs = window.getComputedStyle(line);
             var elRect = el.getBoundingClientRect();
@@ -379,8 +378,51 @@ var Player = (function () {
         }
     }
 
+    /* Adapted from upstream 0e820532d4e6: all simultaneous cues survive.
+     * Explicit ASS signs use their band, ordinary dialogue follows the
+     * user's position. DOM text nodes keep sidecars injection-safe. */
+    function renderCues(cues, keepTimer) {
+        var el = subEl();
+        if (!el) return;
+        if (!keepTimer) clearTimeout(subClearTimer);
+        el.textContent = '';
+        var preferred = typeof Settings !== 'undefined' ? Settings.get('subtitlePosition') : 'bottom';
+        if (preferred !== 'top' && preferred !== 'middle') preferred = 'bottom';
+        var bands = {}, painted = false;
+        for (var i = 0; i < cues.length; i++) {
+            var cue = cues[i], name = cue.band || preferred;
+            if (name !== 'top' && name !== 'middle') name = 'bottom';
+            if (!bands[name]) {
+                bands[name] = document.createElement('div');
+                bands[name].className = 'sub-band sub-band-' + name;
+                el.appendChild(bands[name]);
+            }
+            var text = String(cue.text || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')
+                .replace(/\{\\[^}]*\}/g, '').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<')
+                .replace(/&gt;/gi, '>').replace(/&quot;/gi, '"').trim();
+            if (!text && !(cue.runs && cue.runs.length)) continue;
+            var line = document.createElement('span');
+            line.className = 'sub-line';
+            if (cue.halign === 'left' || cue.halign === 'right') {
+                line.style.textAlign = cue.halign;
+                line.style.alignSelf = cue.halign === 'left' ? 'flex-start' : 'flex-end';
+            }
+            if (cue.runs && cue.runs.length) paintRuns(line, cue.runs);
+            else line.textContent = text;
+            bands[name].appendChild(line);
+            painted = true;
+        }
+        lastRenderedCues = painted ? cues : null;
+        if (painted) el.classList.remove('hidden');
+        else el.classList.add('hidden');
+    }
+    function repaintSubtitles() {
+        if (lastRenderedCues) renderCues(lastRenderedCues, true);
+    }
+
     function hideSubtitleText() {
         clearTimeout(subClearTimer);
+        lastRenderedCues = null;
         var el = subEl();
         if (el) { el.textContent = ''; el.classList.add('hidden'); }
     }
@@ -417,6 +459,7 @@ var Player = (function () {
                 case 'ssa':                 extCues = parseAssCues(text); break;
                 case 'smi':
                 case 'sami':                extCues = parseVttCues(smiToVtt(text)); break;
+                case 'txt':                extCues = parseTxtCues(text); break;
                 default:                    extCues = parseSrtCues(text); break;
             }
             if (typeof Debug !== 'undefined') Debug.player('external sub loaded: ' + extCues.length + ' cues');
@@ -449,28 +492,24 @@ var Player = (function () {
             t = h5el().currentTime || 0;
         }
         t -= subtitleDelayMs / 1000;
-        // Find the cue whose [start, end) contains t.  Cues are sorted; we
-        // binary-ish search by scanning since N is small.
-        var idx = -1;
+        // Keep every overlapping cue, including positioned ASS signs.
+        var active = [], ids = [];
         for (var i = 0; i < extCues.length; i++) {
-            if (t >= extCues[i].start && t < extCues[i].end) { idx = i; break; }
             if (extCues[i].start > t) break;
+            if (t >= extCues[i].start && t < extCues[i].end) { active.push(extCues[i]); ids.push(i); }
         }
+        var signature = ids.join(',');
         // Heartbeat every ~5 s so we can confirm the poll is alive even
         // when the cue isn't changing.
         extPollDebugCount++;
         if (typeof Debug !== 'undefined' && (extPollDebugCount % 20) === 1) {
-            Debug.player('extPoll alive t=' + t.toFixed(2) + 's idx=' + idx +
+            Debug.player('extPoll alive t=' + t.toFixed(2) + 's active=' + signature +
                          ' last=' + extLastCueIdx + ' cues=' + extCues.length);
         }
-        if (idx === extLastCueIdx) return;
-        extLastCueIdx = idx;
-        if (typeof Debug !== 'undefined')
-            Debug.player('extPoll cue change → idx=' + idx +
-                         (idx >= 0 ? ' text=' + JSON.stringify((extCues[idx].text || '').slice(0, 60)) : ''));
-        if (idx < 0) hideSubtitleText();
-        else         showSubtitleText(extCues[idx].text, 0,     // 0 → no timer
-                                      extCues[idx].runs);
+        if (signature === extLastCueIdx) return;
+        extLastCueIdx = signature;
+        if (!active.length) hideSubtitleText();
+        else renderCues(active);
     }
 
     function getSubtitleDelay() { return subtitleDelayMs; }
@@ -545,6 +584,73 @@ var Player = (function () {
         return parseSrtCues(body);
     }
 
+    /* MicroDVD, MPL2 and TMPlayer sidecars, adapted from upstream
+     * 42cc8b93d059. A renamed SRT is still parsed as SRT. MicroDVD uses its
+     * explicit FPS header when present, otherwise the upstream 23.976
+     * fallback. Headerless files for other frame rates can require sync. */
+    function parseTxtCues(text) {
+        var lines = String(text || '').replace(/^\uFEFF/, '').replace(/\r/g, '').split('\n');
+        var microRe = /^\{(\d+)\}\{(\d*)\}(.*)$/;
+        var mplRe = /^\[(\d+)\]\[(\d*)\](.*)$/;
+        var tmRe = /^(\d{1,2}):(\d{2}):(\d{2})(?:,(\d))?[:=](.*)$/;
+        var counts = [0, 0, 0, 0], i, m;
+        for (i = 0; i < lines.length; i++) {
+            if (TIMECODE_RE.test(lines[i])) counts[0]++;
+            else if (microRe.test(lines[i])) counts[1]++;
+            else if (mplRe.test(lines[i])) counts[2]++;
+            else if (tmRe.test(lines[i])) counts[3]++;
+        }
+        var best = Math.max.apply(null, counts), kind = counts.indexOf(best);
+        if (!best) return [];
+        if (!kind) return parseSrtCues(text);
+        var cues = [], fps = 23.976;
+        function clean(value) {
+            return value.replace(/\{[a-zA-Z]:[^}]*\}/g, '').split('|').map(function (part) {
+                return part.replace(/^\s*\//, '').trim();
+            }).join('\n').trim();
+        }
+        for (i = 0; i < lines.length; i++) {
+            var start, end = null, label;
+            if (kind === 1) {
+                m = microRe.exec(lines[i]); if (!m) continue;
+                if (+m[1] <= 1 && (!m[2] || +m[2] <= 1) && /^\s*\d+(\.\d+)?\s*$/.test(m[3])) {
+                    var rate = parseFloat(m[3]);
+                    if (rate > 0 && rate <= 240) fps = rate;
+                    continue;
+                }
+                start = +m[1] / fps; end = m[2] ? +m[2] / fps : null; label = clean(m[3]);
+            } else if (kind === 2) {
+                m = mplRe.exec(lines[i]); if (!m) continue;
+                start = +m[1] / 10; end = m[2] ? +m[2] / 10 : null; label = clean(m[3]);
+            } else {
+                m = tmRe.exec(lines[i]); if (!m || +m[2] >= 60 || +m[3] >= 60) continue;
+                start = +m[1] * 3600 + +m[2] * 60 + +m[3]; label = clean(m[5]);
+                var previous = cues[cues.length - 1];
+                if (m[4] && previous && previous.start === start) { previous.text += '\n' + label; continue; }
+            }
+            cues.push({ start: start, end: end, text: label, order: i });
+        }
+        cues.sort(function (a, b) { return a.start - b.start || a.order - b.order; });
+        // Resolve open ends in linear time even for large sidecars with
+        // many simultaneous lines. Each cue lasts at most four seconds.
+        var next = Infinity;
+        for (i = cues.length - 1; i >= 0; i--) {
+            if (i + 1 < cues.length && cues[i + 1].start > cues[i].start) next = cues[i + 1].start;
+            if (cues[i].end === null) cues[i].end = Math.min(cues[i].start + 4, next);
+            delete cues[i].order;
+        }
+        return cues.filter(function (cue) { return cue.text && isFinite(cue.start) && isFinite(cue.end) && cue.end > cue.start; });
+    }
+
+    function cuesToVtt(cues) {
+        var out = ['WEBVTT', ''];
+        for (var i = 0; i < cues.length; i++) {
+            out.push(msToVttTime(Math.round(cues[i].start * 1000)) + ' --> ' + msToVttTime(Math.round(cues[i].end * 1000)));
+            out.push(cues[i].text, '');
+        }
+        return out.join('\n');
+    }
+
     /* ASS / SSA → cues, parsed DIRECTLY into [{start,end,text}] rather than
      * round-tripping through a VTT string (the old path lost the first cue
      * and was brittle).  AVPlay's native renderer can't draw ASS on this
@@ -553,8 +659,8 @@ var Player = (function () {
      * Dialogue line:  Dialogue: Layer,Start,End,Style,Name,ML,MR,MV,Effect,Text
      * Times are H:MM:SS.cc (centiseconds).  \N / \n line breaks and \h
      * hard-spaces are normalised; override tags that affect *appearance*
-     * (\c colour, \b, \i, \u, \s) become a `runs` list the overlay paints
-     * as spans, and the rest (\an8, \pos, karaoke, drawings) are dropped. */
+     * (\c colour, \b, \i, \u, \s) become a `runs` list. Alignment selects
+     * a position band. Absolute positions, karaoke and drawings are dropped. */
     function parseAssCues(ass) {
         var out = [];
         var lines = String(ass || '').replace(/^\uFEFF/, '').replace(/\r/g, '').split('\n');
@@ -614,7 +720,11 @@ var Player = (function () {
                     .replace(/<[^>]+>/g, '')     // stray HTML
                     .trim();
             }
-            if (text) out.push({ start: start, end: end, text: text, runs: runs });
+            var styleName = fmt.indexOf('style') >= 0 ? parts[fmt.indexOf('style')] : '';
+            var position = typeof AssStyle !== 'undefined' && AssStyle.resolvePosition
+                ? AssStyle.resolvePosition(parts[tI], assStyles && assStyles.table.get(styleName))
+                : { band: null, halign: null };
+            if (text) out.push({ start: start, end: end, text: text, runs: runs, band: position.band, halign: position.halign });
         }
         // ASS dialogue lines aren't required to be in chronological order;
         // the poller's scan assumes sorted cues, so sort by start.
@@ -782,7 +892,7 @@ var Player = (function () {
                      * mid-playback.) */
                     applyAvSubtitleLanguageHintsToExtractedMp4();
                     if (typeof Settings !== 'undefined') {
-                        var pref = Settings.get('subtitleLang');
+                        var pref = preplaySubtitlePreference !== undefined ? preplaySubtitlePreference : Settings.get('subtitleLang');
                         var sub  = pickBestExternalSubtitle(pref);
                         if (sub) applyExternalSubtitleLive(sub);
                     }
@@ -1435,6 +1545,8 @@ var Player = (function () {
 
     function open(url, opts) {
         opts = opts || {};
+        preplaySubtitlePreference = opts.subtitlePreference;
+        preplaySubtitleAuto = opts.subtitleAuto === true;
         cancelEmbeddedSubExtraction('opening another file');
         containerSubTracks = [];        // previous file's header list
         ++lastContainerListToken;       // and any header read still in flight
@@ -2310,6 +2422,7 @@ var Player = (function () {
                 case 'ssa':                 vtt = assToVtt(text);  break;
                 case 'smi':
                 case 'sami':                vtt = smiToVtt(text);  break;
+                case 'txt':                 vtt = cuesToVtt(parseTxtCues(text)); break;
                 default:
                     cb(new Error('unsupported subtitle ext: ' + sub.ext));
                     return;
@@ -2491,7 +2604,11 @@ var Player = (function () {
         return backend === BACKEND_AVPLAY && currentSpeed !== 1;
     }
 
+    if (typeof module !== 'undefined' && module.exports) {
+        module.exports = { parseAssCues: parseAssCues, parseTxtCues: parseTxtCues };
+    }
     return {
+        repaintSubtitles: repaintSubtitles,
         setListener:        setListener,
         open:               open,
         play:               play,

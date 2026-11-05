@@ -131,17 +131,24 @@ test('the queue is a peek until it holds focus', function () {
     assert.ok(special < 0, 'the album cover does not jump when the OSD fades in');
 });
 
-test('an empty section keeps its place on the page', function () {
+test('Home omits empty optional sections while Stream retains readable empty states', function () {
     var source = css();
     assert.ok(source.indexOf('.card-row.empty') >= 0, 'empty row styling');
     assert.ok(source.indexOf('min-height: calc(var(--card-height) + 24px)') >= 0, 'same height as a filled row');
     var ui = read('js/library-ui.js');
+    assert.ok(ui.includes('if (!items.length) return;'), 'empty Home sections are not mounted');
     assert.ok(ui.indexOf("list.classList.toggle('empty', empty)") >= 0, 'the row says it is empty');
     assert.ok(ui.includes("el('p', 'empty-state', message)"), 'the empty message is real readable content rather than a CSS pseudo-element');
     assert.ok(!source.includes('.card-row.empty::after'), 'no duplicate generated message');
     var empty = rule(source, '.empty-state {', 500).split('}')[0];
     assert.ok(empty.includes('height: var(--card-height)') && empty.includes('width: var(--card-width)'), 'the status tile uses the same geometry as a populated card');
     assert.ok(ui.indexOf('saved.noSaved') >= 0, 'the saved section names its empty state');
+});
+
+test('Settings panels align with controls and playback buttons avoid backdrop layers', function () {
+    var source = css();
+    assert.ok(source.includes('#view-settings .tvinfo { margin-top: 32px; padding: 0; font-size: 25px; }'), 'wide info wrapper adds no second inset');
+    assert.ok(!source.includes('backdrop-filter: blur(20px)'), 'transport circles avoid rectangular backdrop compositing artifacts');
 });
 
 test('one button component, not a pill with a scale', function () {

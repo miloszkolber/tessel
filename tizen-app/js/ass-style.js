@@ -101,6 +101,7 @@ var AssStyle = (function () {
         var byName = {};
         var fmt = null;
         var inStyles = false;
+        var legacy = false;
 
         for (var i = 0; i < lines.length; i++) {
             var l = lines[i].trim();
@@ -108,6 +109,7 @@ var AssStyle = (function () {
 
             if (l.charAt(0) === '[' && l.charAt(l.length - 1) === ']') {
                 var section = l.toLowerCase();
+                legacy = section === '[v4 styles]';
                 inStyles = (section === '[v4+ styles]' || section === '[v4 styles]' ||
                             section === '[v4++ styles]');
                 fmt = null;
@@ -131,6 +133,7 @@ var AssStyle = (function () {
             byName[name.toLowerCase()] = {
                 name:      name,
                 colour:    decodeColour(field(parts, fmt, 'primarycolour')),
+                alignment: normAlignment(field(parts, fmt, 'alignment'), legacy),
                 bold:      truthy(field(parts, fmt, 'bold')),
                 italic:    truthy(field(parts, fmt, 'italic')),
                 underline: truthy(field(parts, fmt, 'underline')),
@@ -154,6 +157,31 @@ var AssStyle = (function () {
     function field(parts, fmt, want) {
         var i = fmt.indexOf(want);
         return i >= 0 && i < parts.length ? parts[i] : null;
+    }
+    function normAlignment(value, legacy) {
+        var n = parseInt(value, 10);
+        return legacy ? (ssaToNumpad(n) || 2) : (n >= 1 && n <= 9 ? n : 2);
+    }
+    function ssaToNumpad(n) {
+        return ({ 1: 1, 2: 2, 3: 3, 5: 7, 6: 8, 7: 9, 9: 4, 10: 5, 11: 6 })[n] || 0;
+    }
+    function inlineAlignment(raw) {
+        // Read overrides only inside ASS blocks, not literal dialogue.
+        var blocks = String(raw || '').match(/\{[^}]*\}/g) || [], val = null;
+        for (var i = 0; i < blocks.length; i++) {
+            var re = /\\a(n)?(\d{1,2})(?!\d)/gi, m;
+            while ((m = re.exec(blocks[i]))) {
+                var n = m[1] ? +m[2] : ssaToNumpad(+m[2]);
+                if (n >= 1 && n <= 9) val = n;
+            }
+        }
+        return val;
+    }
+    function resolvePosition(raw, style) {
+        var inline = inlineAlignment(raw), an = inline || (style && style.alignment) || 2;
+        if (inline === null && an === 2) return { band: null, halign: null };
+        return { band: an >= 7 ? 'top' : an >= 4 ? 'middle' : 'bottom',
+                 halign: (an - 1) % 3 === 0 ? 'left' : (an - 1) % 3 === 2 ? 'right' : 'center' };
     }
     function truthy(v) {
         if (v == null) return false;
@@ -405,7 +433,10 @@ var AssStyle = (function () {
         plainText:     plainText,
         isPlain:       isPlain,
         forFile:       forFile,
-        decodeColour:  decodeColour
+        decodeColour:  decodeColour,
+        ssaToNumpad: ssaToNumpad,
+        inlineAlignment: inlineAlignment,
+        resolvePosition: resolvePosition
     };
 })();
 

@@ -28,7 +28,7 @@ function loadApp() {
     };
     vm.createContext(context);
     vm.runInContext(fs.readFileSync(require.resolve('../../tizen-app/js/app.js'), 'utf8'), context);
-    return { app: context.window.VlcApp, store: store };
+    return { app: context.window.VlcApp, store: store, context: context };
 }
 
 test('per-file playback memory round-trips and caps growth', function () {
@@ -42,6 +42,65 @@ test('per-file playback memory round-trips and caps growth', function () {
     var entry = loaded.app.playbackPrefsFor('preview://sample');
     assert.equal(entry.audioLang, 'pl');
     assert.equal(entry.delay, 500);
+});
+
+test('fresh folder focus resumes its latest item or advances after completion within that folder', function () {
+    var h = loadApp(), items = ['a', 'b', 'c'].map(function (uri) { return { uri: uri }; });
+    assert.equal(h.app.continueBrowseAt(items), null);
+    h.store.vlctv_resume_v1 = JSON.stringify({ b: { pos: 60000, ts: 20 }, elsewhere: { ts: 100 } });
+    assert.equal(h.app.continueBrowseAt(items), 'b');
+    h.store.vlctv_watched_v1 = JSON.stringify({ b: 30 });
+    assert.equal(h.app.continueBrowseAt(items), 'c');
+    h.store.vlctv_watched_v1 = JSON.stringify({ c: 40 });
+    assert.equal(h.app.continueBrowseAt(items), 'c');
+    assert.equal(h.app.continueBrowseAt([]), null);
+});
+
+test('folder history matching preserves sibling prefixes, other servers and foreign stream origins', function () {
+    var h = loadApp();
+    h.context.SMB = { isStreamUrl: function (uri) { return uri.indexOf('http://127.0.0.1:8127/smb/stream?') === 0; } };
+    h.context.WebDAV = { isStreamUrl: function (uri) { return uri.indexOf('http://127.0.0.1:8127/dav/stream?') === 0; } };
+    var usb = h.app.folderHistoryMatcher({ kind: 'usb' }, 'file:///drive/Show One');
+    assert.equal(usb('file:///drive/Show%20One/1.mkv'), true);
+    assert.equal(usb('file:///drive/Show One-2/1.mkv'), false);
+    assert.equal(usb('file:///drive/Show One'), false);
+    ['smb', 'webdav'].forEach(function (kind) {
+        var prefix = 'http://127.0.0.1:8127/' + (kind === 'smb' ? 'smb' : 'dav') + '/stream?';
+        var matches = h.app.folderHistoryMatcher({ kind: kind, srv: 'a', path: '/Show' });
+        assert.equal(matches(prefix + 'path=%2FShow%2F1.mkv&srv=a'), true);
+        assert.equal(matches(prefix + 'path=%2FShow-2%2F1.mkv&srv=a'), false);
+        assert.equal(matches(prefix + 'path=%2FShow%2F1.mkv&srv=b'), false);
+        assert.equal(matches('https://foreign/stream?path=%2FShow%2F1.mkv&srv=a'), false);
+        assert.equal(matches(prefix + 'path=%E0&srv=a'), false);
+    });
+});
+
+test('folder reset clears watched, resume and queue progress but preserves media, pins and choices', function () {
+    var h = loadApp(), storage = h.context.localStorage;
+    h.context.Library = require('../../tizen-app/js/library.js').create(storage);
+    h.context.SMB = { isStreamUrl: function (u) { return u.indexOf('http://127.0.0.1:8127/smb/stream?') === 0; } };
+    var one = 'http://127.0.0.1:8127/smb/stream?path=%2FShow%2F1.mkv&srv=a', other = one.replace('srv=a', 'srv=b');
+    h.store.vlctv_watched_v1 = JSON.stringify({ [one]: 10, [other]: 20 });
+    h.store.vlctv_resume_v1 = JSON.stringify({ [one]: { pos: 60000 }, [other]: { pos: 90000 } });
+    h.store.vlctv_playback_prefs_v1 = '{"preserved":true}'; h.store.tessel_pins_v1 = '{"preserved":true}';
+    h.context.Library.begin([{ uri: one }], 0); h.context.Library.checkpoint(one, 60000, 600000);
+    h.app.forgetFolderHistory({ kind: 'smb', srv: 'a', path: '/Show' }, function (err) { assert.ifError(err); });
+    assert.deepEqual(JSON.parse(h.store.vlctv_watched_v1), { [other]: 20 });
+    assert.deepEqual(JSON.parse(h.store.vlctv_resume_v1), { [other]: { pos: 90000 } });
+    assert.equal(JSON.parse(h.store.tessel_library_v1).queues.length, 0);
+    assert.equal(h.store.vlctv_playback_prefs_v1, '{"preserved":true}'); assert.equal(h.store.tessel_pins_v1, '{"preserved":true}');
+});
+
+test('folder reset reports a failed write and rolls back stores already changed', function () {
+    var h = loadApp(), before = '{"file:///drive/Show/1.mkv":10}';
+    h.store.vlctv_watched_v1 = before;
+    h.context.tizen = { filesystem: { resolve: function (path, done) { done({ fullPath: path }); } } };
+    h.context.LibraryUI = { usbPath: function () { return '/drive/Show'; } };
+    h.context.Browser = { avplayURI: function (file) { return 'file://' + file.fullPath; } };
+    h.context.Library = { forgetMatching: function () { return false; } };
+    var error;
+    h.app.forgetFolderHistory({ kind: 'usb', path: '/drive/Show' }, function (err) { error = err; });
+    assert.ok(error); assert.equal(h.store.vlctv_watched_v1, before); assert.equal(h.store.vlctv_resume_v1, undefined);
 });
 
 test('Info diagnostics and new player rows have English labels', function () {

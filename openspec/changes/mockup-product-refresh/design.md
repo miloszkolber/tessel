@@ -1,5 +1,7 @@
 # Interaction and data decisions
 
+The November annotations supersede empty Home section height reservation: omit Continue playing and Pinned headings/rows when they have no items, retain populated rows unchanged, and restore focus to a useful remaining control after final removal. Stream empty states remain explicit. Settings information panels own their own padding, so the wrapper adds no second inset at any size and uses a 32px separation from controls. Playback circles no longer create per-control backdrop-blur layers, avoiding a suspected rectangular-compositing path while retaining the shared focus and surface treatment. The exact reported artifact still needs confirmation in the affected client/TV.
+
 ## Screens and copy
 
 | Page | Title | Description |
@@ -10,7 +12,7 @@
 | USB | USB devices | Browse media on a connected drive. |
 | Network | Network sources | Connect your media servers and shared folders. |
 
-Use the mockups' left-aligned headers, consistent horizontal card rows, restrained borders, hard focus rings and fixed bottom hints. Empty sections retain their row height and name their state. Keep real item titles, source labels and unavailable-source icons inside cards rather than blank placeholders. Playback and library cards share their geometry, glyph scale and artwork treatment.
+Use the mockups' left-aligned headers, consistent horizontal card rows, restrained borders, hard focus rings and fixed bottom hints. Home omits empty optional sections. Stream lists name their empty states. Keep real item titles, source labels and unavailable-source icons inside cards rather than blank placeholders. Playback and library cards share their geometry, glyph scale and artwork treatment.
 
 ## Card geometry and motion
 

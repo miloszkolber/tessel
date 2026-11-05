@@ -1428,6 +1428,7 @@ var Mp4Subs = (function () {
         openReader:    function (file, cb) {
             openIncrementalReader(file, normalizeIncrementalOptions({}), cb);
         },
+        readBoxHeader: readBoxHeader,
         cuesToSrt:     cuesToSrt,
         _extractCueLists: extractCueLists,
         _parseMp4:     parseMp4,

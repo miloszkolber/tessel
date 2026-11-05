@@ -132,6 +132,38 @@ var Simulator = (function () {
         for (var k in DURATIONS) if (k.replace(/\.[a-z0-9]+$/i, '') === base) return DURATIONS[k];
         return 1800000;
     }
+    function concatBytes(parts) {
+        var size = parts.reduce(function (n, part) { return n + part.length; }, 0), out = new Uint8Array(size), at = 0;
+        parts.forEach(function (part) { out.set(part, at); at += part.length; }); return out;
+    }
+    function ebmlElement(id, body) {
+        var header = [], width = id > 0xFFFFFF ? 4 : id > 0xFFFF ? 3 : id > 0xFF ? 2 : 1;
+        for (var i = width - 1; i >= 0; i--) header.push(Math.floor(id / Math.pow(256, i)) & 255);
+        var n = body.length, size = [0x10 | (n >>> 24 & 15), n >>> 16 & 255, n >>> 8 & 255, n & 255];
+        return new Uint8Array(header.concat(size, Array.prototype.slice.call(body)));
+    }
+    function mkvBytes(ms) {
+        var duration = new Uint8Array(8), view = new DataView(duration.buffer); view.setFloat64(0, ms);
+        var info = ebmlElement(0x1549A966, ebmlElement(0x4489, duration));
+        var segment = ebmlElement(0x18538067, info);
+        var header = concatBytes([
+            ebmlElement(0x4286, new Uint8Array([1])), ebmlElement(0x42F7, new Uint8Array([1])),
+            ebmlElement(0x42F2, new Uint8Array([4])), ebmlElement(0x42F3, new Uint8Array([8])),
+            ebmlElement(0x4282, utf8Bytes('matroska')),
+            ebmlElement(0x4287, new Uint8Array([4])), ebmlElement(0x4285, new Uint8Array([2]))
+        ]);
+        return concatBytes([ebmlElement(0x1A45DFA3, header), segment]);
+    }
+    function mp4Bytes(ms) {
+        function box(type, body) {
+            var b = new Uint8Array(body.length + 8), v = new DataView(b.buffer);
+            v.setUint32(0, b.length); for (var i = 0; i < 4; i++) b[4 + i] = type.charCodeAt(i);
+            b.set(body, 8); return b;
+        }
+        var movie = new Uint8Array(20), v = new DataView(movie.buffer);
+        v.setUint32(12, 1000); v.setUint32(16, Math.round(ms));
+        return concatBytes([box('ftyp', new Uint8Array(0)), box('moov', box('mvhd', movie))]);
+    }
 
     var usbMounted = true;
     var DRIVE = { name: 'USB Drive', children: [
@@ -171,6 +203,8 @@ var Simulator = (function () {
     /* ── virtual file objects (the TV's File interface) ───────────────── */
     function bytesFor(entry) {
         if (entry.mp3)       return mp3Bytes(entry.mp3[0], entry.mp3[1], entry.mp3[2]);
+        if (/\.(mkv|webm|mka)$/i.test(entry.name)) return mkvBytes(DURATIONS[entry.name] || 1800000);
+        if (/\.(mp4|m4v|mov|m4a)$/i.test(entry.name)) return mp4Bytes(DURATIONS[entry.name] || 1800000);
         if (/\.srt$/i.test(entry.name))
             return utf8Bytes(srtText(entry.name.replace(/\.srt$/i, ''), durationOfSidecar(entry.name)));
         if (entry.playlist)  return utf8Bytes(entry.playlist);
@@ -252,11 +286,14 @@ var Simulator = (function () {
                     if (ROOTS[target]) found = { node: ROOTS[target], path: '' };
                     else found = resolvePath(target);
                     if (!found) { err(new Error('not found: ' + target)); return; }
-                    var drive = makeFile({ name: ROOTS[target] ? 'USB Drive' : (target.split('/').pop() || 'USB Drive'),
-                                           children: found.node.children || [], size: 0 }, '', null);
-                    drive.fullPath = '/removable1' + found.path;
-                    drive.isDirectory = true;
-                    ok(drive);
+                    var file = makeFile({ name: 'USB Drive', children: DRIVE.children, size: 0 }, '', null);
+                    file.fullPath = '/removable1';
+                    var node = DRIVE;
+                    found.path.split('/').filter(Boolean).forEach(function (part) {
+                        node = findNode(node.children, part);
+                        file = makeFile(node, file.fullPath, file);
+                    });
+                    ok(file);
                 }, 30);
             }
         },

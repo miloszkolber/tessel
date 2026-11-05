@@ -4,10 +4,9 @@
  * Files on a NAS come from everywhere, so the encoding is guessed:
  *   1. a byte-order mark says it outright (UTF-8, UTF-16 LE/BE);
  *   2. otherwise, bytes that are valid UTF-8 are UTF-8;
- *   3. otherwise it is a legacy 8-bit file.  Cyrillic Windows files are
- *      common enough (issue #107) to be worth telling apart from Western
- *      ones: in windows-1251 the letters sit at 0xC0–0xFF, so a file whose
- *      high bytes are mostly there is read as 1251, anything else as 1252.
+ *   3. otherwise legacy byte distribution and Central European symbol
+ *      slots distinguish Windows-1250/1251/1252 and ISO-8859-2. These are
+ *      heuristics, not reliable language identification.
  *
  * A file with NUL bytes in its first few KB (and no UTF-16 mark) is binary;
  * decode() says so rather than painting noise. */
@@ -55,14 +54,34 @@ var TextDecode = (function () {
         return true;
     }
 
+    // Central European letters occupying Windows-1252 symbol slots.
+    // Shared accented vowels alone cannot distinguish these code pages.
+    var CE_1250 = { 0x8C: 1, 0x8D: 1, 0x8F: 1, 0x9C: 1, 0x9D: 1, 0x9F: 1, 0xA5: 1, 0xB9: 1 };
+    var CE_8859_2 = { 0xA6: 1, 0xAC: 1, 0xB1: 1, 0xB6: 1, 0xBC: 1 };
+    var CE_BOTH = { 0xA3: 1, 0xAF: 1, 0xB3: 1, 0xBE: 1 };
+
     function guessLegacy(b) {
-        var high = 0, cyr = 0;
+        var high = 0, cyr = 0, latin = 0, ce1250 = 0, ce8859 = 0, ceBoth = 0, zDot = 0, inv = 0;
         for (var i = 0; i < b.length; i++) {
-            if (b[i] < 0x80) continue;
+            if (b[i] < 0x80) {
+                if ((b[i] >= 65 && b[i] <= 90) || (b[i] >= 97 && b[i] <= 122)) latin++;
+                continue;
+            }
             high++;
             if (b[i] >= 0xC0) cyr++;
+            if (CE_1250[b[i]]) ce1250++;
+            else if (CE_8859_2[b[i]]) ce8859++;
+            else if (CE_BOTH[b[i]]) ceBoth++;
+            else if (b[i] === 0xBF) zDot++;
+            else if (b[i] === 0xA1) inv++;
         }
-        return (high >= 8 && cyr / high > 0.6) ? 'windows-1251' : 'windows-1252';
+        // Western accents share the Cyrillic byte range, but only Cyrillic
+        // text has high bytes making up a large fraction of its letters.
+        if (high >= 8 && cyr / high > 0.6 && high / (high + latin) >= 0.3) return 'windows-1251';
+        // Spanish uses inverted question/exclamation together, not Polish ż.
+        var ce = ce1250 + ce8859 + ceBoth + (inv ? 0 : zDot);
+        if (ce >= 4 && ce / high >= 0.3) return ce8859 > ce1250 ? 'iso-8859-2' : 'windows-1250';
+        return 'windows-1252';
     }
 
     /* Fallbacks for a WebView without TextDecoder (or without the label). */

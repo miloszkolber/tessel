@@ -110,6 +110,63 @@
         if (m[uri]) { delete m[uri]; setResumeMap(m); }
     }
 
+    /* On a fresh folder entry, continue the latest file or its successor
+     * after completion. Explicit Back/Up focus always wins. Adapted from
+     * upstream 0ba9ba4181a3 without replacing local watched badges. */
+    function continueBrowseAt(items) {
+        var resume = getResumeMap(), watched = getWatched(), best = -1, latest = 0;
+        for (var i = 0; i < items.length; i++) {
+            var uri = items[i].uri, saved = resume[uri];
+            var ts = Math.max(Number(watched[uri]) || 0, saved && Number(saved.ts) || 0);
+            if (ts > latest) { latest = ts; best = i; }
+        }
+        if (best < 0) return null;
+        if (watched[items[best].uri] && best + 1 < items.length) best++;
+        return items[best].uri;
+    }
+
+    function folderHistoryMatcher(source, folderUri) {
+        function under(path, folder) {
+            var prefix = String(folder || '').replace(/\/+$/, '') + '/';
+            return String(path || '').indexOf(prefix) === 0;
+        }
+        return function (uri) {
+            try {
+                if (source.kind === 'usb') return /^file:/i.test(uri) && under(decodeURI(uri), decodeURI(folderUri));
+                var adapter = source.kind === 'smb' ? SMB : source.kind === 'webdav' ? WebDAV : null;
+                if (!adapter || !adapter.isStreamUrl(uri) || !/\/(?:smb|dav)\/stream\?/.test(uri)) return false;
+                var path = /[?&]path=([^&]*)/.exec(uri), srv = /[?&]srv=([^&]*)/.exec(uri);
+                return !!path && (srv ? decodeURIComponent(srv[1]) : '') === String(source.srv || '') &&
+                    under(decodeURIComponent(path[1]), source.path || '/');
+            } catch (e) { return false; }
+        };
+    }
+    function forgetFolderHistory(source, cb) {
+        function forget(folderUri) {
+            var matches = folderHistoryMatcher(source, folderUri), watched = getWatched(), resume = getResumeMap();
+            var keys = [WATCHED_KEY, RESUME_KEY, 'tessel_library_v1'], before = [];
+            try {
+                before = keys.map(function (key) { return localStorage.getItem(key); });
+                Object.keys(watched).forEach(function (uri) { if (matches(uri)) delete watched[uri]; });
+                Object.keys(resume).forEach(function (uri) { if (matches(uri)) delete resume[uri]; });
+                localStorage.setItem(WATCHED_KEY, JSON.stringify(watched));
+                localStorage.setItem(RESUME_KEY, JSON.stringify(resume));
+                if (!Library.forgetMatching(matches)) throw new Error(I18n.t('history.failed'));
+            } catch (err) {
+                // Best-effort rollback if storage quota/access fails mid-write.
+                if (before.length === keys.length) keys.forEach(function (key, i) {
+                    try { if (before[i] === null) localStorage.removeItem(key); else localStorage.setItem(key, before[i]); } catch (ignored) {}
+                });
+                cb(err); return;
+            }
+            refreshHome(); cb(null);
+        }
+        if (source.kind !== 'usb') { forget(null); return; }
+        try {
+            tizen.filesystem.resolve(LibraryUI.usbPath(source, source.path), function (dir) { forget(Browser.avplayURI(dir)); }, cb, 'r');
+        } catch (e) { cb(e); }
+    }
+
     /* ── Per-file playback choices (localStorage map uri → prefs) ───
      * Remembers what the user picked for one file — audio/subtitle
      * language, subtitle delay, speed and aspect — so reopening it
@@ -198,6 +255,7 @@
     var lastProgress = { time: 0, duration: 0 };
     // Throttle for the periodic resume-position checkpoint.
     var lastResumeSaveAt = 0;
+    var durationNoted = false;
     // Whether the OSD Prev button is currently lit as "Restart".
     var prevRestartLit = false;
 
@@ -306,6 +364,13 @@
         });
         Player.setListener('onprogress', function (p) {
             lastProgress = { time: (p && p.time) || 0, duration: (p && p.duration) || 0 };
+            if (lastProgress.duration > 0 && !durationNoted && typeof MediaInfo !== 'undefined') {
+                var playing = state.playlist && state.playlist[state.playlistIndex];
+                if (playing && playing.file && playing.uri === state.playingUri) {
+                    MediaInfo.put({ uri: playing.uri, size: playing.file.fileSize, mtime: playing.file.modified }, lastProgress.duration);
+                    durationNoted = true;
+                }
+            }
             // A committed scrub seek stays "waiting" until the playhead
             // lands near its target (async AVPlay seeks report the pre-seek
             // position for a while), with a timeout for failed seeks.
@@ -672,8 +737,14 @@
      * the simulator jump between screens directly, so the app releases it
      * whenever a top-level screen takes over. */
     var browseSequence = 0;
+    var lengthCancels = [];
+    function cancelLengths() {
+        var old = lengthCancels; lengthCancels = [];
+        old.forEach(function (request) { request.cancel(); });
+    }
     function releaseBrowsers() {
         browseSequence++;
+        cancelLengths();
         ['SMB', 'WebDAV', 'DLNA'].forEach(function (name) {
             var mod = window[name];
             if (mod && typeof mod.detach === 'function') {
@@ -698,7 +769,7 @@
         ul.appendChild(li);
         ul.classList.add('empty-devices'); UI.refreshFocusables(); UI.focusOn(li);
     }
-    function openBrowserAtRoot(refresh) {
+    function openBrowserAtRoot(refresh, focusPath) {
         var preserveEmpty = refresh === true && state.view === 'browse' && state.browseAtRoot;
         releaseBrowsers();
         var seq = ++browseSequence;
@@ -734,6 +805,7 @@
                 storageStatus(ul, I18n.t('browse.noStorage'), 'information-fill');
                 return;
             }
+            var selectedRoot = null;
             roots.forEach(function (r, i) {
                 var li = document.createElement('li');
                 li.dataset.dir = '1';
@@ -752,8 +824,9 @@
                     listInto(r.dir);
                 });
                 ul.appendChild(li);
+                if (focusPath && r.fullPath === focusPath) selectedRoot = li;
             });
-            UI.refreshFocusables(); UI.focusOn(ul.firstElementChild);
+            UI.refreshFocusables(); UI.focusOn(selectedRoot || ul.firstElementChild);
         });
     }
 
@@ -766,6 +839,7 @@
     }
 
     function listInto(dir, focusUri) {
+        cancelLengths();
         if (!dir) return;
         var seq = ++browseSequence;
         setBrowsePage('usb', usbBreadcrumbs(dir));
@@ -812,7 +886,8 @@
                 };
             }
 
-            var focus = null;
+            if (!focusUri) focusUri = continueBrowseAt(playlist);
+            var focus = null, lengthRows = [];
             entries.forEach(function (e) {
                 var li = document.createElement('li');
                 li.dataset.uri = e.uri || '';
@@ -826,6 +901,9 @@
                 var meta = [];
                 if (e.subtitles && e.subtitles.length) meta.push('CC ×' + e.subtitles.length);
                 if (!e.isDir) meta.push(Browser.humanSize(e.size));
+                var media = e.playable && typeof MediaInfo !== 'undefined' ? MediaInfo.get(e) : null;
+                var baseMeta = meta.join(' · ');
+                if (media && media.dur) meta.push(fmtTime(media.dur));
                 li.innerHTML =
                     '<span class="icon">' + FileTypes.icon(e.kind) + '</span>' +
                     '<span class="name">' + escapeHtml(e.name) + '</span>' +
@@ -833,6 +911,7 @@
                     (meta.length ? '<span class="meta">' + escapeHtml(meta.join(' · ')) + '</span>' : '') +
                     (e.isDir ? '<span class="fav-mark"><img class="remix-icon" src="assets/remix/pushpin-2-fill.svg" alt=""></span>' : '');
                 if (e.isDir) markFavoriteRow(li, usbFavorite(e.file, e.name));
+                if (e.playable && !media) lengthRows.push({ entry: e, li: li, meta: baseMeta });
                 li.addEventListener('click', function () {
                     switch (e.kind) {
                         case 'dir':
@@ -864,7 +943,36 @@
             // Carousels only on the drive's own root listing.
             UI.refreshFocusables();
             UI.focusOn(focus || ul.firstElementChild);
+            fillLengths(lengthRows, seq);
         });
+    }
+
+    /* Two bounded USB reads at a time. Navigation closes in-flight readers
+     * and drops the rest. Text updates never rebuild a focused card. */
+    function fillLengths(rows, seq) {
+        if (typeof MediaInfo === 'undefined') return;
+        var nextIndex = 0, busy = 0, pumping = false;
+        function pump() {
+            if (pumping || seq !== browseSequence) return;
+            pumping = true;
+            while (busy < 2 && nextIndex < rows.length && seq === browseSequence) {
+                (function (row) {
+                    busy++;
+                    var request = { cancel: function () {} };
+                    lengthCancels.push(request);
+                    request.cancel = MediaInfo.lookup(row.entry, function (err, media) {
+                        busy--;
+                        lengthCancels = lengthCancels.filter(function (pending) { return pending !== request; });
+                        if (seq !== browseSequence) return;
+                        var line = row.li.querySelector('.meta');
+                        if (!err && media && media.dur && line) line.textContent = row.meta + (row.meta ? ' · ' : '') + fmtTime(media.dur);
+                        pump();
+                    });
+                })(rows[nextIndex++]);
+            }
+            pumping = false;
+        }
+        pump();
     }
 
     /* ── Favorites (issue #140) ───────────────────────────────────── */
@@ -993,8 +1101,8 @@
     function browseUp() {
         if (state.browseAtRoot) { backToHome(); return; }
         var p = Browser.parentOf(state.browseDir);
-        if (!p) { openBrowserAtRoot(); return; }
-        listInto(p);
+        if (!p) { openBrowserAtRoot(false, state.browseDir && state.browseDir.fullPath); return; }
+        listInto(p, Browser.avplayURI(state.browseDir));
     }
 
     /* ── Network view: the services on the LAN, with the two carousels ────
@@ -1496,6 +1604,7 @@
         prefsAppliedFor = null;
         lastProgress = { time: 0, duration: 0 };
         lastResumeSaveAt = 0;
+        durationNoted = false;
         prevRestartLit = false;
         resetScrub();          // a scrub/settle from the previous file must
                                // not freeze the new file's progress bar
@@ -1550,6 +1659,8 @@
             if (generation !== playbackGeneration || state.view !== 'player') return;
             Player.open(uri, {
                 title:     title,
+                subtitlePreference: effectiveSubLang(playPrefsFor(uri) || {}),
+                subtitleAuto: typeof (playPrefsFor(uri) || {}).subLang === 'undefined' && !Settings.get('subtitleLang'),
                 subtitles: opts.subtitles || [],
                 file:      opts.file || null,
                 // Embedded subtitles are read from the file itself.
@@ -1711,6 +1822,7 @@
         return out;
     }
     function playFromList(origin, playlist, idx, dir, back) {
+        cancelLengths();
         state.origin        = origin;
         state.originDir     = dir;
         state.originBack    = back || null;
@@ -3593,10 +3705,12 @@
             subPrefSettled = true;
             if (typeof Debug !== 'undefined') Debug.player('subtitle pref: off (silent)');
         } else if (prefSub) {
-            applySubtitlePreference(prefSub, tracks);
+            if (!applySubtitlePreference(prefSub, tracks) && typeof stored.subLang === 'undefined' && !Settings.get('subtitleLang')) {
+                adoptSidecarSubtitle(tracks);
+            }
         } else {
             subPrefSettled = true;
-            adoptFileDefaultSubtitle(tracks);
+            if (!adoptSidecarSubtitle(tracks)) adoptFileDefaultSubtitle(tracks);
         }
 
         // The remaining per-file choices re-apply on top of the decoder's
@@ -3628,6 +3742,16 @@
      * reached the screen until the user toggled it off and on (issue #73).
      * Select it the way the CC menu does, so what the menu says and what
      * the screen shows are the same thing. */
+    function adoptSidecarSubtitle(tracks) {
+        var sidecars = tracks.subtitle.filter(function (track) {
+            return !track.off && !track.muted && (track.type === 'AVPLAY_EXTERNAL' || track.type === 'HTML5_EXTERNAL');
+        });
+        var pick = LanguageList.pickAutoSubtitle(sidecars, appLanguageBase());
+        if (!pick) return false;
+        if (!pick.active) Player.setSubtitleTrack(pick);
+        subPrefSettled = true;
+        return true;
+    }
     function adoptFileDefaultSubtitle(tracks) {
         for (var j = 0; j < tracks.subtitle.length; j++) {
             var st = tracks.subtitle[j];
@@ -3780,7 +3904,10 @@
         // Per-file playback memory, exposed so the Node tests can drive
         // the merge/propagate rules without a DOM.
         playbackPrefsFor: playPrefsFor,
-        savePlaybackPrefs: savePlayPrefs
+        savePlaybackPrefs: savePlayPrefs,
+        continueBrowseAt: continueBrowseAt,
+        folderHistoryMatcher: folderHistoryMatcher,
+        forgetFolderHistory: forgetFolderHistory
     };
 
     if (document.readyState === 'loading')

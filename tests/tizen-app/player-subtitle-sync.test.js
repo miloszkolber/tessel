@@ -24,9 +24,11 @@ function harness(read, avplay) {
         currentTime: 0, duration: 20, textTracks: [], audioTracks: [],
         load: function () {}, pause: function () {}, play: function () {}, removeAttribute: function () {}
     });
-    var overlay = element(), polls = new Map(), id = 0;
+    var overlay = element(), polls = new Map(), id = 0, settings = { subtitlePosition: 'bottom' };
     var context = {
         I18n: I18n, console: console,
+        AssStyle: require('../../tizen-app/js/ass-style.js'),
+        Settings: { get: function (key) { return settings[key]; } },
         window: { innerWidth: 1920, innerHeight: 1080 },
         screen: { width: 1920, height: 1080 },
         Browser: { readSubtitleText: read || function (sub, cb) { cb(null, '1\n00:00:01,000 --> 00:00:02,000\n' + sub.name); } },
@@ -40,7 +42,7 @@ function harness(read, avplay) {
     var player = context.Player;
     var sidecars = [{ name: 'English', lang: 'en', ext: 'srt' }, { name: 'Polish', lang: 'pl', ext: 'srt' }];
     player.open('/Movie.mp4', { subtitles: sidecars }); // AVPlay absent: exercises the real local-file fallback.
-    return { player: player, video: video, overlay: overlay, tick: function () { polls.forEach(function (fn) { fn(); }); }, sidecars: sidecars };
+    return { player: player, video: video, overlay: overlay, settings: settings, tick: function () { polls.forEach(function (fn) { fn(); }); }, sidecars: sidecars };
 }
 
 test('positive delay shows a cue later, negative delay sooner, without seeking playback', function () {
@@ -72,6 +74,24 @@ test('external tracks can be switched away and back without stale detached track
     h.player.setSubtitleTrack(0); h.tick();
     assert.equal(h.overlay.textContent, 'English');
     assert.equal(h.player.getTracks().subtitle.filter(function (s) { return s.active; })[0].name, '[EN] English');
+});
+
+test('overlapping ASS signs and dialogue paint together and clear independently', function () {
+    var h = harness(function (sub, cb) { cb(null, '[Events]\nFormat: Start, End, Style, Text\n' +
+        'Dialogue: 0:00:01.00,0:00:04.00,Default,{\\an8}Sign\n' +
+        'Dialogue: 0:00:02.00,0:00:03.00,Default,Dialogue'); });
+    h.sidecars[0].ext = 'ass';
+    h.player.setSubtitleTrack(0);
+    h.video.currentTime = 2.5; h.tick();
+    assert.equal(h.overlay.children.length, 2);
+    assert.equal(h.overlay.children[0].className, 'sub-band sub-band-top');
+    assert.equal(h.overlay.children[1].className, 'sub-band sub-band-bottom');
+    assert.equal(h.overlay.textContent, 'SignDialogue');
+    h.settings.subtitlePosition = 'middle'; h.player.repaintSubtitles();
+    assert.equal(h.overlay.children[0].className, 'sub-band sub-band-top');
+    assert.equal(h.overlay.children[1].className, 'sub-band sub-band-middle');
+    h.video.currentTime = 3.5; h.tick(); assert.equal(h.overlay.textContent, 'Sign');
+    h.video.currentTime = 5; h.tick(); assert.equal(h.overlay.classList.contains('hidden'), true);
 });
 
 test('embedded HTML5 captions are listed independently of sidecars and shifted through the same renderer', function () {

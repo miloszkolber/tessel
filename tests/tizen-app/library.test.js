@@ -7,6 +7,13 @@ function fixture() {
     return { library: Library.create(storage), reload: function () { return Library.create(storage); } };
 }
 function episode(n) { return { uri: 'file:///drive/series/' + n + '.mkv', title: 'Episode ' + n }; }
+test('history deletion preserves unrelated items and current progress in a mixed queue', function () {
+    var f = fixture(), items = [episode(1), { uri: 'file:///drive/other/2.mkv' }, episode(3)];
+    f.library.begin(items, 1); f.library.checkpoint(items[1].uri, 90000, 600000);
+    assert.equal(f.library.forgetMatching(function (uri) { return uri.indexOf('file:///drive/series/') === 0; }), true);
+    var r = f.reload().recommendations({}, {});
+    assert.equal(r.length, 1); assert.equal(r[0].uri, items[1].uri); assert.equal(r[0].pos, 90000); assert.equal(r[0].items.length, 1);
+});
 test('queue survives reload and recommends the next unwatched episode', function () {
     var f = fixture(), items = [1, 2, 3, 4].map(episode);
     f.library.begin(items, 0); f.library.complete(items[0].uri);

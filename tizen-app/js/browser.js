@@ -13,7 +13,7 @@ var Browser = (function () {
     // Text-based subtitle formats we can convert to WebVTT on the fly.
     // Image-based subs (.sub/.idx VobSub, .sup PGS, DVD streams) aren't
     // representable in HTML5 <track> at all and are deliberately omitted.
-    var SUBTITLE_EXTS = ['vtt', 'srt', 'ass', 'ssa', 'smi', 'sami'];
+    var SUBTITLE_EXTS = ['vtt', 'srt', 'ass', 'ssa', 'smi', 'sami', 'txt'];
 
     function ext(name) {
         var dot = name.lastIndexOf('.');
@@ -212,33 +212,66 @@ var Browser = (function () {
         return FileTypes.subtitleLanguage(name);
     }
 
-    /* Read a subtitle file's content as UTF-8 text.
+    /* Read subtitle bytes in their own encoding, not the filesystem's
+     * UTF-8 default. Adapted from upstream f74164eabda9. Keep the stream
+     * fallback for firmware without a usable byte reader.
      * Accepts entries with a live Tizen File object on `.file` (the normal
      * USB browse-then-play flow), just a `.fullPath` string (recent-items
      * replay, where the original File didn't survive JSON.stringify in
      * localStorage — the path is resolved back to a File first), or an
      * http(s) `.uri` with neither (a sidecar next to a video on an SMB
      * share, served by the smbproxy service). */
+    var MAX_SUBTITLE_BYTES = 16 * 1024 * 1024;
     function readSubtitleText(subEntry, cb) {
+        var finished = false;
+        var callback = cb;
+        cb = function (err, text) {
+            if (finished) return;
+            finished = true;
+            callback(err, text);
+        };
         if (!subEntry) { cb(new Error('no entry')); return; }
-        if (subEntry.file) { readFromFileObj(subEntry.file, cb); return; }
+        if (subEntry.file) { readDecoded(subEntry.file, cb); return; }
         if (subEntry.fullPath) {
             try {
                 tizen.filesystem.resolve(subEntry.fullPath,
-                    function (f) { readFromFileObj(f, cb); },
+                    function (f) { readDecoded(f, cb); },
                     function (e) { cb(e); },
                     'r');
             } catch (e) { cb(e); }
             return;
         }
-        if (/^https?:\/\//i.test(subEntry.uri || '')) { readFromUrl(subEntry.uri, cb); return; }
+        if (/^https?:\/\//i.test(subEntry.uri || '')) { readDecoded(subEntry.uri, cb); return; }
         cb(new Error('no file'));
+    }
+    function readDecoded(src, cb) {
+        function fallback() {
+            var done = function (err, text) {
+                if (!err && text && text.length > MAX_SUBTITLE_BYTES) return cb(new Error('subtitle file too large'));
+                cb(err, text);
+            };
+            if (typeof src === 'string') readFromUrl(src, done);
+            else readFromFileObj(src, done);
+        }
+        if (typeof TextDecode === 'undefined' || !TextDecode.decode) return fallback();
+        readHead(src, MAX_SUBTITLE_BYTES, function (err, bytes, total) {
+            if (err && err.subtitleFatal) return cb(err);
+            if (err || !bytes) return fallback();
+            if (total > MAX_SUBTITLE_BYTES || (!total && bytes.length >= MAX_SUBTITLE_BYTES)) return cb(new Error('subtitle file too large'));
+            if (total && bytes.length < total) return cb(new Error('subtitle file truncated'));
+            var decoded = TextDecode.decode(bytes);
+            if (decoded.binary) return cb(new Error('subtitle file looks binary'));
+            cb(null, decoded.text);
+        }, true);
     }
     function readFromUrl(url, cb) {
         try {
             var x = new XMLHttpRequest();
             x.open('GET', url, true);
             x.timeout = 15000;
+            x.onprogress = function (event) {
+                if (event.loaded > MAX_SUBTITLE_BYTES) { x.abort(); cb(new Error('subtitle file too large')); }
+            };
             x.onload = function () {
                 if (x.status >= 200 && x.status < 300) cb(null, x.responseText || '');
                 else cb(new Error('subtitle fetch HTTP ' + x.status + (x.responseText ? ': ' + x.responseText : '')));
@@ -253,6 +286,9 @@ var Browser = (function () {
             file.openStream('r',
                 function (stream) {
                     try {
+                        if (stream.bytesAvailable > MAX_SUBTITLE_BYTES) {
+                            stream.close(); cb(new Error('subtitle file too large')); return;
+                        }
                         var text = stream.read(stream.bytesAvailable);
                         stream.close();
                         cb(null, text);
@@ -276,8 +312,11 @@ var Browser = (function () {
      * Mp4Subs.openReader, which knows every way this firmware can be made
      * to read bytes.  cb(err, Uint8Array, totalSize); totalSize is 0 when
      * the reply doesn't say. */
-    function readHead(src, maxBytes, cb) {
-        if (typeof src === 'string' && /^https?:/i.test(src)) { readHeadHttp(src, maxBytes, cb); return; }
+    function subtitleReadError(message) {
+        var err = new Error(message); err.subtitleFatal = true; return err;
+    }
+    function readHead(src, maxBytes, cb, strict) {
+        if (typeof src === 'string' && /^https?:/i.test(src)) { readHeadHttp(src, maxBytes, cb, strict); return; }
         if (typeof Mp4Subs === 'undefined' || !Mp4Subs.openReader) { cb(new Error('no file reader')); return; }
         Mp4Subs.openReader(src, function (err, reader) {
             if (err) { cb(err); return; }
@@ -287,6 +326,7 @@ var Browser = (function () {
             }
             reader.getSize(function (e, size) {
                 if (e) { done(e); return; }
+                if (strict && size > maxBytes) { done(subtitleReadError('subtitle file too large')); return; }
                 var n = Math.min(size, maxBytes);
                 if (!n) { done(null, new Uint8Array(0), size); return; }
                 reader.readRange(0, n, function (e2, buf) {
@@ -298,7 +338,7 @@ var Browser = (function () {
     }
     /* One ranged GET.  A server that ignores Range sends the whole file,
      * which is cut to size here. */
-    function readHeadHttp(url, maxBytes, cb) {
+    function readHeadHttp(url, maxBytes, cb, strict) {
         var done = false;
         function finish(e, b, t) { if (!done) { done = true; cb(e, b, t); } }
         try {
@@ -307,6 +347,12 @@ var Browser = (function () {
             x.responseType = 'arraybuffer';
             x.timeout = 30000;
             x.setRequestHeader('Range', 'bytes=0-' + (maxBytes - 1));
+            if (strict) x.onprogress = function (event) {
+                if (event.loaded > maxBytes || (event.lengthComputable && event.total > maxBytes)) {
+                    finish(subtitleReadError('subtitle file too large'));
+                    x.abort();
+                }
+            };
             x.onload = function () {
                 // 416: an empty file has no byte 0 to start the range at.
                 if (x.status === 416) { finish(null, new Uint8Array(0), 0); return; }
@@ -334,6 +380,7 @@ var Browser = (function () {
         listRoots:        listRoots,
         listDir:          listDir,
         parentOf:         parentOf,
+        avplayURI:        avplayURI,
         isMedia:          isMedia,
         isSubtitle:       isSubtitle,
         humanSize:        humanSize,
