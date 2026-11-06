@@ -4,6 +4,33 @@ var assert = require('assert');
 var test = require('node:test');
 var Settings = require('../../tizen-app/js/settings.js');
 var LanguageList = Settings.LanguageList;
+
+test('selected subtitle language can be remembered when the muxer omits its tag', function () {
+    assert.strictEqual(LanguageList.codeForTrack('', 'English (CC)'), 'en');
+    assert.strictEqual(LanguageList.codeForTrack('', 'French'), 'fr');
+    assert.strictEqual(LanguageList.codeForTrack('fre', 'Track 5'), 'fr');
+    assert.strictEqual(LanguageList.codeForTrack('fr', 'English commentary'), 'fr');
+    assert.strictEqual(LanguageList.codeForTrack('', 'Track 4'), '');
+});
+
+test('remembered subtitle language selects an untagged track on resume and the next episode', function () {
+    var fs = require('node:fs'), vm = require('node:vm');
+    var source = fs.readFileSync('tizen-app/js/app.js', 'utf8');
+    var start = source.indexOf('    function applySubtitlePreference(');
+    var end = source.indexOf('\n    }', start) + 6;
+    var selected = [], context = {
+        LanguageList: LanguageList,
+        Player: { setSubtitleTrack: function (track) { selected.push(track); } }
+    };
+    vm.runInNewContext(source.slice(start, end), context);
+    var preference = LanguageList.codeForTrack('', 'English (CC)');
+    var resumed = { name: 'English (CC)', lang: '', mkvTrack: 4 };
+    var next = { name: 'English (CC)', lang: '', mkvTrack: 6 };
+    assert.strictEqual(context.applySubtitlePreference(preference, { subtitle: [resumed] }), true);
+    assert.strictEqual(context.applySubtitlePreference(preference, { subtitle: [next] }), true);
+    assert.strictEqual(selected[0], resumed);
+    assert.strictEqual(selected[1], next);
+});
 var AspectRatio  = Settings.AspectRatio;
 
 function codes(list) { return list.map(function (l) { return l.code; }); }

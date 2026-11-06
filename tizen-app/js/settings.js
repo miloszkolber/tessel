@@ -272,6 +272,17 @@ var LanguageList = (function () {
         return 0;
     }
 
+    /* Muxers sometimes name a track "English (CC)" but omit its language
+     * tag. Resolve the same labels we already match during auto-selection. */
+    function codeForTrack(lang, name) {
+        var best = '', score = 0;
+        for (var i = 1; i < langs.length; i++) {
+            var candidate = matchScore(langs[i].code, lang, name);
+            if (candidate > score) { best = langs[i].code; score = candidate; }
+        }
+        return best || String(lang || '').toLowerCase();
+    }
+
     /* Local default still prefers the app language. If it is unavailable,
      * use an untagged sidecar, then the only sidecar rather than guessing
      * among several foreign languages. Adapted from upstream 1b05169826e8. */
@@ -291,6 +302,7 @@ var LanguageList = (function () {
             return i18nList([{ code: 'off', name: 'Off (no subtitles)', nameKey: 'lang.off' }].concat(langs));
         },
         matchScore:  matchScore,
+        codeForTrack: codeForTrack,
         nameFor:     function (code) {
             if (code === 'off') return i18nName({ name: 'Off', nameKey: 'common.off' });
             var e = entryFor(code);

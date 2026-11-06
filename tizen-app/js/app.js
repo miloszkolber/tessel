@@ -3163,7 +3163,8 @@
                     // A hand-picked subtitle becomes the preference: 'off'
                     // or the track language, for this file, the queue and
                     // future files.
-                    var subLang = tr.off ? 'off' : (tr.lang || '').toLowerCase();
+                    subPrefSettled = true;
+                    var subLang = tr.off ? 'off' : LanguageList.codeForTrack(tr.lang, tr.name);
                     if (subLang) rememberPlaybackChoice({ subLang: subLang }, 'subtitleLang', subLang);
                 }
                 UI.focusOn(li);

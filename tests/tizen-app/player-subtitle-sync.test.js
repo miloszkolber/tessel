@@ -6,6 +6,19 @@ var fs = require('node:fs');
 var vm = require('node:vm');
 var I18n = require('./helpers/i18n.js');
 
+test('subtitle labels stay stable while extraction runs', function () {
+    var source = fs.readFileSync('tizen-app/js/player.js', 'utf8');
+    var start = source.indexOf('    function subEntryName(e) {');
+    var end = source.indexOf('\n    }', start) + 6;
+    var context = { I18n: I18n };
+    vm.runInNewContext(source.slice(start, end), context);
+    var entry = { name: 'English (CC)', _onDemand: true, cues: [] };
+    var label = context.subEntryName(entry);
+    entry.status = 'extracting';
+    entry.progress = 42;
+    assert.equal(context.subEntryName(entry), label);
+});
+
 // Exercise the real player wrapper with a simulated HTML5 decoder and clock.
 function harness(read, avplay, extra) {
     function element() {

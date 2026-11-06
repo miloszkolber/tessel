@@ -203,7 +203,6 @@
   "subs.embeddedScanning": "Vložené titulky {0} ({1}, prohledávání)",
   "subs.embeddedPartial": "Vložené titulky {0} ({1}, částečné)",
   "subs.embeddedTag": "(vložené) {0}",
-  "subs.extracting": "{0} – extrahování {1} %",
   "subs.partial": "{0} – částečné (řádků: {1})",
   "audio.notSupported": "TV nepodporuje",
   "audio.downmixed": "TV převádí na stereo",

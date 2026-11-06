@@ -203,7 +203,6 @@
   "subs.embeddedScanning": "Upotettu tekstitys {0} ({1}, tarkistetaan)",
   "subs.embeddedPartial": "Upotettu tekstitys {0} ({1}, osittainen)",
   "subs.embeddedTag": "(upotettu) {0}",
-  "subs.extracting": "{0} — puretaan {1} %",
   "subs.partial": "{0} — osittainen (rivejä: {1})",
   "audio.notSupported": "TV ei tue",
   "audio.downmixed": "TV miksaa stereoksi",

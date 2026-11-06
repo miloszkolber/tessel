@@ -203,7 +203,6 @@
   "subs.embeddedScanning": "Sottotitolo incorporato {0} ({1}, analisi in corso)",
   "subs.embeddedPartial": "Sottotitolo incorporato {0} ({1}, parziale)",
   "subs.embeddedTag": "(incorporato) {0}",
-  "subs.extracting": "{0} — estrazione {1}%",
   "subs.partial": "{0} — parziale (righe: {1})",
   "audio.notSupported": "non supportato dalla TV",
   "audio.downmixed": "la TV converte in stereo",

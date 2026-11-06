@@ -203,7 +203,6 @@
   "subs.embeddedScanning": "Subtitrare încorporată {0} ({1}, se scanează)",
   "subs.embeddedPartial": "Subtitrare încorporată {0} ({1}, parțială)",
   "subs.embeddedTag": "(încorporată) {0}",
-  "subs.extracting": "{0} — se extrage {1}%",
   "subs.partial": "{0} — parțială (rânduri: {1})",
   "audio.notSupported": "neacceptat de TV",
   "audio.downmixed": "TV-ul convertește în stereo",

@@ -203,7 +203,6 @@
   "subs.embeddedScanning": "埋め込み字幕{0}（{1}、スキャン中）",
   "subs.embeddedPartial": "埋め込み字幕{0}（{1}、一部のみ）",
   "subs.embeddedTag": "（埋め込み）{0}",
-  "subs.extracting": "{0} — 抽出中 {1}%",
   "subs.partial": "{0} — 一部のみ（{1}行）",
   "audio.notSupported": "テレビ非対応",
   "audio.downmixed": "テレビでステレオにダウンミックス",

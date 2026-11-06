@@ -203,7 +203,6 @@
   "subs.embeddedScanning": "Subtítulo incrustado {0} ({1}, analizando)",
   "subs.embeddedPartial": "Subtítulo incrustado {0} ({1}, parcial)",
   "subs.embeddedTag": "(incrustado) {0}",
-  "subs.extracting": "{0} — extrayendo {1} %",
   "subs.partial": "{0} — parcial (líneas: {1})",
   "audio.notSupported": "no compatible con el TV",
   "audio.downmixed": "el TV lo reduce a estéreo",

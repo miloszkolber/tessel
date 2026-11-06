@@ -254,7 +254,6 @@
   "subs.embeddedScanning": "Embedded subtitle {0} ({1}, scanning)",
   "subs.embeddedPartial": "Embedded subtitle {0} ({1}, partial)",
   "subs.embeddedTag": "(embedded) {0}",
-  "subs.extracting": "{0} — extracting {1}%",
   "subs.partial": "{0} — partial ({1} cues)",
   "audio.notSupported": "not supported by TV",
   "audio.downmixed": "TV downmixes to stereo",

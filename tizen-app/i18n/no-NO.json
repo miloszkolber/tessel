@@ -203,7 +203,6 @@
   "subs.embeddedScanning": "Innebygd undertekst {0} ({1}, skanner)",
   "subs.embeddedPartial": "Innebygd undertekst {0} ({1}, delvis)",
   "subs.embeddedTag": "(innebygd) {0}",
-  "subs.extracting": "{0} — henter ut {1} %",
   "subs.partial": "{0} — delvis ({1} linjer)",
   "audio.notSupported": "støttes ikke av TV-en",
   "audio.downmixed": "TV-en nedmikser til stereo",

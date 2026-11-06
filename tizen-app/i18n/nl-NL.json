@@ -203,7 +203,6 @@
   "subs.embeddedScanning": "Ingesloten ondertitel {0} ({1}, wordt gescand)",
   "subs.embeddedPartial": "Ingesloten ondertitel {0} ({1}, gedeeltelijk)",
   "subs.embeddedTag": "(ingesloten) {0}",
-  "subs.extracting": "{0} — uitlezen {1}%",
   "subs.partial": "{0} — gedeeltelijk ({1} regels)",
   "audio.notSupported": "niet ondersteund door tv",
   "audio.downmixed": "tv mixt terug naar stereo",

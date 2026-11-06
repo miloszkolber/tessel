@@ -203,7 +203,6 @@
   "subs.embeddedScanning": "כתוביות מוטמעות {0} ({1}, בסריקה)",
   "subs.embeddedPartial": "כתוביות מוטמעות {0} ({1}, חלקיות)",
   "subs.embeddedTag": "(מוטמעות) {0}",
-  "subs.extracting": "{0} — מחלץ {1}%",
   "subs.partial": "{0} — חלקיות (שורות: {1})",
   "audio.notSupported": "לא נתמך בטלוויזיה",
   "audio.downmixed": "הטלוויזיה ממירה לסטריאו",

@@ -203,7 +203,6 @@
   "subs.embeddedScanning": "Уграђени титл {0} ({1}, скенирање)",
   "subs.embeddedPartial": "Уграђени титл {0} ({1}, делимично)",
   "subs.embeddedTag": "(уграђени) {0}",
-  "subs.extracting": "{0} — издвајање {1}%",
   "subs.partial": "{0} — делимично (редова: {1})",
   "audio.notSupported": "ТВ не подржава",
   "audio.downmixed": "ТВ миксује у стерео",

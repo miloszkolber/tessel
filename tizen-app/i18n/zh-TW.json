@@ -203,7 +203,6 @@
   "subs.embeddedScanning": "內嵌字幕 {0}（{1}，掃描中）",
   "subs.embeddedPartial": "內嵌字幕 {0}（{1}，不完整）",
   "subs.embeddedTag": "（內嵌）{0}",
-  "subs.extracting": "{0}——擷取中 {1}%",
   "subs.partial": "{0}——不完整（{1} 則）",
   "audio.notSupported": "電視不支援",
   "audio.downmixed": "電視降混為立體聲",

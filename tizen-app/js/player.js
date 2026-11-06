@@ -1063,7 +1063,6 @@ var Player = (function () {
             return I18n.t(key, e._ordinal, e._containerLabel);
         }
         var name = e._onDemand ? I18n.t('subs.embeddedTag', e.name) : e.name;
-        if (e.status === 'extracting') return I18n.t('subs.extracting', name, e.progress || 0);
         if (e.status === 'partial')    return I18n.t('subs.partial', name, e.cues.length);
         return name;
     }

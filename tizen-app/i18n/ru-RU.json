@@ -203,7 +203,6 @@
   "subs.embeddedScanning": "Встроенные субтитры {0} ({1}, сканирование)",
   "subs.embeddedPartial": "Встроенные субтитры {0} ({1}, частично)",
   "subs.embeddedTag": "(встроенные) {0}",
-  "subs.extracting": "{0} — извлечение {1}%",
   "subs.partial": "{0} — частично (строк: {1})",
   "audio.notSupported": "не поддерживается ТВ",
   "audio.downmixed": "ТВ сводит в стерео",

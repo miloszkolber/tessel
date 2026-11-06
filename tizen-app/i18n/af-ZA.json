@@ -203,7 +203,6 @@
   "subs.embeddedScanning": "Ingebedde onderskrif {0} ({1}, skandeer tans)",
   "subs.embeddedPartial": "Ingebedde onderskrif {0} ({1}, gedeeltelik)",
   "subs.embeddedTag": "(ingebed) {0}",
-  "subs.extracting": "{0} — onttrek tans {1}%",
   "subs.partial": "{0} — gedeeltelik ({1} reëls)",
   "audio.notSupported": "nie deur TV ondersteun nie",
   "audio.downmixed": "TV meng af na stereo",

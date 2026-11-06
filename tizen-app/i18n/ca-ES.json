@@ -203,7 +203,6 @@
   "subs.embeddedScanning": "Subtítol incrustat {0} ({1}, s’està analitzant)",
   "subs.embeddedPartial": "Subtítol incrustat {0} ({1}, parcial)",
   "subs.embeddedTag": "(incrustat) {0}",
-  "subs.extracting": "{0} — s’està extraient, {1} %",
   "subs.partial": "{0} — parcial (línies: {1})",
   "audio.notSupported": "no compatible amb el televisor",
   "audio.downmixed": "el televisor ho redueix a estèreo",

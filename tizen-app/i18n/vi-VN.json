@@ -203,7 +203,6 @@
   "subs.embeddedScanning": "Phụ đề nhúng {0} ({1}, đang quét)",
   "subs.embeddedPartial": "Phụ đề nhúng {0} ({1}, một phần)",
   "subs.embeddedTag": "(nhúng) {0}",
-  "subs.extracting": "{0} — đang trích xuất {1}%",
   "subs.partial": "{0} — một phần ({1} dòng)",
   "audio.notSupported": "TV không hỗ trợ",
   "audio.downmixed": "TV chuyển về stereo",

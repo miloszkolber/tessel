@@ -203,7 +203,6 @@
   "subs.embeddedScanning": "Ενσωματωμένοι υπότιτλοι {0} ({1}, σάρωση)",
   "subs.embeddedPartial": "Ενσωματωμένοι υπότιτλοι {0} ({1}, μερικοί)",
   "subs.embeddedTag": "(ενσωματωμένοι) {0}",
-  "subs.extracting": "{0} — εξαγωγή {1}%",
   "subs.partial": "{0} — μερικοί (γραμμές: {1})",
   "audio.notSupported": "δεν υποστηρίζεται από την TV",
   "audio.downmixed": "η TV τον μετατρέπει σε στερεοφωνικό",

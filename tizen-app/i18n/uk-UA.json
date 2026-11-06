@@ -203,7 +203,6 @@
   "subs.embeddedScanning": "Вбудовані субтитри {0} ({1}, сканування)",
   "subs.embeddedPartial": "Вбудовані субтитри {0} ({1}, частково)",
   "subs.embeddedTag": "(вбудовані) {0}",
-  "subs.extracting": "{0} — видобування {1}%",
   "subs.partial": "{0} — частково (рядків: {1})",
   "audio.notSupported": "не підтримується ТВ",
   "audio.downmixed": "ТВ зводить у стерео",

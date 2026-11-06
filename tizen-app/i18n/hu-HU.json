@@ -203,7 +203,6 @@
   "subs.embeddedScanning": "Beágyazott felirat: {0} ({1}, keresés)",
   "subs.embeddedPartial": "Beágyazott felirat: {0} ({1}, részleges)",
   "subs.embeddedTag": "(beágyazott) {0}",
-  "subs.extracting": "{0} – kinyerés: {1}%",
   "subs.partial": "{0} – részleges ({1} sor)",
   "audio.notSupported": "a TV nem támogatja",
   "audio.downmixed": "a TV sztereóra keveri",

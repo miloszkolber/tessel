@@ -203,7 +203,6 @@
   "subs.embeddedScanning": "Eingebetteter Untertitel {0} ({1}, wird durchsucht)",
   "subs.embeddedPartial": "Eingebetteter Untertitel {0} ({1}, unvollständig)",
   "subs.embeddedTag": "(eingebettet) {0}",
-  "subs.extracting": "{0} – wird extrahiert: {1} %",
   "subs.partial": "{0} – unvollständig ({1} Zeilen)",
   "audio.notSupported": "vom TV nicht unterstützt",
   "audio.downmixed": "TV mischt auf Stereo herunter",
