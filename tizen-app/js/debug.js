@@ -55,8 +55,6 @@ var Debug = (function () {
             dropped += lines.length - MAX_LINES;
             lines.splice(0, lines.length - MAX_LINES);
         }
-        publish(tag, payload);
-
         /* DevTools first, so a line still lands there when the POST path is
          * off or the listener has gone away.  console.error for the tags that
          * mean something went wrong, so they keep DevTools' red styling and

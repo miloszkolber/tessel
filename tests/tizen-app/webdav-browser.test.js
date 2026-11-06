@@ -9,7 +9,7 @@ test('a configured WebDAV source renders media-only rows and hands the queue to 
         return n;
     }
     var ids = {}, played;
-    var entries = [{ name: 'Series', isDir: true }, { name: 'Film.mp4', isDir: false }, { name: 'Song.mp3', isDir: false }, { name: 'Film.srt' }, { name: 'Notes.txt' }];
+    var entries = [{ name: 'Song.mp3', isDir: false }, { name: 'Film.mp4', isDir: false }, { name: 'Series', isDir: true }, { name: 'Film.srt' }, { name: 'Notes.txt' }];
     var scope = { window: { VlcApp: { play: function (origin, queue, index) { played = { origin: origin, queue: queue, index: index }; } } },
         localStorage: { getItem: function () { return JSON.stringify([{ id: 'cloud', url: 'https://example.com/', name: 'Cloud' }]); } },
         document: { readyState: 'loading', addEventListener: function () {}, getElementById: function (id) { return ids[id] || (ids[id] = node()); }, createElement: node },
@@ -28,6 +28,7 @@ test('a configured WebDAV source renders media-only rows and hands the queue to 
     assert.ok(rows[1].innerHTML.includes('Film.mp4')); assert.ok(rows[2].innerHTML.includes('Song.mp3'));
     rows[1].click();
     assert.equal(played.origin, 'webdav'); assert.equal(played.queue.length, 2); assert.equal(played.index, 0);
+    assert.equal(played.queue.map(function (item) { return item.title; }).join(','), 'Film.mp4,Song.mp3');
     assert.equal(played.queue[0].subtitles[0].uri, 'sidecar');
     assert.ok(played.queue[0].uri.includes('srv=cloud'));
 });

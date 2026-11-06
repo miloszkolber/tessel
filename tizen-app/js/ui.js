@@ -25,6 +25,7 @@ var UI = (function () {
         v.classList.remove('hidden');
         currentView = v;
         document.body.classList.toggle('player-view', id === 'view-player');
+        refreshRowOverflow();
         refreshFocusables();
         // A marked element that is hidden (the Recently Played tile with
         // the list switched off, issue #142) doesn't take the cursor.
@@ -114,9 +115,8 @@ var UI = (function () {
         markRowOverflow(el);
     }
 
-    /* Horizontal card rows advance one card at a time so the next card is
-     * already visible when focus reaches the edge.  Keeps the row's own
-     * scrolling separate from the page's vertical scroll. */
+    /* From the third card onward, advance one measured stride per item,
+     * keeping the focused card in the second slot until the row ends. */
     function revealInRow(el) {
         var row = el.parentNode && el.parentNode.closest
             ? el.parentNode.closest('.card-row, .home-tiles') : null;
@@ -124,19 +124,21 @@ var UI = (function () {
         var kids = [], i;
         for (i = 0; i < row.children.length; i++)
             if (row.children[i].offsetParent !== null) kids.push(row.children[i]);
-        var at = kids.indexOf(el), next = kids[at + 1];
+        var at = kids.indexOf(el);
+        if (at < 0 || kids.length < 2) return;
         var rtl = document.dir === 'rtl';
         var edge = row.getBoundingClientRect();
+        var first = kids[0].getBoundingClientRect(), second = kids[1].getBoundingClientRect();
+        var stride = Math.abs(second.left - first.left);
+        var style = window.getComputedStyle ? window.getComputedStyle(row) : null;
+        var gutter = style ? parseFloat(rtl ? style.paddingRight : style.paddingLeft) || 0 : 8;
+        var advance = stride * Math.max(0, at - 1);
+        row.scrollLeft += rtl ? first.right - edge.right + gutter - advance : first.left - edge.left - gutter + advance;
+        // Read again after scrolling: using the old rect can undo the advance
+        // or clip the focused card on the last, clamped step.
         var box = el.getBoundingClientRect();
-        if (next) {
-            var n = next.getBoundingClientRect();
-            var nextShown = rtl ? n.left >= edge.left - 1 : n.right <= edge.right + 1;
-            if (!nextShown) row.scrollLeft += (rtl ? -1 : 1) * (box.width + 26);
-        }
-        if (rtl ? box.left < edge.left - 1 : box.right > edge.right + 1)
-            row.scrollLeft += rtl ? (box.left - edge.left - 8) : (box.right - edge.right + 8);
-        else if (rtl ? box.right > edge.right + 1 : box.left < edge.left - 1)
-            row.scrollLeft -= rtl ? (edge.right - box.right - 8) : (edge.left - box.left + 8);
+        if (box.left < edge.left + 4) row.scrollLeft += box.left - edge.left - 4;
+        else if (box.right > edge.right - 4) row.scrollLeft += box.right - edge.right + 4;
         markRowOverflow(el);
     }
 
@@ -146,6 +148,10 @@ var UI = (function () {
         var row = el.parentNode && el.parentNode.closest
             ? el.parentNode.closest('.card-row, .home-tiles') : null;
         if (!row) return;
+        updateRowOverflow(row);
+    }
+
+    function updateRowOverflow(row) {
         var shell = row.__shell || row;
         var max = row.scrollWidth - row.clientWidth;
         var pos = Math.abs(row.scrollLeft);
@@ -154,9 +160,19 @@ var UI = (function () {
         if (shell !== row) shell.setAttribute('data-overflow', state);
     }
 
+    function refreshRowOverflow() {
+        if (!currentView) return;
+        var rows = currentView.querySelectorAll('.card-row, .home-tiles');
+        for (var i = 0; i < rows.length; i++) {
+            if (rows[i].classList.contains('card-row') || rows[i].classList.contains('home-tiles'))
+                updateRowOverflow(rows[i]);
+        }
+    }
+
     /* Wrap a card row once and attach its overflow indicator. */
     function overflowRow(row) {
-        if (!row || row.__shell) return row && row.__shell;
+        if (!row) return null;
+        if (row.__shell) { updateRowOverflow(row); return row.__shell; }
         var parent = row.parentNode;
         if (!parent) return null;
         var shell = document.createElement('div');
@@ -170,12 +186,9 @@ var UI = (function () {
         shell.appendChild(more);
         row.__shell = shell;
         row.addEventListener('scroll', function () {
-            var max = row.scrollWidth - row.clientWidth, pos = Math.abs(row.scrollLeft);
-            var state = max <= 2 ? 'none' : pos <= 2 ? 'end' : pos >= max - 2 ? 'start' : 'both';
-            row.setAttribute('data-overflow', state);
-            shell.setAttribute('data-overflow', state);
+            updateRowOverflow(row);
         }, { passive: true });
-        markRowOverflow(row.firstElementChild || row);
+        updateRowOverflow(row);
         return shell;
     }
 
@@ -214,8 +227,10 @@ var UI = (function () {
     // Reflow can strand the current row beyond a bounded menu's viewport.
     // Preserve the cursor and reveal it immediately rather than refocusing.
     if (window.addEventListener) window.addEventListener('resize', function () {
+        refreshRowOverflow();
         var el = document.activeElement;
         if (!el || !el.classList.contains('focused') || el.offsetParent === null) return;
+        revealInRow(el);
         try { el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' }); } catch (e) {}
     });
 

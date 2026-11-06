@@ -334,13 +334,13 @@ var DLNA = (function () {
     function draw(entries, focusTitle, backHere) {
         var ul = list();
         ul.innerHTML = '';
-        var playlist = playlistOf(entries), focus = null;
-        playlist.forEach(function (p) { p.source = { kind: 'dlna', srv: server.id, path: folder.id, name: folder.title }; });
-
+        entries = entries.slice();
         entries.sort(function (a, b) {
             if (!!a.isDir !== !!b.isDir) return a.isDir ? -1 : 1;
             return String(a.title).toLowerCase().localeCompare(String(b.title).toLowerCase());
         });
+        var playlist = playlistOf(entries), focus = null;
+        playlist.forEach(function (p) { p.source = { kind: 'dlna', srv: server.id, path: folder.id, name: folder.title }; });
         entries.forEach(function (e) {
             var k = kindOf(e);
             var meta = e.isDir ? '' : e.duration ? clock(e.duration) : humanSize(e.size);

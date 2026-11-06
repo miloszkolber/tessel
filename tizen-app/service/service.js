@@ -2433,9 +2433,9 @@ function handleDavStream(req, res, query) {
  * miniDLNA answers "bytes=0-0" with the whole file (it honours the start
  * but not the end), so the reply is clamped to what was asked for before
  * it reaches the page: a header probe must cost one byte, not 600 MB. */
-var dlnaRangeLogs = 0;
-function dlnaRangeOf(value, total) {    var m = /bytes=(\d*)-(\d*)/.exec(String(value || ''));
-    if (!m) return null;
+function dlnaRangeOf(value, total) {
+    var m = /^bytes=(\d*)-(\d*)$/.exec(String(value || ''));
+    if (!m || !(total > 0) || (!m[1] && !m[2])) return null;
     var start, end;
     if (m[1] === '' && m[2] !== '') { start = Math.max(0, total - parseInt(m[2], 10)); end = total - 1; }
     else {
@@ -2444,6 +2444,7 @@ function dlnaRangeOf(value, total) {    var m = /bytes=(\d*)-(\d*)/.exec(String(
     }
     if (!(start >= 0) || !(end >= start)) return null;
     if (end > total - 1) end = total - 1;
+    if (!(end >= start)) return null;
     return { start: start, end: end };
 }
 function handleDlnaRange(req, res, query) {
@@ -2456,70 +2457,95 @@ function handleDlnaRange(req, res, query) {
     var lib = u.protocol === 'https:' ? https : http;
     var headers = {};
     if (req.headers.range) headers.Range = req.headers.range;
-    /* Evidence that subtitle discovery reached the proxy, and what it asked
-     * for.  The log ring is bounded; keep the first few and then a sample. */
-    if (!/\.srt$/i.test(u.pathname || '')) {
-        dlnaRangeLogs++;
-        if (dlnaRangeLogs <= 5 || dlnaRangeLogs % 50 === 0)
-            log('DLNA_RANGE', { n: dlnaRangeLogs, range: headers.Range || '', host: u.host, path: u.pathname });
+    var upstream = null, reply = null, done = false, started = false;
+    function stop() {
+        if (reply) try { reply.destroy(); } catch (e) {}
+        if (upstream) try { upstream.destroy(); } catch (e) {}
     }
-    var upstream = null;
-    req.on('close', function () { if (upstream) try { upstream.destroy(); } catch (e) {} });
+    function fail(message) {
+        if (done) return;
+        done = true;
+        log('DLNA_RANGE_FAIL', message);
+        if (started || res.headersSent) res.destroy();
+        else { cors(res, 502, 'text/plain'); res.end(message); }
+        stop();
+    }
+    // Request 'close' can mean only that request reading finished on newer Node.
+    res.on('close', function () { if (!done) { done = true; stop(); } });
+    res.on('error', function () { if (!done) { done = true; stop(); } });
     try {
         upstream = lib.get({
             protocol: u.protocol, hostname: u.hostname,
             port: u.port || (u.protocol === 'https:' ? 443 : 80),
             path: u.path, headers: headers
         }, function (up) {
+            reply = up;
+            up.on('error', function () { fail('upstream response error'); });
+            up.on('aborted', function () { fail('upstream response aborted'); });
+            var ended = false;
+            up.on('end', function () { ended = true; });
+            up.on('close', function () { if (!ended) fail('upstream response closed early'); });
+            if (done) return stop();
             var status = up.statusCode;
             if (status !== 200 && status !== 206 && status !== 416) {
-                log('DLNA_RANGE_FAIL', { url: target, status: status });
-                up.resume();
-                cors(res, 502, 'text/plain'); return res.end('HTTP ' + status);
+                return fail('HTTP ' + status);
             }
             var m = /\/(\d+)\s*$/.exec(up.headers['content-range'] || '');
             var total = m ? parseInt(m[1], 10) : (status === 200 ? parseInt(up.headers['content-length'] || '0', 10) : 0);
             var want = dlnaRangeOf(req.headers.range, total);
             var h = { 'Accept-Ranges': 'bytes' };
+            if (status === 416) {
+                if (up.headers['content-range']) h['Content-Range'] = up.headers['content-range'];
+                cors(res, 416, 'text/plain', h);
+                done = true; res.end(); return stop();
+            }
+            if (headers.Range && total > 0 && !want) {
+                h['Content-Range'] = 'bytes */' + total;
+                cors(res, 416, 'text/plain', h);
+                done = true; res.end(); return stop();
+            }
             if (want) {
-                var cr = /\bbytes\s+(\d+)-(\d+)/i.exec(up.headers['content-range'] || '');
+                var cr = /^bytes\s+(\d+)-(\d+)\/(\d+)$/i.exec(up.headers['content-range'] || '');
                 var gotStart = cr ? parseInt(cr[1], 10) : 0;
-                var offset = want.start - gotStart;   // bytes to skip in the reply
-                var count = want.end - want.start + 1;
-                if (offset > 0) {
+                var gotEnd = cr ? parseInt(cr[2], 10) : total - 1;
+                if ((status === 206 && !cr) || gotStart !== want.start || gotEnd < gotStart || gotEnd >= total) {
                     // The server answered from a different start; refusing is
                     // safer than sending shifted bytes.
-                    up.resume();
-                    cors(res, 502, 'text/plain'); return res.end('range start not honoured');
+                    return fail('range bounds not honoured');
                 }
+                want.end = Math.min(want.end, gotEnd);
+                var count = want.end - want.start + 1;
                 h['Content-Range'] = 'bytes ' + want.start + '-' + want.end + '/' + total;
                 h['Content-Length'] = String(count);
                 cors(res, 206, up.headers['content-type'] || 'application/octet-stream', h);
-                if (req.method === 'HEAD') { up.resume(); return res.end(); }
+                started = true;
+                if (req.method === 'HEAD') { done = true; res.end(); return stop(); }
                 var sent = 0;
+                res.on('drain', function () { if (!done) up.resume(); });
                 up.on('data', function (chunk) {
-                    if (sent >= count) return;
+                    if (done) return;
                     var piece = chunk.length > count - sent ? chunk.slice(0, count - sent) : chunk;
                     sent += piece.length;
-                    res.write(piece);
-                    if (sent >= count) { try { up.destroy(); } catch (e) {} try { res.end(); } catch (e) {} }
+                    if (!res.write(piece)) up.pause();
+                    if (sent >= count) { done = true; res.end(); stop(); }
                 });
-                up.on('end', function () { try { res.end(); } catch (e) {} });
+                up.on('end', function () { if (sent < count) fail('upstream response cut short'); });
                 return;
             }
             if (up.headers['content-length'] !== undefined) h['Content-Length'] = up.headers['content-length'];
             if (up.headers['content-range']) h['Content-Range'] = up.headers['content-range'];
             cors(res, status, up.headers['content-type'] || 'application/octet-stream', h);
-            if (req.method === 'HEAD') { up.resume(); return res.end(); }
-            up.on('error', function () { try { res.end(); } catch (e) {} });
+            started = true;
+            if (req.method === 'HEAD') { done = true; res.end(); return stop(); }
+            up.on('end', function () { done = true; });
             up.pipe(res);
         });
-        upstream.setTimeout(20000, function () { try { upstream.destroy(); } catch (e) {} });
+        upstream.setTimeout(20000, function () { fail('upstream timeout'); });
         upstream.on('error', function (e) {
-            try { cors(res, 502, 'text/plain'); res.end(e.message); } catch (x) {}
+            fail('upstream request error');
         });
     } catch (e) {
-        cors(res, 502, 'text/plain'); res.end(e.message);
+        fail('upstream request error');
     }
 }
 

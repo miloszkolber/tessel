@@ -1,5 +1,18 @@
 # Implementation audit
 
+## TV feedback review
+
+The post-feedback review covers `c20663c..742d9ca`. The following corrections are being integrated before deployment:
+
+- [x] Keep displayed network file order and Next/autoplay queue order identical, including cached DLNA re-entry. Sort before constructing each SMB, WebDAV and DLNA queue. Avoid mutating cached DLNA entries.
+- [x] Publish each debug line only once instead of issuing duplicate HTTP requests.
+- [x] Terminate truncated range responses, honor downstream backpressure and cancellation, reject shifted upstream ranges and preserve valid 416 responses.
+- [x] Show a partial overflow card and begin progressive carousel scrolling at the third item. Recompute overflow after hidden views become visible and after resize.
+- [x] Align normal content-card title and metadata slots across Home, Stream and explorer tiles. Remove unintended Settings comment text.
+- [ ] Run final regression, package, specification and rendered interaction checks. Deploy the inspected package, restore the deployment stack configuration and stop task-owned probe containers.
+
+The selected-subtitle fix in `742d9ca` was additionally checked in MCP Chromium using stubbed track metadata: clicking an untagged `English (CC)` row persisted `en` both per-file and globally, and a subsequent simulated episode selected the matching track. This checks application orchestration with a simulated decoder, not Samsung subtitle decoding or physical next-episode acceptance.
+
 This is an evidence-based audit of the source and conversation record available at adoption, not a complete inventory of inaccessible prior conversations. Superseded requirements are not counted as omissions.
 
 ## Confirmed omissions or incomplete delivery

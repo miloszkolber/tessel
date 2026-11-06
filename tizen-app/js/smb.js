@@ -495,6 +495,10 @@ var SMB = (function () {
             entries = entries.filter(function (e) {
                 return e.isDir || isPlayable(e.name) || FileTypes.kind(e.name) === 'playlist';
             });
+            entries.sort(function (a, b) {
+                if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+                return String(a.name).toLowerCase().localeCompare(String(b.name).toLowerCase());
+            });
             var playlist = entries
                 .filter(function (e) { return !e.isDir && isPlayable(e.name); })
                 .map(function (e) {
@@ -514,18 +518,6 @@ var SMB = (function () {
                 };
             }
 
-            /* Folders lead the grid, then files, each group by name: the
-             * listing reads as folders first on every share, not by whatever
-             * order the server answered in. */
-            entries.sort(function (a, b) {
-                if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-                return String(a.name).toLowerCase().localeCompare(String(b.name).toLowerCase());
-            });
-
-            entries.sort(function (a, b) {
-                if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-                return String(a.name).toLowerCase().localeCompare(String(b.name).toLowerCase());
-            });
             var continueUri = !focusName && window.VlcApp && window.VlcApp.continueBrowseAt ? window.VlcApp.continueBrowseAt(playlist) : null;
             var focus = null;
             entries.forEach(function (e) {

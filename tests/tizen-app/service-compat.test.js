@@ -110,11 +110,11 @@ test('DLNA range proxy forwards the range and adds CORS for header reads', async
         up.resume = function () {};
         up.destroy = function () {};
         up.setTimeout = function () {};
-        setTimeout(function () { cb(up); up.emit('data', Buffer.from('BINARY')); up.emit('end'); }, 0);
+        setTimeout(function () { cb(up); up.emit('data', Buffer.alloc(100, 'B')); up.emit('end'); }, 0);
         return up;
     } });
     var out = { status: null, headers: {}, body: '' };
-    var res = { writeHead: function (code, headers) { out.status = code; out.headers = headers || {}; }, write: function (b) { out.body += b.toString(); }, end: function (body) { if (body !== undefined) out.body += body.toString(); } };
+    var res = { on: function () {}, writeHead: function (code, headers) { out.status = code; out.headers = headers || {}; }, write: function (b) { out.body += b.toString(); return true; }, end: function (body) { if (body !== undefined) out.body += body.toString(); } };
     var req = { url: '/dlna/range?url=' + encodeURIComponent('http://192.168.0.239:8200/MediaItems/445.mkv'), method: 'GET',
         headers: { range: 'bytes=0-99' }, socket: { remoteAddress: '127.0.0.1' }, on: function () {} };
     h.proxy.handler(req, res);
@@ -127,7 +127,7 @@ test('DLNA range proxy forwards the range and adds CORS for header reads', async
     assert.equal(out.status, 206);
     assert.equal(out.headers['Access-Control-Allow-Origin'], '*');
     assert.equal(out.headers['Content-Range'], 'bytes 0-99/589015441');
-    assert.equal(out.body, 'BINARY');
+    assert.equal(out.body, 'B'.repeat(100));
 });
 
 test('DLNA range proxy rejects non-http targets before any fetch', function () {
@@ -157,7 +157,7 @@ test('DLNA range proxy clamps a server that ignores the range end', async functi
         return up;
     } });
     var out = { status: null, headers: {}, body: '' };
-    var res = { writeHead: function (code, headers) { out.status = code; out.headers = headers || {}; }, write: function (b) { out.body += b.toString(); }, end: function (b) { if (b !== undefined) out.body += b.toString(); } };
+    var res = { on: function () {}, writeHead: function (code, headers) { out.status = code; out.headers = headers || {}; }, write: function (b) { out.body += b.toString(); return true; }, end: function (b) { if (b !== undefined) out.body += b.toString(); } };
     var req = { url: '/dlna/range?url=' + encodeURIComponent('http://192.168.0.239:8200/MediaItems/445.mkv'), method: 'GET',
         headers: { range: 'bytes=0-0' }, socket: { remoteAddress: '127.0.0.1' }, on: function () {} };
     h.proxy.handler(req, res);

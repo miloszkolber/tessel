@@ -186,7 +186,7 @@ Short landscape layouts SHALL retain readable audio metadata without overlap wit
 - **THEN** cover and metadata remain above the visible timeline with positive clearance
 - **AND** moving focus into and out of the queue does not move the audio presentation
 
-Home SHALL omit empty Continue playing and Pinned sections, including their headings and reserved space. Stream lists SHALL retain readable empty states. The music card SHALL sit still on the screen's centre line.
+Home SHALL omit empty Continue playing and Pinned sections, including their headings and reserved space. Stream SHALL likewise omit empty Saved streams and Recent sections. The music card SHALL sit still on the screen's centre line.
 
 #### Scenario: Empty library section
 - **GIVEN** a library with no pins

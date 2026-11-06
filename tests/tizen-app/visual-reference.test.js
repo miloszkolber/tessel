@@ -178,12 +178,24 @@ test('the removed duplicate surfaces are gone', function () {
     assert.ok(read('index.html').indexOf('view-cast') < 0, 'the cast page is gone');
 });
 
-test('resume cards lead with the progress line, so titles align', function () {
+test('normal cards share title and metadata slots, including empty descriptions', function () {
     var source = css();
-    assert.ok(rule(source, '.continue-card .card-description', 300).indexOf('order: -1') >= 0, 'the meta line sits above the picture');
-    assert.ok(source.indexOf('.media-card .card-description:empty { display: none; }') >= 0, 'an absent subtitle reserves nothing');
-    var ui = read('js/library-ui.js');
-    assert.ok(ui.indexOf("c.classList.add('continue-card')") >= 0, 'the continue row marks its cards');
+    assert.ok(rule(source, '.card-description {', 500).includes('min-height: calc(var(--card-meta-size) * 1.25)'), 'all normal cards reserve one metadata line');
+    assert.ok(!source.includes('.media-card .card-description:empty'), 'an empty metadata line keeps its slot');
+    assert.ok(!source.includes('.continue-card .card-'), 'resume cards do not reorder metadata or shift the title');
+    assert.ok(read('index.html').includes('<!-- Subtitle appearance lives in the playback Subtitles menu now. -->'), 'the implementation note is not visible Settings text');
+});
+
+test('horizontal strips reveal a partial next card without changing explorer columns', function () {
+    var source = css();
+    var strip = rule(source, '.card-row > .media-card {', 200).split('}')[0];
+    assert.ok(strip.includes('flex-basis: calc(var(--card-width) * .94)'), 'strip cards leave a next-card peek');
+    [1280, 1920, 3029].forEach(function (width) {
+        var card = (width - 130 - 104) / 5 * .94;
+        var peek = width - 130 - 5 * (card + 26);
+        assert.ok(peek > 0 && peek < card, 'five whole cards and a partial sixth at ' + width);
+    });
+    assert.ok(!rule(source, '.card-row {', 400).split('}')[0].includes('scroll-snap-type'), 'snap cannot override measured remote scrolling');
 });
 
 test('the page title stays put; the row heading carries the trail', function () {
@@ -315,7 +327,7 @@ test('explorer tiles reuse the shared card component', function () {
     var picture = rule(source, '.card-picture {', 300);
     assert.ok(picture.includes('flex: 1 1 0'), 'one shared picture area fills the card');
     assert.ok(source.includes('.browse-list.grid li.focused .card-picture::before'), 'the shared disc inverts on focus');
-    assert.ok(source.includes('.browse-list.grid .card-description { min-height: calc(var(--card-meta-size) * 1.25); }'), 'folders reserve the same metadata line as files');
+    assert.ok(rule(source, '.card-description {', 500).includes('min-height: calc(var(--card-meta-size) * 1.25)'), 'folders and files inherit the shared metadata slot');
     assert.ok(source.includes('.browse-list:not(.grid) li:last-child { border-bottom: 0; }'), 'last row keeps its border');
 });
 

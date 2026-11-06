@@ -5,4 +5,4 @@ Read `openspec/README.md` for current contracts, the active change and verificat
 - Use the existing ES5-style browser modules and bundled Remix SVGs. Preserve the MIT notices and third-party licenses.
 - Run development tooling in the development container. Do not install build tools on the host.
 - Keep simulator, preview and TV behavior aligned. Simulated playback does not establish Samsung AVPlay acceptance.
-- Keep `openspec/changes/mockup-product-refresh/tasks.md` current. Do not remove regression coverage merely to reduce the test count.
+- Keep the active change's task ledger current. Completed mockup and TV feedback ledgers live under `openspec/changes/archive/`. Do not remove regression coverage merely to reduce the test count.

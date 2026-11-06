@@ -228,6 +228,10 @@ var WebDAV = (function () {
             entries = entries.filter(function (e) {
                 return e.isDir || FileTypes.isPlayable(e.name) || FileTypes.kind(e.name) === 'playlist';
             });
+            entries.sort(function (a, b) {
+                if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+                return String(a.name).toLowerCase().localeCompare(String(b.name).toLowerCase());
+            });
             dbg('list ' + JSON.stringify(path || '/') + ': ' + entries.length + ' shown');
             var playlist = entries
                 .filter(function (e) { return !e.isDir && FileTypes.isPlayable(e.name); })
@@ -246,10 +250,6 @@ var WebDAV = (function () {
 
             var list_ = ul();
             list_.innerHTML = '';
-            entries.sort(function (a, b) {
-                if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-                return String(a.name).toLowerCase().localeCompare(String(b.name).toLowerCase());
-            });
             var continueUri = !focusName && window.VlcApp && window.VlcApp.continueBrowseAt ? window.VlcApp.continueBrowseAt(playlist) : null;
             var focus = null;
             entries.forEach(function (e) {

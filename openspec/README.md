@@ -1,6 +1,6 @@
 # Development
 
-Current contracts live in `specs/`. The TV feedback round is tracked in [changes/tv-feedback-round/tasks.md](changes/tv-feedback-round/tasks.md); the completed mockup refresh is in [changes/archive/2026-11-05-mockup-product-refresh/tasks.md](changes/archive/2026-11-05-mockup-product-refresh/tasks.md). Unchecked tasks are not implemented, even when the proposed specs describe them.
+Current contracts live in `specs/`. The completed TV feedback round is tracked in [changes/archive/2026-11-06-tv-feedback-round/tasks.md](changes/archive/2026-11-06-tv-feedback-round/tasks.md). The completed mockup refresh is in [changes/archive/2026-11-05-mockup-product-refresh/tasks.md](changes/archive/2026-11-05-mockup-product-refresh/tasks.md). Unchecked tasks are not implemented, even when the proposed specs describe them.
 
 ## Commands
 
@@ -29,7 +29,7 @@ For large-playlist navigation, check adjacent moves, the filter boundary, hidden
 
 Subtitle selection must remember the language even when a container omits its language tag but names the track (for example, `English (CC)`). Reuse the language matcher to resolve that label before persisting the per-file and global choice. Verify resume and the next episode with different container track numbers. Extraction runs without a percentage suffix in the track label. Keep failure feedback.
 
-For card mutations, verify focus against the card that opened the menu rather than the render-time cursor. Rename keeps that card, removal selects an adjacent surviving card, and the final removal omits an empty Home section and restores a visible fallback. Stream lists retain readable empty states. Check RTL geometry independently from script/font acceptance. Labels mirror, technical address fields and transport order do not.
+For card mutations, verify focus against the card that opened the menu rather than the render-time cursor. Rename keeps that card, removal selects an adjacent surviving card, and the final removal omits an empty Home or Stream section and restores a visible fallback. Check RTL geometry independently from script/font acceptance. Labels mirror, technical address fields and transport order do not.
 
 For metadata and history changes, verify the single metadata line retains the title baseline and focused card. Exercise pending-read cancellation on navigation and playback. Confirm folder-history reset defaults to Cancel, restores the invoking card and clears watched, resume and queue-only progress without touching sibling folders or other servers. Direct simulator folder resolution must retain a real parent chain so Up tests the same restoration contract as normal browsing. Inspect the built package, not only the packaging script, for service wrapping and simulator exclusion. Physical older-Tizen and Tizen 10 service startup remain separate acceptance checks.
 

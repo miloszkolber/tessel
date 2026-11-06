@@ -101,7 +101,10 @@ input::selection { background: var(--focus-ring); color: var(--bg); }
 .library-row h2, .row-heading {
     margin: 0 0 25px; font-size: 22px; line-height: 30px; font-weight: 500; text-transform: uppercase; color: var(--fg-soft);
 }
-.card-row { display: flex; flex: 0 0 auto; overflow-x: auto; gap: var(--card-gap); padding: 12px; margin: -12px; scrollbar-width: none; scroll-padding: 12px; scroll-snap-type: x mandatory; }
+.card-row { display: flex; flex: 0 0 auto; overflow-x: auto; gap: var(--card-gap); padding: 12px; margin: -12px; scrollbar-width: none; scroll-padding: 12px; }
+/* A strip shows five cards and a real peek at the sixth. The explorer keeps
+ * its exact five-column grid. Height and text slots remain shared. */
+.card-row > .media-card { flex-basis: calc(var(--card-width) * .94); width: calc(var(--card-width) * .94); }
 /* The shell owns the overflow hint: a card row scrolls horizontally, and a
  * faint chevron on the reading edge says more cards are waiting. */
 .card-row-shell { position: relative; flex: 0 0 auto; min-width: 0; }
@@ -139,15 +142,9 @@ input::selection { background: var(--focus-ring); color: var(--bg); }
 .has-art .card-picture::before, .has-art .card-picture > .remix-icon,
 .up-next-thumb.has-art .up-next-glyph { visibility: hidden; }
 .card-title { flex: 0 0 auto; font-size: var(--card-label-size); font-weight: 500; margin-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* An absent subtitle reserves nothing: the title sits at the same height on
-   every card in a strip. */
-.card-description { flex: 0 0 auto; font-size: var(--card-meta-size); color: var(--fg-dim); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.media-card .card-description:empty { display: none; }
-/* Resume cards lead with the progress line ("4 / 4") so the strip reads as
-   one column: meta above the picture, title below it. */
-.continue-card .card-description { order: -1; margin: 0 0 6px; color: var(--fg-soft); font-weight: 500; }
-.continue-card .card-picture { padding-bottom: 8px; }
-.continue-card .card-title { margin-top: 8px; }
+/* All normal cards reserve one metadata line, including empty descriptions,
+ * so picture, title and metadata baselines agree across strips and grids. */
+.card-description { flex: 0 0 auto; min-height: calc(var(--card-meta-size) * 1.25); line-height: 1.25; font-size: var(--card-meta-size); color: var(--fg-dim); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Focus: a 2px light border plus a 2px ring drawn outside it — the same
  * treatment on every card, tile and source shortcut. */
 .media-card.focused, .media-card:focus { border-color: var(--focus-ring); background: var(--bg-card-h); box-shadow: 0 0 0 2px var(--focus-ring); transform: none; }
@@ -156,7 +153,7 @@ input::selection { background: var(--focus-ring); color: var(--bg); }
 .card-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: #444; border-radius: 3px; overflow: hidden; z-index: 1; }
 .card-progress > span { display: block; height: 100%; background: #eee; }
 .add-card { border-style: dashed; }
-#view-home .home-tiles { display: flex; flex: 0 0 auto; gap: var(--card-gap); justify-content: flex-start; width: calc(100% + 24px); overflow-x: auto; padding: 12px; margin: -12px; scrollbar-width: none; scroll-padding: 12px; scroll-snap-type: x mandatory; }
+#view-home .home-tiles { display: flex; flex: 0 0 auto; gap: var(--card-gap); justify-content: flex-start; width: calc(100% + 24px); overflow-x: auto; padding: 12px; margin: -12px; scrollbar-width: none; scroll-padding: 12px; }
 #view-home .home-tiles::-webkit-scrollbar { display: none; }
 #view-url .url-input-wrap { max-width: var(--form-width); width: 100%; margin: 0 0 24px; }
 #view-url .url-input-wrap input, .playlist-filter input { height: 78px; padding: 0 24px; text-align: start; border: 2px solid var(--input-border); border-radius: 8px; background: var(--bg-card-h); color: var(--fg); font-size: 24px; }
@@ -234,6 +231,8 @@ input::selection { background: var(--focus-ring); color: var(--bg); }
 .shortcut-row .media-card { align-items: center; justify-content: center; text-align: center; }
 .shortcut-row .card-picture { flex: 0 0 auto; width: var(--card-disc-size); height: var(--card-disc-size); }
 .shortcut-row .card-title { max-width: 100%; }
+/* Compact source shortcuts keep the centred disc/name composition. */
+#network-cards .card-description:empty, .shortcut-row .card-description:empty { display: none; }
 .browse-list.grid.device-roots.empty-devices { justify-content: center; padding-top: 100px; }
 .browse-list.grid.device-roots.empty-devices li { width: 600px; flex-basis: 600px; max-width: 100%; height: auto; border: none; text-align: center; background: transparent; }
 .browse-list.grid.device-roots.empty-devices .name { white-space: normal; overflow-wrap: break-word; word-break: break-word; }
@@ -491,9 +490,6 @@ input::selection { background: var(--focus-ring); color: var(--bg); }
 .browse-list.grid li.focused .card-picture::before { background: var(--focus-ring); }
 .browse-list.grid li.focused .card-picture > .remix-icon { filter: none; }
 .browse-list.grid.device-roots .card-picture::before { display: none; }
-/* The description slot keeps the title on one baseline for folders and
- * files alike, even when the metadata text is empty. */
-.browse-list.grid .card-description { min-height: calc(var(--card-meta-size) * 1.25); }
 .browse-list.grid .fav-mark, .browse-list.grid .watched { position: absolute; top: 12px; right: 12px; }
 /* Status rows (loading, empty, error, server list) span the grid and keep
  * the single-line row layout. */
@@ -1802,7 +1798,6 @@ button.settings-row:focus, button.settings-row.focused {
     .media-card, #view-home .tile, .browse-list.grid li, .browse-list.grid.device-roots li { padding: 12px; }
     .card-title, #view-home .tile-label, .browse-list.grid .name, .browse-list.grid.device-roots .name { font-size: 18px; }
     .card-title { margin-top: 8px; }
-    .continue-card .card-title { margin-top: 6px; }
     .card-description { font-size: 14px; margin-top: 4px; }
     .card-picture > .remix-icon, .browse-list.grid .icon .remix-icon { width: 32px; height: 32px; }
     /* The narrow card is 55% of the reference size: it cannot hold a disc, a

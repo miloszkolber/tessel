@@ -66,8 +66,9 @@ test('every line reaches the console without anything being configured', functio
     // Publishing to the service log page is opt-in; nothing goes out yet.
     assert.strictEqual(d.posts.length, 0, 'nothing is published until it is switched on');
     d.Debug.setEnabled(true);
+    var before = d.posts.length;
     d.Debug.info('after enabling');
-    assert.ok(d.posts.length > 0, 'the service log page is fed once enabled');
+    assert.strictEqual(d.posts.length - before, 1, 'one log line makes exactly one request');
     d.posts.forEach(function (x) {
         assert.ok(x.dest.indexOf('127.0.0.1:8129/debug/log') >= 0, x.dest);
     });
