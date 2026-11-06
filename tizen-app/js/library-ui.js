@@ -116,18 +116,13 @@ var LibraryUI = (function () {
     }
     /* Stream lists name their empty state. Optional Home sections are
      * omitted entirely so Sources remains the first useful destination. */
-    function markEmpty(list, message) {
-        var empty = !list.children.length;
-        list.classList.toggle('empty', empty);
-        list.dataset.empty = message || '';
-        if (empty) list.appendChild(el('p', 'empty-state', message));
-    }
     function row(host, title, items, render, modName) {
         if (!items.length) return;
         var section = el('section', modName ? 'library-row ' + modName : 'library-row'); section.appendChild(el('h2', '', title));
         var list = el('div', 'card-row');
         items.forEach(function (item) { list.appendChild(render(item)); });
         section.appendChild(list); host.appendChild(section);
+        if (typeof UI !== 'undefined' && UI.overflowRow) UI.overflowRow(list);
     }
     function pinAction(s, after) {
         var old = Favorites.find(s);
@@ -235,6 +230,7 @@ var LibraryUI = (function () {
         if (heading) heading.textContent = t(list.length ? 'library.devices' : 'network.noDevices');
         list.forEach(function (s) { host.appendChild(card(s, function () { openSource(s); }, function (node) { sourceMenu(s, node); })); });
         var add = card({ key: 'add-source', title: t('library.add'), icon: 'add-line' }, addSource); add.classList.add('add-card'); host.appendChild(add);
+        if (typeof UI !== 'undefined' && UI.overflowRow) UI.overflowRow(host);
         UI.refreshFocusables();
         if (!document.getElementById('view-network').classList.contains('hidden')) restore(focus, host.querySelector('button') || add);
     }
@@ -311,23 +307,25 @@ var LibraryUI = (function () {
         var host = document.getElementById('saved-streams-list'); if (!host) return;
         var focus = focusKey || (document.activeElement && document.activeElement.dataset.cardKey);
         host.innerHTML = '';
-        SavedStreams.list().forEach(function (s) {
+        var savedItems = SavedStreams.list();
+        savedItems.forEach(function (s) {
             var info = streamInfo(s.url);
             host.appendChild(card({ key: 'saved:' + s.id, title: s.name, kind: 'url', path: s.url, icon: info.icon, subtitle: info.subtitle },
                 function () { VlcApp.openStream(s.url, s.name); }, function (node) { streamMenu(s, node, false); }));
         });
-        /* Both sections keep their place so the page does not jump when the
-         * library changes; an empty one says so instead of disappearing. */
+        /* An empty optional section is omitted with its heading, like Home:
+         * a tile that only says "nothing here" is not a destination. */
         var saved = document.getElementById('saved-streams');
-        saved.classList.remove('hidden');
-        markEmpty(host, t('saved.noSaved'));
+        saved.classList.toggle('hidden', !savedItems.length);
+        if (savedItems.length && typeof UI !== 'undefined' && UI.overflowRow) UI.overflowRow(host);
         var recent = document.getElementById('recent-streams-list'); recent.innerHTML = '';
-        Library.recents().forEach(function (s) {
+        var recentItems = Library.recents();
+        recentItems.forEach(function (s) {
             var info = streamInfo(s.url);
             recent.appendChild(card({ key: 'recent:' + s.url, title: s.name, kind: 'url', path: s.url, icon: info.icon, subtitle: info.subtitle }, function () { VlcApp.openStream(s.url, s.name); }, function (node) { streamMenu(s, node, true); }));
         });
-        document.getElementById('recent-streams').classList.remove('hidden');
-        markEmpty(recent, t('stream.noRecent'));
+        document.getElementById('recent-streams').classList.toggle('hidden', !recentItems.length);
+        if (recentItems.length && typeof UI !== 'undefined' && UI.overflowRow) UI.overflowRow(recent);
         UI.refreshFocusables(); if (focus) restore(focus);
     }
     function streamMenu(s, node, recent) {
@@ -338,7 +336,7 @@ var LibraryUI = (function () {
         options.push({ name: t('saved.remove'), run: function () {
             var next = adjacentCardKey(node);
             if (recent) Library.removeRecent(s.url); else SavedStreams.remove(s.id);
-            stream(); restore(next, document.getElementById('url-input'));
+            stream(); restore(next, (typeof document !== 'undefined' && document.querySelector) ? document.querySelector('#view-url [data-action="open-current-url"]') : null);
         } });
         Dialog.menu(s.name, options, node);
     }

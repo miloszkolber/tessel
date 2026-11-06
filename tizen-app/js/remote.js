@@ -89,7 +89,18 @@ var Remote = (function () {
         ev.preventDefault(); ev.stopPropagation();
         if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
     }
+    function feedback(ev) {
+        if (typeof Sfx === 'undefined') return;
+        var a = document.activeElement;
+        var typing = a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA');
+        if (typing && ev.keyCode !== KEY.BACK) return;
+        var c = ev.keyCode;
+        if (c === KEY.ENTER) Sfx.select();
+        else if (c === 27 || c === KEY.BACK) Sfx.back();
+        else if (c === KEY.LEFT || c === KEY.RIGHT || c === KEY.UP || c === KEY.DOWN) Sfx.move();
+    }
     function onDown(ev) {
+        feedback(ev);
         if (ev.keyCode !== KEY.ENTER) { if (hold) cancelHold(); dispatch(ev); return; }
         if (hold) { consume(ev); return; }
         var target = document.activeElement;

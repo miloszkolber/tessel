@@ -32,7 +32,6 @@
   "stream.title": "Play a link",
   "stream.description": "Open a stream or send one from another device.",
   "stream.recent": "Recent",
-  "stream.noRecent": "Nothing played recently",
   "usb.title": "USB devices",
   "usb.description": "Browse media on a connected drive.",
   "cast.disabled": "Enable casting in Settings first.",
@@ -186,7 +185,6 @@
   "url.serviceDown": "Could not reach the TV service — is it running?",
   "saved.save": "Save",
   "saved.title": "Saved streams",
-  "saved.noSaved": "No saved streams yet",
   "saved.name": "Name",
   "saved.done": "Save",
   "saved.saved": "Saved {0}",
@@ -288,5 +286,7 @@
   "net.setUp": "Set up",
   "dbg.enabled": "Debug logging",
   "smb.pickServer": "Choose a server",
-  "dav.title": "WebDAV"
+  "dav.title": "WebDAV",
+  "settings.uiSounds": "Interface sounds",
+  "subs.trackNumber": "track {0}"
 }

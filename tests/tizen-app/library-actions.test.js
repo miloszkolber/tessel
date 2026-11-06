@@ -8,7 +8,7 @@ function harness() {
     var pins = [1, 2, 3].map(function (n) { return { id: String(n), kind: 'url', path: 'https://example.com/' + n, name: 'Pin ' + n }; });
     var recommendations = [1, 2].map(function (n) { return { key: 'queue:' + n, uri: 'file:///' + n, title: 'Queue ' + n }; });
     var rows = {}, menus = [], restores = [], rename, removed = [], opened = false;
-    var body = { dataset: {}, matches: function () { return false; } }, input = {};
+    var body = { dataset: {}, matches: function () { return false; } }, input = {}, play = {};
     function makeCard(item, run, menu) {
         var node = { dataset: { cardKey: item.key || item.path }, classList: { add: function () {} } };
         node.menu = function () { opened = true; context.document.activeElement = body; menu(node); };
@@ -17,7 +17,7 @@ function harness() {
         return node;
     }
     var context = {
-        document: { activeElement: { dataset: { cardKey: 'old-render-focus' } }, getElementById: function (id) { return id === 'url-input' ? input : { classList: { contains: function () { return false; } } }; } },
+        document: { activeElement: { dataset: { cardKey: 'old-render-focus' } }, getElementById: function (id) { return id === 'url-input' ? input : { classList: { contains: function () { return false; } } }; }, querySelector: function () { return play; } },
         row: function (host, title, items, render, mode) {
             var cards = items.map(render); cards.forEach(function (n) { n.row = cards; });
             rows[mode === 'shortcut-row' ? 'pins' : 'continue'] = cards;
@@ -39,7 +39,7 @@ function harness() {
         var start = source.indexOf(boundary[0]), end = source.indexOf(boundary[1], start);
         assert.ok(start >= 0 && end > start); vm.runInContext(source.slice(start, end), context);
     });
-    return { context: context, rows: rows, restores: restores, removed: removed, input: input,
+    return { context: context, rows: rows, restores: restores, removed: removed, input: input, play: play,
         run: function (index) { opened = false; context.document.activeElement = body; menus[menus.length - 1][index].run(); },
         rename: function (name) { opened = false; context.document.activeElement = body; rename(name); },
         cards: function (keys) { var cards = keys.map(function (key) { return makeCard({ key: key }); }); cards.forEach(function (n) { n.row = cards; }); return cards; }
@@ -89,7 +89,7 @@ test('saved/recent removal stays in its row until the row becomes empty', functi
     assert.equal(h.restores[0].key, 'saved:one'); assert.equal(h.removed[0], 'two');
     cards = h.cards(['recent:one']);
     h.context.streamMenu({ url: 'https://example.com/one', name: 'One' }, cards[0], true); h.run(2);
-    assert.equal(h.restores[1].key, null); assert.equal(h.restores[1].fallback, h.input);
+    assert.equal(h.restores[1].key, null); assert.equal(h.restores[1].fallback, h.play);
     assert.equal(h.removed[1], 'https://example.com/one');
 });
 

@@ -333,16 +333,37 @@ var Simulator = (function () {
         '': [
             { name: 'Films', isDir: true },
             { name: 'Music', isDir: true },
+            { name: 'Series', isDir: true },
             { name: 'Big Buck Bunny.mp4', isDir: false, size: 64000000 },
             { name: 'Big Buck Bunny.en.srt', isDir: false, size: 38000 },
-            { name: 'Theme song.mp3', isDir: false, size: 8600000 }
+            { name: 'Aurora.mp4', isDir: false, size: 412000000 },
+            { name: 'Night Drive.mkv', isDir: false, size: 815000000 },
+            { name: 'Theme song.mp3', isDir: false, size: 8600000 },
+            { name: 'Low Tide.mp3', isDir: false, size: 10200000 }
         ],
         'Films': [
             { name: 'Documentary.mkv', isDir: false, size: 2240000000 },
-            { name: 'Documentary.en.srt', isDir: false, size: 52000 }
+            { name: 'Documentary.en.srt', isDir: false, size: 52000 },
+            { name: 'Documentary.fr.srt', isDir: false, size: 49000 },
+            { name: 'Big Buck Bunny.mp4', isDir: false, size: 64000000 },
+            { name: 'Big Buck Bunny.en.srt', isDir: false, size: 38000 },
+            { name: 'Aurora.mp4', isDir: false, size: 412000000 },
+            { name: 'Deep Sea.mkv', isDir: false, size: 1180000000 },
+            { name: 'Deep Sea.en.srt', isDir: false, size: 61000 }
         ],
         'Music': [
-            { name: 'Episode 12.mp3', isDir: false, size: 47000000 }
+            { name: 'Episode 12.mp3', isDir: false, size: 47000000 },
+            { name: 'Theme song.mp3', isDir: false, size: 8600000 },
+            { name: 'Low Tide.mp3', isDir: false, size: 10200000 },
+            { name: 'Road Trip.mp3', isDir: false, size: 9300000 }
+        ],
+        'Series': [
+            { name: 'Season 1', isDir: true }
+        ],
+        'Series/Season 1': [
+            { name: 'Episode 1.mkv', isDir: false, size: 780000000 },
+            { name: 'Episode 1.en.srt', isDir: false, size: 42000 },
+            { name: 'Episode 2.mkv', isDir: false, size: 795000000 }
         ]
     };
 

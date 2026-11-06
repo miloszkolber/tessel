@@ -7,7 +7,7 @@ var vm = require('node:vm');
 var I18n = require('./helpers/i18n.js');
 
 // Exercise the real player wrapper with a simulated HTML5 decoder and clock.
-function harness(read, avplay) {
+function harness(read, avplay, extra) {
     function element() {
         var classes = new Set();
         return {
@@ -37,6 +37,7 @@ function harness(read, avplay) {
         setTimeout: function () { return ++id; }, clearTimeout: function () {}
     };
     if (avplay) context.webapis = { avplay: avplay };
+    if (extra) for (var key in extra) context[key] = extra[key];
     vm.createContext(context);
     vm.runInContext(fs.readFileSync(require.resolve('../../tizen-app/js/player.js'), 'utf8'), context);
     var player = context.Player;
@@ -156,4 +157,22 @@ test('AVPlay sidecars use shifted cue time; unsupported native sync is rejected 
     h.player.setSubtitleTrack('embed:0');
     assert.equal(h.player.setSubtitleDelay(500), false);
     assert.equal(h.player.getSubtitleDelay(), 0);
+});
+
+test('the DLNA header read goes through the range proxy while playback keeps the server URL', function () {
+    var seen = [];
+    var avplay = {
+        open: function () {}, close: function () {}, play: function () {}, setDisplayRect: function () {}, setDisplayMethod: function () {},
+        prepareAsync: function (done) { done(); }, setListener: function () {}, setSilentSubtitle: function () {},
+        getState: function () { return 'PLAYING'; }, getCurrentTime: function () { return 0; }, getDuration: function () { return 20000; },
+        getTotalTrackInfo: function () { return []; }, getCurrentStreamInfo: function () { return []; }, setSelectTrack: function () {}
+    };
+    var h = harness(null, avplay, { MkvSubs: {
+        listTracks: function (src, cb) { seen.push(src); cb(null, [], null); },
+        isSubtitleTrack: function () { return false; }, isTextSubtitleTrack: function () { return false; }
+    } });
+    h.player.open('http://192.168.0.239:8200/MediaItems/445.mkv', {
+        probeUrl: 'http://127.0.0.1:8127/dlna/range?url=http%3A%2F%2F192.168.0.239%3A8200%2FMediaItems%2F445.mkv'
+    });
+    assert.equal(seen[0], 'http://127.0.0.1:8127/dlna/range?url=http%3A%2F%2F192.168.0.239%3A8200%2FMediaItems%2F445.mkv');
 });

@@ -1032,7 +1032,7 @@ var Player = (function () {
         for (i = 0; i < rows.length; i++) {
             if (seen[rows[i].baseName] < 2) continue;
             var num = tracks[i] && tracks[i].number;
-            if (num) rows[i].baseName += ' · track ' + num;
+            if (num) rows[i].baseName += ' · ' + I18n.t('subs.trackNumber', num);
         }
     }
 
@@ -1583,10 +1583,10 @@ var Player = (function () {
             // is being *played* through the transcode server — then `url` is
             // an HLS manifest with no container to sniff, while the bytes
             // still come from the original source.
-            var subsSourceUri = headerSourceUri(opts.sourceUri || url);
+            var subsSourceUri = headerSourceUri(opts.probeUrl || opts.sourceUri || url);
             /* Kept for the whole file: picking a track the TV can't select
                means going back to these bytes for that one track's text. */
-            subsSource = { uri: subsSourceUri, file: opts.file || null };
+            subsSource = { uri: subsSourceUri, file: opts.file || null, probe: !!opts.probeUrl };
             extractAndAppendEmbeddedSubs(subsSourceUri, opts.file);
             /* Independent of extraction, and not limited to local files: the
              * header read works over the SMB proxy too, and it is the only

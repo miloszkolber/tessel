@@ -2423,6 +2423,53 @@ function handleDavStream(req, res, query) {
     });
 }
 
+/* GET/HEAD /dlna/range?url=… — ranged bytes for a DLNA media item.
+ *
+ * The DLNA server sends no CORS headers, so the page cannot read a
+ * container header directly.  This loopback-only endpoint forwards the
+ * bytes with our CORS headers; playback itself keeps the server's URL.
+ * Only http(s) targets, and only the app can reach the listener. */
+function handleDlnaRange(req, res, query) {
+    var target = String(query.url || '');
+    var u;
+    try { u = require('url').parse(target); } catch (e) { u = null; }
+    if (!u || !/^https?:$/.test(u.protocol || '') || !u.host) {
+        cors(res, 400, 'text/plain'); return res.end('bad url');
+    }
+    var lib = u.protocol === 'https:' ? https : http;
+    var headers = {};
+    if (req.headers.range) headers.Range = req.headers.range;
+    var upstream = null;
+    req.on('close', function () { if (upstream) try { upstream.destroy(); } catch (e) {} });
+    try {
+        upstream = lib.get({
+            protocol: u.protocol, hostname: u.hostname,
+            port: u.port || (u.protocol === 'https:' ? 443 : 80),
+            path: u.path, headers: headers
+        }, function (up) {
+            var status = up.statusCode;
+            if (status !== 200 && status !== 206 && status !== 416) {
+                log('DLNA_RANGE_FAIL', { url: target, status: status });
+                up.resume();
+                cors(res, 502, 'text/plain'); return res.end('HTTP ' + status);
+            }
+            var h = { 'Accept-Ranges': 'bytes' };
+            if (up.headers['content-length'] !== undefined) h['Content-Length'] = up.headers['content-length'];
+            if (up.headers['content-range']) h['Content-Range'] = up.headers['content-range'];
+            cors(res, status, up.headers['content-type'] || 'application/octet-stream', h);
+            if (req.method === 'HEAD') { up.resume(); return res.end(); }
+            up.on('error', function () { try { res.end(); } catch (e) {} });
+            up.pipe(res);
+        });
+        upstream.setTimeout(20000, function () { try { upstream.destroy(); } catch (e) {} });
+        upstream.on('error', function (e) {
+            try { cors(res, 502, 'text/plain'); res.end(e.message); } catch (x) {}
+        });
+    } catch (e) {
+        cors(res, 502, 'text/plain'); res.end(e.message);
+    }
+}
+
 /* ── Cast from another device — LAN only ───────────────────────────────────
  * The main service above is loopback-only, so casting gets its own listener
  * on the LAN.  A phone opens /cast, posts a URL, and the app pulls it via
@@ -2601,6 +2648,7 @@ var server = http.createServer(function (req, res) {
     // DLNA media servers (issue #131).
     if (u.pathname === '/dlna/discover') return handleDlnaDiscover(req, res);
     if (u.pathname === '/dlna/browse' && req.method === 'POST') return handleDlnaBrowse(req, res);
+    if (u.pathname === '/dlna/range') return handleDlnaRange(req, res, u.query);
 
     // WebDAV servers (issue #145).
     if (u.pathname === '/dav/connect' && req.method === 'POST') return handleDavConnect(req, res);

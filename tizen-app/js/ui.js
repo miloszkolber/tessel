@@ -8,7 +8,6 @@
 var UI = (function () {
     var currentView = null;
     var viewRevision = 0;
-    var settledTimer = 0;
     var focusable = [];
     var focusIdx  = 0;
 
@@ -24,13 +23,6 @@ var UI = (function () {
         var v = document.getElementById(id);
         if (!v) return;
         v.classList.remove('hidden');
-        /* Replay the entrance on arrival only: later in-place renders
-         * (a dismissed card, a refreshed row) must not replay it. */
-        v.classList.remove('settled');
-        if (typeof setTimeout !== 'undefined') {
-            if (settledTimer) clearTimeout(settledTimer);
-            settledTimer = setTimeout(function () { v.classList.add('settled'); }, 300);
-        }
         currentView = v;
         document.body.classList.toggle('player-view', id === 'view-player');
         refreshFocusables();
@@ -109,10 +101,82 @@ var UI = (function () {
         focusIdx = focusable.indexOf(el);
         if (focusIdx < 0) focusIdx = 0;
 
-        // Generic "scroll into view" so settings rows / picker items / browse
-        // list entries / etc. always stay visible when navigated to.
-        var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        try { el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: reduced ? 'auto' : 'smooth' }); } catch (e) {}
+        revealInRow(el);
+        // Immediate scrolling, not a queue of smooth animations: the cursor
+        // has to keep up with a held direction key on a TV.
+        try { el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' }); } catch (e) {}
+        // Returning to the first item restores the complete top of the page,
+        // including the heading that 'nearest' would leave above the fold.
+        if (currentView && focusable[0] === el && currentView.scrollTop > 1 &&
+            (typeof currentView.contains !== 'function' || currentView.contains(el))) {
+            currentView.scrollTop = 0;
+        }
+        markRowOverflow(el);
+    }
+
+    /* Horizontal card rows advance one card at a time so the next card is
+     * already visible when focus reaches the edge.  Keeps the row's own
+     * scrolling separate from the page's vertical scroll. */
+    function revealInRow(el) {
+        var row = el.parentNode && el.parentNode.closest
+            ? el.parentNode.closest('.card-row, .home-tiles') : null;
+        if (!row || row.scrollWidth <= row.clientWidth) return;
+        var kids = [], i;
+        for (i = 0; i < row.children.length; i++)
+            if (row.children[i].offsetParent !== null) kids.push(row.children[i]);
+        var at = kids.indexOf(el), next = kids[at + 1];
+        var rtl = document.dir === 'rtl';
+        var edge = row.getBoundingClientRect();
+        var box = el.getBoundingClientRect();
+        if (next) {
+            var n = next.getBoundingClientRect();
+            var nextShown = rtl ? n.left >= edge.left - 1 : n.right <= edge.right + 1;
+            if (!nextShown) row.scrollLeft += (rtl ? -1 : 1) * (box.width + 26);
+        }
+        if (rtl ? box.left < edge.left - 1 : box.right > edge.right + 1)
+            row.scrollLeft += rtl ? (box.left - edge.left - 8) : (box.right - edge.right + 8);
+        else if (rtl ? box.right > edge.right + 1 : box.left < edge.left - 1)
+            row.scrollLeft -= rtl ? (edge.right - box.right - 8) : (edge.left - box.left + 8);
+        markRowOverflow(el);
+    }
+
+    /* data-overflow tells CSS which side still holds cards, so the row can
+     * paint a fade/chevron only while there is somewhere to go. */
+    function markRowOverflow(el) {
+        var row = el.parentNode && el.parentNode.closest
+            ? el.parentNode.closest('.card-row, .home-tiles') : null;
+        if (!row) return;
+        var shell = row.__shell || row;
+        var max = row.scrollWidth - row.clientWidth;
+        var pos = Math.abs(row.scrollLeft);
+        var state = max <= 2 ? 'none' : pos <= 2 ? 'end' : pos >= max - 2 ? 'start' : 'both';
+        row.setAttribute('data-overflow', state);
+        if (shell !== row) shell.setAttribute('data-overflow', state);
+    }
+
+    /* Wrap a card row once and attach its overflow indicator. */
+    function overflowRow(row) {
+        if (!row || row.__shell) return row && row.__shell;
+        var parent = row.parentNode;
+        if (!parent) return null;
+        var shell = document.createElement('div');
+        shell.className = 'card-row-shell';
+        parent.insertBefore(shell, row);
+        shell.appendChild(row);
+        var more = document.createElement('span');
+        more.className = 'row-more';
+        more.setAttribute('aria-hidden', 'true');
+        more.innerHTML = '<img class="remix-icon" src="assets/remix/arrow-right-s-line.svg" alt="">';
+        shell.appendChild(more);
+        row.__shell = shell;
+        row.addEventListener('scroll', function () {
+            var max = row.scrollWidth - row.clientWidth, pos = Math.abs(row.scrollLeft);
+            var state = max <= 2 ? 'none' : pos <= 2 ? 'end' : pos >= max - 2 ? 'start' : 'both';
+            row.setAttribute('data-overflow', state);
+            shell.setAttribute('data-overflow', state);
+        }, { passive: true });
+        markRowOverflow(row.firstElementChild || row);
+        return shell;
     }
 
     function restoreFocus(el) {
@@ -220,6 +284,15 @@ var UI = (function () {
         }
 
         if (best) { focusOn(best); return true; }
+        /* At the top of a scrolled page, Up restores the complete top
+         * (heading included) and the first card instead of wrapping to the
+         * far end of the row, which left the page stranded mid-scroll. */
+        if (dir === 'up' && currentView && currentView.scrollTop > 1 &&
+            (typeof currentView.contains !== 'function' || currentView.contains(current))) {
+            currentView.scrollTop = 0;
+            if (focusable[0] && focusable[0] !== current) focusOn(focusable[0]);
+            return true;
+        }
         if (noWrap) return false;
 
         // Wrap to the far end, but only in a plain list or row: every element
@@ -282,6 +355,8 @@ var UI = (function () {
         focusOn:           focusOn,
         restoreFocus:      restoreFocus,
         scrollBy:          scrollBy,
+        overflowRow:       overflowRow,
+        markRowOverflow:   markRowOverflow,
         moveFocus:         moveFocus,
         moveFocusCyclic:   moveFocusCyclic,
         activateFocused:   activateFocused,

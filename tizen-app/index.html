@@ -114,8 +114,7 @@
     <div class="url-input-wrap">
         <label for="url-input" data-i18n="url.label">Stream URL or file path</label>
         <input id="url-input" dir="ltr" type="text" inputmode="url"
-               placeholder="rtsp://… · https://…/playlist.m3u8 · file:///opt/usr/media/…"
-               data-focus>
+               placeholder="rtsp://… · https://…/playlist.m3u8 · file:///opt/usr/media/…">
     </div>
 
     <div class="actions">
@@ -324,9 +323,13 @@
             </button>
         </div>
 
-        <!-- Subtitle appearance lives in the playback Subtitles menu now. -->
+        // Subtitle appearance lives in the playback Subtitles menu now.
 
         <div class="settings-group">
+            <button class="settings-row" data-action="toggle-ui-sounds" role="switch" aria-checked="true">
+                <div class="settings-label" data-i18n="settings.uiSounds">Interface sounds</div>
+                <span class="settings-switch" id="settings-sounds-value" aria-hidden="true"></span>
+            </button>
             <button class="settings-row" data-action="toggle-cast" role="switch" aria-checked="true">
                 <div class="settings-label" data-i18n="cast.section">Cast from another device</div>
                 <span class="settings-switch" id="settings-cast-value" aria-hidden="true"></span>
@@ -357,6 +360,7 @@
 <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script src="js/debug.js"></script>
+<script src="js/sfx.js"></script>
 <script src="js/remote.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/settings.js"></script>

@@ -32,6 +32,9 @@ var Settings = (function () {
         aspectMode:       'fit',       // 'fit' | 'fill' | 'stretch'
         // Accept links cast from a phone or computer on the same network.
         castEnabled:      true,
+        // Short focus/activation ticks synthesized by js/sfx.js.  A TV with
+        // no WebAudio simply stays silent.
+        uiSounds:         true,
         // Which network source is the one in use: 'smb' | 'webdav' | 'dlna',
         // or '' before anything is set up.  Listed here for the same reason as
         // urlDropCode below: load() rebuilds the cache from these defaults, so

@@ -199,7 +199,7 @@ var WebDAV = (function () {
         document.getElementById('browse-path').textContent = path;   // legacy line, kept hidden
     }
     function message(icon, text) {
-        ul().innerHTML = '<li><span class="icon">' + icon + '</span><span class="name">' + esc(text) + '</span></li>';
+        ul().innerHTML = '<li class="note"><span class="icon">' + icon + '</span><span class="name">' + esc(text) + '</span></li>';
         UI.refreshFocusables();
         UI.focusOn(ul().firstElementChild);
     }
@@ -246,13 +246,10 @@ var WebDAV = (function () {
 
             var list_ = ul();
             list_.innerHTML = '';
-            if (pathStack.length > 0 || servers().length > 1) {
-                var up = document.createElement('li');
-                up.dataset.dir = '1';
-                up.innerHTML = '<span class="icon"><img class="remix-icon" src="assets/remix/corner-up-left-line.svg" alt=""></span><span class="name">..</span>';
-                up.addEventListener('click', goUp);
-                list_.appendChild(up);
-            }
+            entries.sort(function (a, b) {
+                if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+                return String(a.name).toLowerCase().localeCompare(String(b.name).toLowerCase());
+            });
             var continueUri = !focusName && window.VlcApp && window.VlcApp.continueBrowseAt ? window.VlcApp.continueBrowseAt(playlist) : null;
             var focus = null;
             entries.forEach(function (e) {
@@ -261,12 +258,14 @@ var WebDAV = (function () {
                 li.dataset.dir = e.isDir ? '1' : '0';
                 if (kind === 'other') li.classList.add('unopenable');
                 var subs = sidecars[e.name] || [];
-                var subBadge = subs.length ? '<span class="meta">CC ×' + subs.length + '</span>' : '';
+                var meta = [];
+                if (subs.length) meta.push('CC ×' + subs.length);
+                if (!e.isDir) meta.push(humanSize(e.size));
                 li.innerHTML =
-                    '<span class="icon">' + FileTypes.icon(kind) + '</span>' +
-                    '<span class="name">' + esc(e.name) + '</span>' +
-                    (e.isDir ? '<span class="fav-mark"><img class="remix-icon" src="assets/remix/pushpin-2-fill.svg" alt=""></span>'
-                             : subBadge + '<span class="meta">' + humanSize(e.size) + '</span>');
+                    '<span class="card-picture">' + FileTypes.icon(kind) + '</span>' +
+                    '<span class="card-title">' + esc(e.name) + '</span>' +
+                    '<span class="card-description">' + esc(meta.join(' · ')) + '</span>' +
+                    (e.isDir ? '<span class="fav-mark"><img class="remix-icon" src="assets/remix/pushpin-2-fill.svg" alt=""></span>' : '');
                 if (e.isDir) {
                     var fav = { kind: 'webdav', srv: srv, path: join(path, e.name), name: e.name };
                     if (window.LibraryUI) LibraryUI.bindFolder(li, fav);
@@ -287,7 +286,7 @@ var WebDAV = (function () {
                 list_.appendChild(li);
             });
             if (!list_.children.length)
-                list_.innerHTML = '<li><span class="icon"><img class="remix-icon" src="assets/remix/information-fill.svg" alt=""></span><span class="name">' + esc(I18n.t('browse.empty')) + '</span></li>';
+                list_.innerHTML = '<li class="note"><span class="icon"><img class="remix-icon" src="assets/remix/information-fill.svg" alt=""></span><span class="name">' + esc(I18n.t('browse.empty')) + '</span></li>';
 
             UI.refreshFocusables();
             UI.focusOn(focus || list_.firstElementChild);

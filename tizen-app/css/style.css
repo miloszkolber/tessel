@@ -54,7 +54,7 @@
     --dialog-width: 678px;
     --dialog-field-size: 22px;
     --dialog-field-height: 64px;
-    --motion: 240ms;
+    --motion: 180ms;
     --ease: cubic-bezier(.22, .61, .36, 1);
 }
 
@@ -102,10 +102,21 @@ input::selection { background: var(--focus-ring); color: var(--bg); }
     margin: 0 0 25px; font-size: 22px; line-height: 30px; font-weight: 500; text-transform: uppercase; color: var(--fg-soft);
 }
 .card-row { display: flex; flex: 0 0 auto; overflow-x: auto; gap: var(--card-gap); padding: 12px; margin: -12px; scrollbar-width: none; scroll-padding: 12px; scroll-snap-type: x mandatory; }
-/* An empty section keeps the space a row of cards would take and says why
- * it is empty, so the sections below never move. */
-.card-row.empty { min-height: calc(var(--card-height) + 24px); align-items: flex-start; }
-.empty-state { display: flex; align-items: center; flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); margin: 0; padding: 24px; border: 2px dashed var(--surface-border); border-radius: 12px; background: var(--bg-card); color: var(--fg-soft); font-size: var(--card-label-size); line-height: 1.4; text-align: start; }
+/* The shell owns the overflow hint: a card row scrolls horizontally, and a
+ * faint chevron on the reading edge says more cards are waiting. */
+.card-row-shell { position: relative; flex: 0 0 auto; min-width: 0; }
+.card-row-shell > .row-more {
+    position: absolute; top: 50%; right: -6px; width: 48px; height: 48px;
+    display: flex; align-items: center; justify-content: center;
+    transform: translateY(-50%); border-radius: 50%;
+    background: var(--bg); border: 2px solid var(--surface-border);
+    opacity: 0; transition: opacity var(--motion) var(--ease);
+    pointer-events: none; z-index: 2;
+}
+.card-row-shell > .row-more .remix-icon { width: 26px; height: 26px; }
+.card-row-shell[data-overflow="end"] > .row-more,
+.card-row-shell[data-overflow="both"] > .row-more { opacity: 1; }
+[dir="rtl"] .card-row-shell > .row-more { right: auto; left: -6px; transform: translateY(-50%) rotate(180deg); }
 .card-row::-webkit-scrollbar { display: none; }
 .media-card { position: relative; display: flex; flex-direction: column; align-items: stretch; text-align: start;
     flex: 0 0 var(--card-width); width: var(--card-width); height: var(--card-height); min-height: 0; padding: var(--card-inset); border: 2px solid var(--surface-border);
@@ -453,18 +464,20 @@ input::selection { background: var(--focus-ring); color: var(--bg); }
     border: 0;
     border-radius: 0;
 }
+/* Explorer tiles are the shared card component: same picture area, title
+ * baseline, metadata slot, padding, radius and focus ring as Home and
+ * Stream cards.  Only the container differs (a grid, not a row). */
 .browse-list.grid li {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
+    position: relative;
+    display: flex; flex-direction: column; align-items: stretch; text-align: start;
     padding: var(--card-inset);
-    border-bottom: 0;
+    border: 2px solid var(--surface-border);
     border-radius: 12px;
     background: var(--bg-card);
-    border: 2px solid var(--surface-border);
     overflow: hidden;
     min-height: 0;
     height: var(--card-height);
+    scroll-snap-align: start;
 }
 .browse-list.grid li > * + * { margin-left: 0; }
 .browse-list.grid li.focused {
@@ -474,30 +487,28 @@ input::selection { background: var(--focus-ring); color: var(--bg); }
     outline: none;
     transform: none;
 }
-.browse-list.grid .icon {
-    display: flex; align-items: center; justify-content: center;
-    position: relative; width: 100%; min-height: 0; flex: 1 1 0;
-    background: transparent;
-}
-.browse-list.grid .icon::before { content: ''; position: absolute; width: var(--card-disc-size); height: var(--card-disc-size); border-radius: 50%; background: #212121; }
-.browse-list.grid .icon .remix-icon { position: relative; width: var(--card-glyph-size); height: var(--card-glyph-size); }
-.browse-list.grid li.focused .icon::before { background: var(--focus-ring); }
-.browse-list.grid.device-roots .icon::before { display: none; }
-.browse-list.grid li.focused .icon .remix-icon { filter: none; }
-.browse-list.grid .name {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
-    flex: 0 0 auto;
-    font-size: var(--card-label-size);
-    margin-top: 6px;
-    /* Every explorer title shares a baseline, including folders without metadata. */
-    margin-bottom: calc(var(--card-meta-size) * 1.25 + 6px);
-}
-.browse-list.grid .meta { position: absolute; left: var(--card-inset); right: var(--card-inset); bottom: var(--card-inset); font-size: var(--card-meta-size); line-height: 1.25; margin-left: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.browse-list.grid .card-picture > .remix-icon { position: relative; }
+.browse-list.grid li.focused .card-picture::before { background: var(--focus-ring); }
+.browse-list.grid li.focused .card-picture > .remix-icon { filter: none; }
+.browse-list.grid.device-roots .card-picture::before { display: none; }
+/* The description slot keeps the title on one baseline for folders and
+ * files alike, even when the metadata text is empty. */
+.browse-list.grid .card-description { min-height: calc(var(--card-meta-size) * 1.25); }
 .browse-list.grid .fav-mark, .browse-list.grid .watched { position: absolute; top: 12px; right: 12px; }
-.browse-list.grid li { position: relative; }
+/* Status rows (loading, empty, error, server list) span the grid and keep
+ * the single-line row layout. */
+.browse-list.grid li.note {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    height: auto;
+    min-height: 96px;
+    padding: 20px 24px;
+}
+.browse-list.grid li.note .icon { width: 40px; flex: 0 0 40px; text-align: center; }
+.browse-list.grid li.note .icon .remix-icon { width: 30px; height: 30px; }
+.browse-list.grid li.note .name { margin: 0 0 0 24px; font-size: 22px; white-space: normal; }
+.browse-list.grid li.note .meta { margin: 0 0 0 auto; font-size: 18px; color: var(--fg-dim); }
 
 /* Network configuration is a centred card over a dim scrim, exactly like the
  * player's Info modal — not a corner menu. */
@@ -1026,7 +1037,6 @@ body.has-queue.player-osd-visible #subtitle-overlay .sub-band-bottom {
     position: absolute; left: 50%; top: 50%;
     transform: translate(-50%, -50%);
     z-index: 5; min-width: 240px; padding: 24px;
-    background: var(--bg-card); border: 2px solid var(--surface-border); border-radius: 12px;
     text-align: center;
     pointer-events: auto;
 }
@@ -1638,6 +1648,7 @@ button.settings-row:focus, button.settings-row.focused {
 
 /* Listed, but nothing in the app opens it. */
 .browse-list li.unopenable .name,
+.browse-list li.unopenable .card-title,
 .browse-list li.unopenable .icon { opacity: .55; }
 
 /* Shared motion avoids different timing on cards, forms and remote focus. */
@@ -1649,7 +1660,7 @@ button.settings-row:focus, button.settings-row.focused {
 }
 /* The disc and switch are part of the same focus surface: when the border
  * fades, their fills fade with it instead of snapping a frame later. */
-.card-picture::before, .browse-list.grid .icon::before, .browse-list.grid.device-roots .icon,
+.card-picture::before, .browse-list.grid.device-roots .card-picture,
 .settings-switch, .tile-icon { transition: background-color var(--motion) var(--ease); }
 /* Pointer feedback stays quieter than the remote's hard focus ring. */
 @media (hover: hover) {
@@ -1663,13 +1674,10 @@ button.settings-row:focus, button.settings-row.focused {
     .ctrl:hover:not(.focused):not(:focus):not(.disabled) { background-color: var(--accent-soft); border-color: var(--focus-ring); }
 }
 /* Keep the view's opaque backdrop intact above the native video plane.
- * The content settles a few pixels upward on arrival; the fixed backdrop
- * itself never moves, so the native video plane stays covered. */
-.view:not(.hidden):not(#view-player) > :not(.hint) { animation: screen-enter var(--motion) var(--ease); }
-/* The entrance belongs to arrival: once a page has settled, later renders
- * (a dismissed card, a refreshed row) must not replay it underneath focus.
- * The player is a stage rather than a page, so its overlays keep animating. */
-.view.settled:not(#view-player) > :not(.hint) { animation: none; }
+ * The page animates as one container instead of animating every card and
+ * row separately, which is what made a five-card page queue dozens of
+ * animations on arrival.  The player is a stage, not a page. */
+.view:not(.hidden):not(#view-player) { animation: screen-enter var(--motion) var(--ease); }
 .dialog-scrim { animation: view-enter var(--motion) var(--ease); }
 .picker:not(.hidden) { animation: view-enter var(--motion) var(--ease); }
 /* Anchored player menus rise a few pixels as they fade in, like the view
@@ -1687,7 +1695,7 @@ button.settings-row:focus, button.settings-row.focused {
 .dialog-card { animation: dialog-enter var(--motion) var(--ease); }
 @keyframes view-enter { from { opacity: 0; } to { opacity: 1; } }
 @keyframes menu-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes screen-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes screen-enter { from { opacity: 0; } to { opacity: 1; } }
 @keyframes toast-enter { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @keyframes dialog-enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -1791,7 +1799,6 @@ button.settings-row:focus, button.settings-row.focused {
     .up-next-title { font-size: 16px; line-height: 24px; }
     #view-url .url-input-wrap input, .playlist-filter input { height: 64px; font-size: 20px; }
     #view-url .actions { margin-bottom: 32px; }
-    .empty-state { padding: 12px; font-size: 18px; }
     .media-card, #view-home .tile, .browse-list.grid li, .browse-list.grid.device-roots li { padding: 12px; }
     .card-title, #view-home .tile-label, .browse-list.grid .name, .browse-list.grid.device-roots .name { font-size: 18px; }
     .card-title { margin-top: 8px; }

@@ -45,10 +45,10 @@ test('USB lists playlists but keeps them out of the folder playback queue', func
     var start = app.indexOf('    function listInto('), end = app.indexOf('    /* ── Favorites', start);
     vm.runInContext(app.slice(start, end) + '\nlistInto({fullPath:"/removable1"});', h.context);
     var rows = h.ids['browse-list'].children;
-    assert.deepEqual(rows.map(function (n) { return n.dataset.uri; }), ['file:///Film.mp4', 'file:///Song.mp3', 'file:///channels.m3u', 'file:///list.pls']);
-    rows[2].click(); assert.equal(opened.title, 'channels.m3u');
-    rows[3].click(); assert.equal(opened.title, 'list.pls');
-    rows[1].click();
+    assert.deepEqual(rows.map(function (n) { return n.dataset.uri; }), ['file:///channels.m3u', 'file:///Film.mp4', 'file:///list.pls', 'file:///Song.mp3']);
+    rows[0].click(); assert.equal(opened.title, 'channels.m3u');
+    rows[2].click(); assert.equal(opened.title, 'list.pls');
+    rows[3].click();
     assert.deepEqual(Array.from(played.queue, function (e) { return e.title; }), ['Film.mp4', 'Song.mp3']);
     assert.equal(played.index, 1);
 });

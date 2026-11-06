@@ -121,7 +121,7 @@ test('the service answers the app the way the real one does', function () {
     var root = request(w.context, 'GET', 'http://127.0.0.1:8127/smb/list?path=');
     assert.equal(root.ok, true);
     assert.deepEqual(root.entries.map(function (e) { return e.name; }),
-                     ['Films', 'Music', 'Big Buck Bunny.mp4', 'Big Buck Bunny.en.srt', 'Theme song.mp3']);
+                     ['Films', 'Music', 'Series', 'Big Buck Bunny.mp4', 'Big Buck Bunny.en.srt', 'Aurora.mp4', 'Night Drive.mkv', 'Theme song.mp3', 'Low Tide.mp3']);
 
     var dav = request(w.context, 'GET', 'http://127.0.0.1:8127/dav/list?srv=&path=');
     assert.deepEqual(dav.entries.map(function (e) { return e.name; }),

@@ -446,7 +446,7 @@ var SMB = (function () {
 
     function showError(msg) {
         var ul = document.getElementById('browse-list');
-        if (ul) ul.innerHTML = '<li><span class="icon"><img class="remix-icon" src="assets/remix/error-warning-line.svg" alt=""></span><span class="name">' + esc(msg) + '</span></li>';
+        if (ul) ul.innerHTML = '<li class="note"><span class="icon"><img class="remix-icon" src="assets/remix/error-warning-line.svg" alt=""></span><span class="name">' + esc(msg) + '</span></li>';
     }
 
     /* The row heading doubles as breadcrumbs: the share, then each folder
@@ -469,7 +469,7 @@ var SMB = (function () {
         setCrumbs(srv, path);
         document.getElementById('browse-path').textContent = '\\\\' + (srv.host || '') + '\\' + (srv.share || '') + (path || '');
         var ul = document.getElementById('browse-list');
-        ul.innerHTML = '<li><span class="icon"><img class="remix-icon" src="assets/remix/loader-4-line.svg" alt=""></span><span class="name">' + esc(I18n.t('common.loading')) + '</span></li>';
+        ul.innerHTML = '<li class="note"><span class="icon"><img class="remix-icon" src="assets/remix/loader-4-line.svg" alt=""></span><span class="name">' + esc(I18n.t('common.loading')) + '</span></li>';
 
         list(path, function (err, entries) {
             if (seq !== browseSequence) return;
@@ -514,16 +514,18 @@ var SMB = (function () {
                 };
             }
 
-            // ".." row to go up (except at root, unless that leads back to the
-            // server list).
-            if (pathStack.length > 0 || servers().length > 1) {
-                var up = document.createElement('li');
-                up.dataset.dir = '1';
-                up.innerHTML = '<span class="icon"><img class="remix-icon" src="assets/remix/corner-up-left-line.svg" alt=""></span><span class="name">..</span>';
-                up.addEventListener('click', goUp);
-                ul.appendChild(up);
-            }
+            /* Folders lead the grid, then files, each group by name: the
+             * listing reads as folders first on every share, not by whatever
+             * order the server answered in. */
+            entries.sort(function (a, b) {
+                if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+                return String(a.name).toLowerCase().localeCompare(String(b.name).toLowerCase());
+            });
 
+            entries.sort(function (a, b) {
+                if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+                return String(a.name).toLowerCase().localeCompare(String(b.name).toLowerCase());
+            });
             var continueUri = !focusName && window.VlcApp && window.VlcApp.continueBrowseAt ? window.VlcApp.continueBrowseAt(playlist) : null;
             var focus = null;
             entries.forEach(function (e) {
@@ -539,10 +541,10 @@ var SMB = (function () {
                 if (subs.length) meta.push('CC ×' + subs.length);
                 if (!e.isDir) meta.push(humanSize(e.size));
                 li.innerHTML =
-                    '<span class="icon">' + FileTypes.icon(kind) + '</span>' +
-                    '<span class="name">' + esc(e.name) + '</span>' +
-                    (e.isDir ? '<span class="fav-mark"><img class="remix-icon" src="assets/remix/pushpin-2-fill.svg" alt=""></span>'
-                             : (meta.length ? '<span class="meta">' + esc(meta.join(' · ')) + '</span>' : ''));
+                    '<span class="card-picture">' + FileTypes.icon(kind) + '</span>' +
+                    '<span class="card-title">' + esc(e.name) + '</span>' +
+                    '<span class="card-description">' + esc(meta.join(' · ')) + '</span>' +
+                    (e.isDir ? '<span class="fav-mark"><img class="remix-icon" src="assets/remix/pushpin-2-fill.svg" alt=""></span>' : '');
                 // A folder row can be pinned to Favorites with ► (issue #140);
                 // app.js reads what to pin off the row.
                 if (e.isDir) {
@@ -574,7 +576,7 @@ var SMB = (function () {
             });
 
             if (!ul.children.length)
-                ul.innerHTML = '<li><span class="icon"><img class="remix-icon" src="assets/remix/information-fill.svg" alt=""></span><span class="name">' + esc(I18n.t('browse.empty')) + '</span></li>';
+                ul.innerHTML = '<li class="note"><span class="icon"><img class="remix-icon" src="assets/remix/information-fill.svg" alt=""></span><span class="name">' + esc(I18n.t('browse.empty')) + '</span></li>';
 
             UI.refreshFocusables();
             UI.focusOn(focus || ul.firstElementChild);
@@ -704,7 +706,7 @@ var SMB = (function () {
         setCrumbs(serverById(id) || {}, path);
         document.getElementById('browse-path').textContent = I18n.t('common.connecting');
         document.getElementById('browse-list').innerHTML =
-            '<li><span class="icon"><img class="remix-icon" src="assets/remix/loader-4-line.svg" alt=""></span><span class="name">' + esc(I18n.t('common.connecting')) + '</span></li>';
+            '<li class="note"><span class="icon"><img class="remix-icon" src="assets/remix/loader-4-line.svg" alt=""></span><span class="name">' + esc(I18n.t('common.connecting')) + '</span></li>';
 
         // Back is installed (by openBrowser) BEFORE the async work so it works
         // on the "connecting" and error screens too — otherwise Back falls

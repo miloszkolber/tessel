@@ -1,6 +1,6 @@
 # Development
 
-Current contracts live in `specs/`. The mockup refresh is tracked in [changes/mockup-product-refresh/tasks.md](changes/mockup-product-refresh/tasks.md). Unchecked tasks are not implemented, even when the proposed specs describe them.
+Current contracts live in `specs/`. The TV feedback round is tracked in [changes/tv-feedback-round/tasks.md](changes/tv-feedback-round/tasks.md); the completed mockup refresh is in [changes/archive/2026-11-05-mockup-product-refresh/tasks.md](changes/archive/2026-11-05-mockup-product-refresh/tasks.md). Unchecked tasks are not implemented, even when the proposed specs describe them.
 
 ## Commands
 

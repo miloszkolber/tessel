@@ -199,8 +199,8 @@ test('the player gets the folder\'s video and audio, artwork riding along', func
         { kind: 'audio', title: 'Song', url: 'http://s/3.mp3', art: 'http://s/c.jpg' }
     ]));
     assert.deepStrictEqual(pl, [
-        { uri: 'http://s/1.mkv', title: 'Film', art: 'http://s/a.jpg', tagSrc: null, subtitles: [] },
-        { uri: 'http://s/3.mp3', title: 'Song', art: 'http://s/c.jpg', tagSrc: 'http://s/3.mp3', subtitles: [] }
+        { uri: 'http://s/1.mkv', title: 'Film', art: 'http://s/a.jpg', tagSrc: null, probeUrl: 'http://127.0.0.1:8127/dlna/range?url=http%3A%2F%2Fs%2F1.mkv', subtitles: [] },
+        { uri: 'http://s/3.mp3', title: 'Song', art: 'http://s/c.jpg', tagSrc: 'http://s/3.mp3', probeUrl: 'http://127.0.0.1:8127/dlna/range?url=http%3A%2F%2Fs%2F3.mp3', subtitles: [] }
     ]);
 });
 
@@ -212,7 +212,7 @@ test('server-advertised captions ride on the playlist item as external subtitles
     ]));
     assert.deepStrictEqual(pl, [
         { uri: 'http://s/MediaItems/49.mp4', title: 'Babyteeth', art: null, tagSrc: null,
-          subtitles: [{ name: 'Babyteeth (SRT)', lang: '', ext: 'srt', uri: 'http://s/Captions/49.srt' }] }
+          probeUrl: 'http://127.0.0.1:8127/dlna/range?url=http%3A%2F%2Fs%2FMediaItems%2F49.mp4', subtitles: [{ name: 'Babyteeth (SRT)', lang: '', ext: 'srt', uri: 'http://s/Captions/49.srt' }] }
     ]);
 });
 

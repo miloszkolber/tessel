@@ -70,6 +70,10 @@ var DLNA = (function () {
             // carousel shows them; anything unusable falls back to the file
             // icon there.
             return { uri: e.url, title: e.title, art: e.art || null, tagSrc: audio ? e.url : null,
+                     // The server's own URL plays; header and subtitle reads
+                     // go through the loopback proxy because DLNA servers
+                     // send no CORS headers.
+                     probeUrl: BASE + '/dlna/range?url=' + encodeURIComponent(e.url),
                      subtitles: (e.captions || []).map(function (c) {
                          return { name: e.title + ' (' + String(c.ext || '').toUpperCase() + ')',
                                   lang: '', ext: c.ext, uri: c.url };
@@ -87,7 +91,11 @@ var DLNA = (function () {
     /* How long a sweep stays usable.  Long enough that opening the page right
      * after launch does not search twice, short enough that a server that
      * just appeared is still found by pressing Search again. */
-    var SEARCH_TTL_MS = 90000;
+    var SEARCH_TTL_MS = 300000;
+    /* A folder listing is reused for re-entry (Home and back, Up and down)
+     * so the page does not show a connecting state for data it already has. */
+    var BROWSE_TTL_MS = 120000;
+    var browseCache = {};
     var discoveryWaiters = null;
     var browseSequence = 0;
     var SAVED_KEY = 'tessel_dlna_v1';
@@ -125,6 +133,7 @@ var DLNA = (function () {
     }
     function row(icon, name, meta) {
         var li = document.createElement('li');
+        li.className = 'note';
         li.innerHTML = '<span class="icon">' + icon + '</span><span class="name">' + esc(name) + '</span>' +
                        (meta ? '<span class="meta">' + esc(meta) + '</span>' : '');
         return li;
@@ -281,9 +290,22 @@ var DLNA = (function () {
     function render(f, focusTitle) {
         var seq = ++browseSequence;
         folder = f;
-        head(pathCrumbs(), pathText());
-        message('<img class="remix-icon" src="assets/remix/loader-4-line.svg" alt="">', I18n.t('common.loading'));
         var srv = server, here = f, above = stack.slice();
+        head(pathCrumbs(), pathText());
+        function backHere(title) {
+            return function (last) {
+                server = srv; stack = above.slice();
+                setupBack();
+                render(here, (last && last.title) || title);
+            };
+        }
+        var key = srv.id + '|' + here.id;
+        var hit = browseCache[key];
+        if (hit && Date.now() - hit.at < BROWSE_TTL_MS) {
+            draw(hit.entries, focusTitle, backHere);
+            return;
+        }
+        message('<img class="remix-icon" src="assets/remix/loader-4-line.svg" alt="">', I18n.t('common.loading'));
         request('POST', BASE + '/dlna/browse', { control: srv.control, id: f.id }, 30000, function (err, res) {
             if (server !== srv || folder !== here || seq !== browseSequence) return;
             if (err || !res || !res.ok) {
@@ -295,14 +317,18 @@ var DLNA = (function () {
             }
             var entries = (res.entries || []).filter(function (e) { return e.isDir || isPlayable(kindOf(e)); });
             dbg('browse ' + JSON.stringify(here.id) + ': ' + entries.length + ' shown of ' + (res.entries || []).length);
-            draw(entries, focusTitle, function backHere(title) {
-                return function (last) {
-                    server = srv; stack = above.slice();
-                    setupBack();
-                    render(here, (last && last.title) || title);
-                };
-            });
+            rememberListing(key, entries);
+            draw(entries, focusTitle, backHere);
         });
+    }
+    /* Bounded so a long browsing session cannot grow the cache forever. */
+    function rememberListing(key, entries) {
+        browseCache[key] = { at: Date.now(), entries: entries };
+        var keys = Object.keys(browseCache);
+        if (keys.length > 40) {
+            keys.sort(function (a, b) { return browseCache[a].at - browseCache[b].at; });
+            keys.slice(0, keys.length - 40).forEach(function (k) { delete browseCache[k]; });
+        }
     }
 
     function draw(entries, focusTitle, backHere) {
@@ -311,17 +337,18 @@ var DLNA = (function () {
         var playlist = playlistOf(entries), focus = null;
         playlist.forEach(function (p) { p.source = { kind: 'dlna', srv: server.id, path: folder.id, name: folder.title }; });
 
-        if (stack.length) {
-            var up = row('<img class="remix-icon" src="assets/remix/corner-up-left-line.svg" alt="">', '..');
-            up.dataset.dir = '1';
-            up.addEventListener('click', goUp);
-            ul.appendChild(up);
-        }
+        entries.sort(function (a, b) {
+            if (!!a.isDir !== !!b.isDir) return a.isDir ? -1 : 1;
+            return String(a.title).toLowerCase().localeCompare(String(b.title).toLowerCase());
+        });
         entries.forEach(function (e) {
             var k = kindOf(e);
             var meta = e.isDir ? '' : e.duration ? clock(e.duration) : humanSize(e.size);
-            var li = row(FileTypes.icon(k), e.title, meta);
+            var li = document.createElement('li');
             li.dataset.dir = e.isDir ? '1' : '0';
+            li.innerHTML = '<span class="card-picture">' + FileTypes.icon(k) + '</span>' +
+                           '<span class="card-title">' + esc(e.title) + '</span>' +
+                           '<span class="card-description">' + esc(meta) + '</span>';
             if (e.isDir && window.LibraryUI) LibraryUI.bindFolder(li, { kind: 'dlna', srv: server.id, path: e.id, name: e.title });
             if (k === 'other') li.classList.add('unopenable');
             if (isPlayable(k)) li.dataset.uri = e.url;

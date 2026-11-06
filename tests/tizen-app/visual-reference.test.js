@@ -111,9 +111,10 @@ test('the music card sits still on the centre line', function () {
     assert.ok(rule(source, '.audio-title {', 250).includes('text-overflow: ellipsis'), 'long titles cannot grow into the controls');
 });
 
-test('opening playback presents one readable status surface over album metadata', function () {
+test('opening playback presents one readable status surface without a panel', function () {
     var spinner = rule(css(), '.spinner {', 500).split('}')[0];
-    assert.ok(spinner.includes('background: var(--bg-card)'), 'opening status does not collide with underlying text');
+    assert.ok(!spinner.includes('background:'), 'the opening status has no background panel');
+    assert.ok(!spinner.includes('border:'), 'the opening status has no panel outline');
     assert.ok(read('index.html').includes('id="spinner" role="status" aria-live="polite"'), 'status is announced without announcing the decorative ring');
 });
 
@@ -131,18 +132,14 @@ test('the queue is a peek until it holds focus', function () {
     assert.ok(special < 0, 'the album cover does not jump when the OSD fades in');
 });
 
-test('Home omits empty optional sections while Stream retains readable empty states', function () {
+test('Home and Stream omit empty optional sections instead of reserving rows', function () {
     var source = css();
-    assert.ok(source.indexOf('.card-row.empty') >= 0, 'empty row styling');
-    assert.ok(source.indexOf('min-height: calc(var(--card-height) + 24px)') >= 0, 'same height as a filled row');
+    assert.ok(source.indexOf('.card-row-shell') >= 0, 'card rows carry the overflow shell');
+    assert.ok(source.indexOf('.empty-state') < 0, 'no reserved empty row remains');
     var ui = read('js/library-ui.js');
     assert.ok(ui.includes('if (!items.length) return;'), 'empty Home sections are not mounted');
-    assert.ok(ui.indexOf("list.classList.toggle('empty', empty)") >= 0, 'the row says it is empty');
-    assert.ok(ui.includes("el('p', 'empty-state', message)"), 'the empty message is real readable content rather than a CSS pseudo-element');
-    assert.ok(!source.includes('.card-row.empty::after'), 'no duplicate generated message');
-    var empty = rule(source, '.empty-state {', 500).split('}')[0];
-    assert.ok(empty.includes('height: var(--card-height)') && empty.includes('width: var(--card-width)'), 'the status tile uses the same geometry as a populated card');
-    assert.ok(ui.indexOf('saved.noSaved') >= 0, 'the saved section names its empty state');
+    assert.ok(ui.indexOf("saved.classList.toggle('hidden', !savedItems.length)") >= 0, 'empty saved streams are hidden with their heading');
+    assert.ok(ui.indexOf("classList.toggle('hidden', !recentItems.length)") >= 0, 'empty recent streams are hidden with their heading');
 });
 
 test('Settings panels align with controls and playback buttons avoid backdrop layers', function () {
@@ -309,17 +306,17 @@ test('the language choice opens a menu under its row', function () {
     assert.ok(app.indexOf("panel.classList.toggle('anchored', !!anchorRow)") >= 0, 'openPicker mounts the anchored mode');
 });
 
-test('explorer pictures fill the card above the name instead of hugging its corner', function () {
+test('explorer tiles reuse the shared card component', function () {
     var source = css();
-    var icon = rule(source, '.browse-list.grid .icon {', 300);
-    assert.ok(icon.includes('flex: 1 1 0'), 'picture area uses the available card height');
-    assert.ok(icon.includes('width: 100%'), 'disc is centred across the card');
-    assert.ok(source.includes('.browse-list.grid .icon::before'), 'disc is independent of picture layout');
-    assert.ok(rule(source, '.browse-list.grid .name {', 500).includes('margin-bottom: calc(var(--card-meta-size) * 1.25 + 6px)'), 'folders reserve the same responsive metadata line as files');
-    var meta = rule(source, '.browse-list.grid .meta {', 500).split('}')[0];
-    assert.ok(meta.includes('font-size: var(--card-meta-size)') && meta.includes('line-height: 1.25'), 'metadata occupies one bounded responsive line');
-    assert.ok(source.includes('.browse-list:not(.grid) li:last-child { border-bottom: 0; }'), 'last tile keeps all four borders');
-    assert.ok(!source.includes('.browse-list li.watched-item .icon { opacity:'), 'watched focus disc retains its contrast');
+    var li = rule(source, '.browse-list.grid li {', 500);
+    assert.ok(li.includes('display: flex; flex-direction: column'), 'explorer tile is the shared column card');
+    assert.ok(li.includes('padding: var(--card-inset)'), 'same inset as Home and Stream cards');
+    assert.ok(li.includes('height: var(--card-height)'), 'same 16:9 geometry');
+    var picture = rule(source, '.card-picture {', 300);
+    assert.ok(picture.includes('flex: 1 1 0'), 'one shared picture area fills the card');
+    assert.ok(source.includes('.browse-list.grid li.focused .card-picture::before'), 'the shared disc inverts on focus');
+    assert.ok(source.includes('.browse-list.grid .card-description { min-height: calc(var(--card-meta-size) * 1.25); }'), 'folders reserve the same metadata line as files');
+    assert.ok(source.includes('.browse-list:not(.grid) li:last-child { border-bottom: 0; }'), 'last row keeps its border');
 });
 
 test('unavailable-source badges use the card corner rather than covering shortcut glyphs', function () {
@@ -343,13 +340,13 @@ test('scroll owners reserve space for the outside focus ring', function () {
 
 test('view and toast motion settle without moving the opaque backdrop', function () {
     var source = css();
-    assert.ok(source.includes('.view:not(.hidden):not(#view-player) > :not(.hint) { animation: screen-enter var(--motion) var(--ease); }'), 'view contents share one entrance');
-    assert.ok(source.includes('@keyframes screen-enter { from { opacity: 0; transform: translateY(6px); }'), 'view content rises into place');
-    assert.ok(source.indexOf('.view:not(.hidden):not(#view-player) { animation:') < 0, 'the opaque page backdrop never animates');
-    assert.ok(source.includes('.view.settled:not(#view-player) > :not(.hint) { animation: none; }'), 'the entrance replays on arrival, not on later renders');
+    assert.ok(source.includes('.view:not(.hidden):not(#view-player) { animation: screen-enter var(--motion) var(--ease); }'), 'the page shares one entrance');
+    assert.ok(source.includes('@keyframes screen-enter { from { opacity: 0; } to { opacity: 1; } }'), 'the page fades in as one layer');
+    assert.ok(!source.includes('@keyframes screen-enter { from { opacity: 0; transform'), 'the opaque page backdrop never moves');
+    assert.ok(!source.includes('.settled'), 'no per-child entrance replay remains');
     assert.ok(source.includes('.audio-glow {'), 'music carries an ambient halo');
     assert.ok(source.includes('filter: blur(120px) grayscale(1);'), 'the halo stays inside the monochrome language');
-    assert.ok(source.includes('.card-picture::before, .browse-list.grid .icon::before, .browse-list.grid.device-roots .icon,\n.settings-switch, .tile-icon { transition: background-color var(--motion) var(--ease); }'), 'focus discs and switches fade with their surface');
+    assert.ok(source.includes('.card-picture::before, .browse-list.grid.device-roots .card-picture,\n.settings-switch, .tile-icon { transition: background-color var(--motion) var(--ease); }'), 'focus discs and switches fade with their surface');
 });
 
 test('source forms size to content and use one label/input scale', function () {

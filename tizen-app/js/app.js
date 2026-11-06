@@ -506,6 +506,7 @@
             case 'open-smb-config':    openNetConfig('smb'); break;
             case 'open-dav-config':    openNetConfig('dav'); break;
             case 'toggle-cast':        toggleCast(); break;
+            case 'toggle-ui-sounds':   toggleUiSounds(); break;
             case 'open-settings':      openSettings(); break;
             case 'open-current-url': {
                 var v = document.getElementById('url-input').value.trim();
@@ -853,7 +854,7 @@
             var ul = document.getElementById('browse-list');
             ul.innerHTML = '';
             if (err) {
-                ul.innerHTML = '<li><span class="icon"><img class="remix-icon" src="assets/remix/error-warning-line.svg" alt=""></span><span class="name">'
+                ul.innerHTML = '<li class="note"><span class="icon"><img class="remix-icon" src="assets/remix/error-warning-line.svg" alt=""></span><span class="name">'
                              + err.message + '</span></li>';
                 return;
             }
@@ -864,11 +865,14 @@
             entries.forEach(function (e) { if (!e.isDir && e.name === artName) art = e.uri; });
             // Media-only browser: folders, video, audio and playlists.
             entries = entries.filter(function (e) { return e.isDir || e.playable || e.kind === 'playlist'; });
-            // Pinned folders lead the listing; everything else keeps order.
+            // Pinned folders lead, then every other folder, then files; each
+            // group by name.  The listing always reads folders first.
             entries.sort(function (a, b) {
                 var pa = a.isDir && Favorites.find(usbFavorite(a.file, a.name)) ? 0 : 1;
                 var pb = b.isDir && Favorites.find(usbFavorite(b.file, b.name)) ? 0 : 1;
-                return pa - pb;
+                if (pa !== pb) return pa - pb;
+                if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+                return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
             });
             // Ordered list of playable media in this folder — the playlist
             // that auto-play and next/prev walk through.
@@ -905,10 +909,10 @@
                 var baseMeta = meta.join(' · ');
                 if (media && media.dur) meta.push(fmtTime(media.dur));
                 li.innerHTML =
-                    '<span class="icon">' + FileTypes.icon(e.kind) + '</span>' +
-                    '<span class="name">' + escapeHtml(e.name) + '</span>' +
+                    '<span class="card-picture">' + FileTypes.icon(e.kind) + '</span>' +
+                    '<span class="card-title">' + escapeHtml(e.name) + '</span>' +
+                    '<span class="card-description">' + escapeHtml(meta.join(' · ')) + '</span>' +
                     watchedBadge +
-                    (meta.length ? '<span class="meta">' + escapeHtml(meta.join(' · ')) + '</span>' : '') +
                     (e.isDir ? '<span class="fav-mark"><img class="remix-icon" src="assets/remix/pushpin-2-fill.svg" alt=""></span>' : '');
                 if (e.isDir) markFavoriteRow(li, usbFavorite(e.file, e.name));
                 if (e.playable && !media) lengthRows.push({ entry: e, li: li, meta: baseMeta });
@@ -939,7 +943,7 @@
                 if (focusUri && e.uri === focusUri) focus = li;
             });
             if (!ul.children.length)
-                ul.innerHTML = '<li><span class="icon"><img class="remix-icon" src="assets/remix/information-fill.svg" alt=""></span><span class="name">' + escapeHtml(I18n.t('browse.empty')) + '</span></li>';
+                ul.innerHTML = '<li class="note"><span class="icon"><img class="remix-icon" src="assets/remix/information-fill.svg" alt=""></span><span class="name">' + escapeHtml(I18n.t('browse.empty')) + '</span></li>';
             // Carousels only on the drive's own root listing.
             UI.refreshFocusables();
             UI.focusOn(focus || ul.firstElementChild);
@@ -964,7 +968,7 @@
                         busy--;
                         lengthCancels = lengthCancels.filter(function (pending) { return pending !== request; });
                         if (seq !== browseSequence) return;
-                        var line = row.li.querySelector('.meta');
+                        var line = row.li.querySelector('.card-description');
                         if (!err && media && media.dur && line) line.textContent = row.meta + (row.meta ? ' · ' : '') + fmtTime(media.dur);
                         pump();
                     });
@@ -1193,6 +1197,21 @@
             el.parentNode.setAttribute('aria-checked', String(on));
         }
     }
+    /* Interface sounds are local only; the switch silences them at once. */
+    function toggleUiSounds() {
+        var on = Settings.get('uiSounds') === false;
+        Settings.set('uiSounds', on);
+        if (typeof Sfx !== 'undefined' && Sfx.setEnabled) Sfx.setEnabled(on);
+        paintSoundRow();
+    }
+    function paintSoundRow() {
+        var el = document.getElementById('settings-sounds-value');
+        var on = Settings.get('uiSounds') !== false;
+        if (el) {
+            el.classList.toggle('on', on);
+            el.parentNode.setAttribute('aria-checked', String(on));
+        }
+    }
     /* One network method at a time: the chosen tile browses, the others offer
      * to be set up (and taking one over releases the previous). */
     function networkMethod() { return Settings.get('networkMethod') || ''; }
@@ -1277,7 +1296,7 @@
         UI.showView('view-browse'); state.view = 'browse'; state.browseAtRoot = false;
         document.getElementById('browse-path').textContent = '';
         var ul = document.getElementById('browse-list');
-        ul.innerHTML = '<li><span class="icon"><img class="remix-icon" src="assets/remix/loader-4-line.svg" alt=""></span><span class="name">' +
+        ul.innerHTML = '<li class="note"><span class="icon"><img class="remix-icon" src="assets/remix/loader-4-line.svg" alt=""></span><span class="name">' +
                        escapeHtml(I18n.t('playlist.reading')) + '</span></li>';
         // BACK works while it loads too.
         state.listBack = src.back;
@@ -1308,7 +1327,7 @@
                 Debug.player('playlist ' + src.title + ': ' + entries.length + ' of ' +
                              parsed.entries.length + ' entries playable');
             if (!entries.length) {
-                ul.innerHTML = '<li><span class="icon"><img class="remix-icon" src="assets/remix/information-fill.svg" alt=""></span><span class="name">' +
+                ul.innerHTML = '<li class="note"><span class="icon"><img class="remix-icon" src="assets/remix/information-fill.svg" alt=""></span><span class="name">' +
                                escapeHtml(I18n.t('playlist.empty')) + '</span></li>';
                 return;
             }
@@ -1374,7 +1393,7 @@
                 Debug.info('playlist filter ' + describeText(pv.filter) + ' (' + (lastFilterEvent || '?') +
                            '): ' + items.length + ' of ' + pv.entries.length);
             if (!items.length) {
-                ul.innerHTML = '<li data-playlist="1"><span class="icon"><img class="remix-icon" src="assets/remix/information-fill.svg" alt=""></span><span class="name">' +
+                ul.innerHTML = '<li class="note" data-playlist="1"><span class="icon"><img class="remix-icon" src="assets/remix/information-fill.svg" alt=""></span><span class="name">' +
                                escapeHtml(I18n.t('playlist.noMatches', pv.filter.trim())) + '</span></li>';
             }
             items.forEach(function (e, i) {
@@ -1568,6 +1587,7 @@
                 // it carries size/path APIs used by incremental extraction.
                 file:      cur && cur.file ? cur.file : null,
                 tagSrc:    cur && cur.tagSrc ? cur.tagSrc : null,
+                probeUrl:  cur && cur.probeUrl ? cur.probeUrl : null,
                 pos:       Player.currentTime() || 0,
                 paused:    Player.state() === 'PAUSED'
             };
@@ -1586,6 +1606,7 @@
                 subtitles: ss.subtitles,
                 file:      ss.file,
                 tagSrc:    ss.tagSrc,
+                probeUrl:  ss.probeUrl,
                 resume:    { pos: ss.pos, paused: ss.paused }
             });
         }
@@ -1664,7 +1685,10 @@
                 subtitles: opts.subtitles || [],
                 file:      opts.file || null,
                 // Embedded subtitles are read from the file itself.
-                sourceUri: uri
+                sourceUri: uri,
+                // A DLNA file's header is read through the loopback range
+                // proxy; playback itself keeps the server's own URL.
+                probeUrl:  opts.probeUrl || null
             });
         }, 50);
 
@@ -1836,7 +1860,7 @@
         var item = state.playlist[state.playlistIndex];
         if (!item) return;
         Library.begin(state.playlist, state.playlistIndex);
-        playUri(item.uri, item.title, { subtitles: item.subtitles || [], file: item.file || null, tagSrc: item.tagSrc || null });
+        playUri(item.uri, item.title, { subtitles: item.subtitles || [], file: item.file || null, tagSrc: item.tagSrc || null, probeUrl: item.probeUrl || null });
     }
     /* The next (+1) or previous (−1) item, wrapping only under repeat-all. */
     function stepIndex(dir) {
@@ -1861,7 +1885,7 @@
         state.playlistIndex = ni;
         if (isAuto) UI.toast(I18n.t('player.upNext', displayTitle(item.title) || Library.title(item.uri)));
         playUri(item.uri, item.title, { subtitles: item.subtitles || [], file: item.file || null, tagSrc: item.tagSrc || null,
-                                        });
+                                         probeUrl: item.probeUrl || null });
         return true;
     }
     /* OSD Prev / MediaTrackPrevious: restart the current file when we're
@@ -1885,7 +1909,7 @@
         var item = state.playlist[pi];
         state.playlistIndex = pi;
         playUri(item.uri, item.title, { subtitles: item.subtitles || [], file: item.file || null, tagSrc: item.tagSrc || null,
-                                        });
+                                         probeUrl: item.probeUrl || null });
         return true;
     }
     /* Dim the prev/next OSD buttons when there's nothing on that side.
@@ -2020,7 +2044,7 @@
         var item = state.playlist[at];
         state.playlistIndex = at;
         playUri(item.uri, item.title, { subtitles: item.subtitles || [], file: item.file || null, tagSrc: item.tagSrc || null,
-                                        });
+                                         probeUrl: item.probeUrl || null });
         return true;
     }
 
@@ -2541,6 +2565,7 @@
     function refreshSettingsValues() {
         document.getElementById('setting-ui-lang-value').textContent       = uiLanguageName(Settings.get('uiLanguage'));
         paintCastRow();
+        paintSoundRow();
         paintDebugRow();
         // Mirror repeat + aspect state to the OSD buttons if visible
         updateRepeatButton();

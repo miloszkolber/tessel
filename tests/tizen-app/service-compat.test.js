@@ -3,12 +3,13 @@ var test = require('node:test'), assert = require('node:assert/strict');
 var fs = require('node:fs'), vm = require('node:vm'), path = require('node:path'), os = require('node:os');
 var child = require('node:child_process');
 var source = fs.readFileSync('tizen-app/service/service.js', 'utf8');
-function service(src) {
+function service(src, opts) {
+    opts = opts || {};
     var servers = [];
     var http = { createServer: function (handler) {
         var s = { handler: handler, calls: [], listen: function (port, host) { s.calls.push({ port: port, host: host }); }, on: function () {} };
         servers.push(s); return s;
-    } };
+    }, get: opts.get || function () { throw new Error('unexpected http.get'); } };
     var ctx = { module: { exports: {} }, Buffer: Buffer, console: console, setTimeout: setTimeout, clearTimeout: clearTimeout,
         process: { on: function () {} }, require: function (name) { return name === 'http' ? http : require(name); } };
     vm.createContext(ctx); vm.runInContext(src, ctx);
@@ -97,4 +98,46 @@ test('startup rejects non-ping JSON, bounds retries and delivers failure once', 
     }
     assert.equal(h.pings.length, 19); assert.equal(calls, 1); assert.match(error.message, /did not start/);
     h.done[18](null, { ok: true }); assert.equal(calls, 1);
+});
+
+test('DLNA range proxy forwards the range and adds CORS for header reads', async function () {
+    var asked = null, finished = null;
+    var h = service(source, { get: function (options, cb) {
+        asked = options;
+        var up = new (require('node:events'))();
+        up.statusCode = 206;
+        up.headers = { 'content-length': '100', 'content-range': 'bytes 0-99/589015441', 'content-type': 'video/x-matroska' };
+        up.resume = function () {};
+        up.setTimeout = function () {};
+        up.pipe = function (res) { res.end('BINARY'); };
+        setTimeout(function () { cb(up); }, 0);
+        return up;
+    } });
+    var out = { status: null, headers: {}, body: '' };
+    var res = { writeHead: function (code, headers) { out.status = code; out.headers = headers || {}; }, end: function (body) { if (body !== undefined) out.body += body; } };
+    var req = { url: '/dlna/range?url=' + encodeURIComponent('http://192.168.0.239:8200/MediaItems/445.mkv'), method: 'GET',
+        headers: { range: 'bytes=0-99' }, socket: { remoteAddress: '127.0.0.1' }, on: function () {} };
+    h.proxy.handler(req, res);
+    assert.equal(asked.protocol, 'http:');
+    assert.equal(asked.hostname, '192.168.0.239');
+    assert.equal(asked.port, '8200');
+    assert.equal(asked.path, '/MediaItems/445.mkv');
+    assert.equal(asked.headers.Range, 'bytes=0-99');
+    await new Promise(function (resolve) { setTimeout(resolve, 10); });
+    assert.equal(out.status, 206);
+    assert.equal(out.headers['Access-Control-Allow-Origin'], '*');
+    assert.equal(out.headers['Content-Range'], 'bytes 0-99/589015441');
+    assert.equal(out.body, 'BINARY');
+});
+
+test('DLNA range proxy rejects non-http targets before any fetch', function () {
+    var fetched = false;
+    var h = service(source, { get: function () { fetched = true; } });
+    var out = { status: null };
+    var res = { writeHead: function (code) { out.status = code; }, end: function () {} };
+    var req = { url: '/dlna/range?url=' + encodeURIComponent('file:///etc/passwd'), method: 'GET',
+        headers: {}, socket: { remoteAddress: '127.0.0.1' }, on: function () {} };
+    h.proxy.handler(req, res);
+    assert.equal(out.status, 400);
+    assert.equal(fetched, false);
 });
