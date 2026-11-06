@@ -9,7 +9,7 @@ The post-feedback review covers `c20663c..742d9ca`. The following corrections ar
 - [x] Terminate truncated range responses, honor downstream backpressure and cancellation, reject shifted upstream ranges and preserve valid 416 responses.
 - [x] Show a partial overflow card and begin progressive carousel scrolling at the third item. Recompute overflow after hidden views become visible and after resize.
 - [x] Align normal content-card title and metadata slots across Home, Stream and explorer tiles. Remove unintended Settings comment text.
-- [ ] Run final regression, package, specification and rendered interaction checks. Deploy the inspected package, restore the deployment stack configuration and stop task-owned probe containers.
+- [x] Run final regression, package, specification and rendered interaction checks. Deploy the inspected package, restore the deployment stack configuration and stop task-owned probe containers.
 
 The selected-subtitle fix in `742d9ca` was additionally checked in MCP Chromium using stubbed track metadata: clicking an untagged `English (CC)` row persisted `en` both per-file and globally, and a subsequent simulated episode selected the matching track. This checks application orchestration with a simulated decoder, not Samsung subtitle decoding or physical next-episode acceptance.
 
