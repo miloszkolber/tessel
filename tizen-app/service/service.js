@@ -2428,7 +2428,24 @@ function handleDavStream(req, res, query) {
  * The DLNA server sends no CORS headers, so the page cannot read a
  * container header directly.  This loopback-only endpoint forwards the
  * bytes with our CORS headers; playback itself keeps the server's URL.
- * Only http(s) targets, and only the app can reach the listener. */
+ * Only http(s) targets, and only the app can reach the listener.
+ *
+ * miniDLNA answers "bytes=0-0" with the whole file (it honours the start
+ * but not the end), so the reply is clamped to what was asked for before
+ * it reaches the page: a header probe must cost one byte, not 600 MB. */
+function dlnaRangeOf(value, total) {
+    var m = /bytes=(\d*)-(\d*)/.exec(String(value || ''));
+    if (!m) return null;
+    var start, end;
+    if (m[1] === '' && m[2] !== '') { start = Math.max(0, total - parseInt(m[2], 10)); end = total - 1; }
+    else {
+        start = m[1] === '' ? 0 : parseInt(m[1], 10);
+        end = m[2] === '' ? total - 1 : parseInt(m[2], 10);
+    }
+    if (!(start >= 0) || !(end >= start)) return null;
+    if (end > total - 1) end = total - 1;
+    return { start: start, end: end };
+}
 function handleDlnaRange(req, res, query) {
     var target = String(query.url || '');
     var u;
@@ -2453,7 +2470,36 @@ function handleDlnaRange(req, res, query) {
                 up.resume();
                 cors(res, 502, 'text/plain'); return res.end('HTTP ' + status);
             }
+            var m = /\/(\d+)\s*$/.exec(up.headers['content-range'] || '');
+            var total = m ? parseInt(m[1], 10) : (status === 200 ? parseInt(up.headers['content-length'] || '0', 10) : 0);
+            var want = dlnaRangeOf(req.headers.range, total);
             var h = { 'Accept-Ranges': 'bytes' };
+            if (want) {
+                var cr = /\bbytes\s+(\d+)-(\d+)/i.exec(up.headers['content-range'] || '');
+                var gotStart = cr ? parseInt(cr[1], 10) : 0;
+                var offset = want.start - gotStart;   // bytes to skip in the reply
+                var count = want.end - want.start + 1;
+                if (offset > 0) {
+                    // The server answered from a different start; refusing is
+                    // safer than sending shifted bytes.
+                    up.resume();
+                    cors(res, 502, 'text/plain'); return res.end('range start not honoured');
+                }
+                h['Content-Range'] = 'bytes ' + want.start + '-' + want.end + '/' + total;
+                h['Content-Length'] = String(count);
+                cors(res, 206, up.headers['content-type'] || 'application/octet-stream', h);
+                if (req.method === 'HEAD') { up.resume(); return res.end(); }
+                var sent = 0;
+                up.on('data', function (chunk) {
+                    if (sent >= count) return;
+                    var piece = chunk.length > count - sent ? chunk.slice(0, count - sent) : chunk;
+                    sent += piece.length;
+                    res.write(piece);
+                    if (sent >= count) { try { up.destroy(); } catch (e) {} try { res.end(); } catch (e) {} }
+                });
+                up.on('end', function () { try { res.end(); } catch (e) {} });
+                return;
+            }
             if (up.headers['content-length'] !== undefined) h['Content-Length'] = up.headers['content-length'];
             if (up.headers['content-range']) h['Content-Range'] = up.headers['content-range'];
             cors(res, status, up.headers['content-type'] || 'application/octet-stream', h);

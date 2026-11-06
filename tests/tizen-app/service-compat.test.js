@@ -108,13 +108,13 @@ test('DLNA range proxy forwards the range and adds CORS for header reads', async
         up.statusCode = 206;
         up.headers = { 'content-length': '100', 'content-range': 'bytes 0-99/589015441', 'content-type': 'video/x-matroska' };
         up.resume = function () {};
+        up.destroy = function () {};
         up.setTimeout = function () {};
-        up.pipe = function (res) { res.end('BINARY'); };
-        setTimeout(function () { cb(up); }, 0);
+        setTimeout(function () { cb(up); up.emit('data', Buffer.from('BINARY')); up.emit('end'); }, 0);
         return up;
     } });
     var out = { status: null, headers: {}, body: '' };
-    var res = { writeHead: function (code, headers) { out.status = code; out.headers = headers || {}; }, end: function (body) { if (body !== undefined) out.body += body; } };
+    var res = { writeHead: function (code, headers) { out.status = code; out.headers = headers || {}; }, write: function (b) { out.body += b.toString(); }, end: function (body) { if (body !== undefined) out.body += body.toString(); } };
     var req = { url: '/dlna/range?url=' + encodeURIComponent('http://192.168.0.239:8200/MediaItems/445.mkv'), method: 'GET',
         headers: { range: 'bytes=0-99' }, socket: { remoteAddress: '127.0.0.1' }, on: function () {} };
     h.proxy.handler(req, res);
@@ -140,4 +140,31 @@ test('DLNA range proxy rejects non-http targets before any fetch', function () {
     h.proxy.handler(req, res);
     assert.equal(out.status, 400);
     assert.equal(fetched, false);
+});
+
+test('DLNA range proxy clamps a server that ignores the range end', async function () {
+    var asked = null;
+    var h = service(source, { get: function (options, cb) {
+        asked = options;
+        var up = new (require('node:events'))();
+        up.statusCode = 206;
+        // miniDLNA answers bytes=0-0 with the whole file.
+        up.headers = { 'content-length': '589015441', 'content-range': 'bytes 0-589015440/589015441', 'content-type': 'video/x-matroska' };
+        up.resume = function () {};
+        up.destroy = function () {};
+        up.setTimeout = function () {};
+        setTimeout(function () { cb(up); up.emit('data', Buffer.from('MATROSKAHEADER')); up.emit('end'); }, 0);
+        return up;
+    } });
+    var out = { status: null, headers: {}, body: '' };
+    var res = { writeHead: function (code, headers) { out.status = code; out.headers = headers || {}; }, write: function (b) { out.body += b.toString(); }, end: function (b) { if (b !== undefined) out.body += b.toString(); } };
+    var req = { url: '/dlna/range?url=' + encodeURIComponent('http://192.168.0.239:8200/MediaItems/445.mkv'), method: 'GET',
+        headers: { range: 'bytes=0-0' }, socket: { remoteAddress: '127.0.0.1' }, on: function () {} };
+    h.proxy.handler(req, res);
+    await new Promise(function (resolve) { setTimeout(resolve, 10); });
+    assert.equal(asked.headers.Range, 'bytes=0-0');
+    assert.equal(out.status, 206);
+    assert.equal(out.headers['Content-Range'], 'bytes 0-0/589015441');
+    assert.equal(out.headers['Content-Length'], '1');
+    assert.equal(out.body, 'M');
 });
