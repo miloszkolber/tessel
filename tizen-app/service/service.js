@@ -2433,8 +2433,8 @@ function handleDavStream(req, res, query) {
  * miniDLNA answers "bytes=0-0" with the whole file (it honours the start
  * but not the end), so the reply is clamped to what was asked for before
  * it reaches the page: a header probe must cost one byte, not 600 MB. */
-function dlnaRangeOf(value, total) {
-    var m = /bytes=(\d*)-(\d*)/.exec(String(value || ''));
+var dlnaRangeLogs = 0;
+function dlnaRangeOf(value, total) {    var m = /bytes=(\d*)-(\d*)/.exec(String(value || ''));
     if (!m) return null;
     var start, end;
     if (m[1] === '' && m[2] !== '') { start = Math.max(0, total - parseInt(m[2], 10)); end = total - 1; }
@@ -2456,6 +2456,13 @@ function handleDlnaRange(req, res, query) {
     var lib = u.protocol === 'https:' ? https : http;
     var headers = {};
     if (req.headers.range) headers.Range = req.headers.range;
+    /* Evidence that subtitle discovery reached the proxy, and what it asked
+     * for.  The log ring is bounded; keep the first few and then a sample. */
+    if (!/\.srt$/i.test(u.pathname || '')) {
+        dlnaRangeLogs++;
+        if (dlnaRangeLogs <= 5 || dlnaRangeLogs % 50 === 0)
+            log('DLNA_RANGE', { n: dlnaRangeLogs, range: headers.Range || '', host: u.host, path: u.pathname });
+    }
     var upstream = null;
     req.on('close', function () { if (upstream) try { upstream.destroy(); } catch (e) {} });
     try {
@@ -2695,6 +2702,7 @@ var server = http.createServer(function (req, res) {
     if (u.pathname === '/dlna/discover') return handleDlnaDiscover(req, res);
     if (u.pathname === '/dlna/browse' && req.method === 'POST') return handleDlnaBrowse(req, res);
     if (u.pathname === '/dlna/range') return handleDlnaRange(req, res, u.query);
+    if (u.pathname === '/range') return handleDlnaRange(req, res, u.query);
 
     // WebDAV servers (issue #145).
     if (u.pathname === '/dav/connect' && req.method === 'POST') return handleDavConnect(req, res);

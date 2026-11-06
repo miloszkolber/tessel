@@ -1615,6 +1615,15 @@
     /* ── Common: open a URI in player view ────────────────────────── */
     var openWatchdog = null;
     var playbackGeneration = 0;
+    /* Header and subtitle reads go through the loopback range proxy for any
+     * remote http(s) media.  Playback keeps the server's own URL.  This also
+     * covers a DLNA file reopened from Home or Recents, where the original
+     * playlist item (and its probe URL) is no longer around. */
+    function loopbackRange(uri) {
+        if (!/^https?:\/\//i.test(uri || '')) return null;
+        if (/^https?:\/\/(?:127\.0\.0\.1|localhost)(?::|\/)/i.test(uri)) return null;
+        return 'http://127.0.0.1:8127/range?url=' + encodeURIComponent(uri);
+    }
     function playUri(uri, title, opts) {
         opts = opts || {};
         var generation = ++playbackGeneration;
@@ -1686,9 +1695,9 @@
                 file:      opts.file || null,
                 // Embedded subtitles are read from the file itself.
                 sourceUri: uri,
-                // A DLNA file's header is read through the loopback range
+                // A remote file's header is read through the loopback range
                 // proxy; playback itself keeps the server's own URL.
-                probeUrl:  opts.probeUrl || null
+                probeUrl:  opts.probeUrl || loopbackRange(uri)
             });
         }, 50);
 

@@ -31,6 +31,8 @@ For card mutations, verify focus against the card that opened the menu rather th
 
 For metadata and history changes, verify the single metadata line retains the title baseline and focused card. Exercise pending-read cancellation on navigation and playback. Confirm folder-history reset defaults to Cancel, restores the invoking card and clears watched, resume and queue-only progress without touching sibling folders or other servers. Direct simulator folder resolution must retain a real parent chain so Up tests the same restoration contract as normal browsing. Inspect the built package, not only the packaging script, for service wrapping and simulator exclusion. Physical older-Tizen and Tizen 10 service startup remain separate acceptance checks.
 
+After an update that changes `service/service.js`, the background service from the previous package can keep running and serve the old routes. Restart the TV (or otherwise stop the old service) before checking a new service route; reopening the app is not enough while its old session is mid-playback. The debug log page receives app lines on the LAN listener at `http://<tv-ip>:8129/debug`; the loopback listener serves only `/smb/debug/logs` for reading.
+
 The audio and video demo routes offer `default`, `queue`, `loading`, `buffering` and `error` states. Default plays one item. Queue plays the folder queue. Loading and buffering hold the simulated decoder until playback is resumed or the route changes. Error drives the application's normal playback-error callback. Scenario selection applies only to the next simulated open, so a later ordinary launch is not forced to fail. These states exercise production markup and recovery code, not a second interface fixture.
 
 ## Code map

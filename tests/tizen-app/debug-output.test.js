@@ -69,7 +69,7 @@ test('every line reaches the console without anything being configured', functio
     d.Debug.info('after enabling');
     assert.ok(d.posts.length > 0, 'the service log page is fed once enabled');
     d.posts.forEach(function (x) {
-        assert.ok(x.dest.indexOf('127.0.0.1:8127/debug/log') >= 0, x.dest);
+        assert.ok(x.dest.indexOf('127.0.0.1:8129/debug/log') >= 0, x.dest);
     });
 });
 

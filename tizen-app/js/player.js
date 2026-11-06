@@ -968,27 +968,33 @@ var Player = (function () {
     }
     function looksLikeMatroska(url) { return embeddedSubContainer(url) === 'MKV'; }
 
-    function listContainerSubTracks(uri, file) {
+    function listContainerSubTracks(uri, file, fallbackUri) {
         containerSubTracks = [];
         containerTracks = [];
         var token = ++lastContainerListToken;
         if (!looksLikeMatroska(uri)) return;
         if (typeof MkvSubs === 'undefined' || !MkvSubs.listTracks) return;
-
-        MkvSubs.listTracks(file || uri, function (err, tracks) {
-            if (token !== lastContainerListToken) return;   // another file opened
-            if (err) {
+        function read(source) {
+            MkvSubs.listTracks(file || source, function (err, tracks) {
+                if (token !== lastContainerListToken) return;   // another file opened
+                if (err) {
+                    /* A service from before the range proxy answers 404;
+                     * fall back to the server URL rather than losing the
+                     * header read entirely. */
+                    if (fallbackUri && fallbackUri !== source) { read(fallbackUri); return; }
+                    if (typeof Debug !== 'undefined')
+                        Debug.warn('MKV header track list: ' + (err.message || err));
+                    return;
+                }
+                containerTracks = tracks;
+                containerSubTracks = tracks.filter(MkvSubs.isSubtitleTrack);
                 if (typeof Debug !== 'undefined')
-                    Debug.warn('MKV header track list: ' + (err.message || err));
-                return;
-            }
-            containerTracks = tracks;
-            containerSubTracks = tracks.filter(MkvSubs.isSubtitleTrack);
-            if (typeof Debug !== 'undefined')
-                Debug.player('MKV header declares ' + containerSubTracks.length +
-                             ' subtitle track(s)');
-            emit('onsubsupdated');      // re-render the CC menu if it's open
-        });
+                    Debug.player('MKV header declares ' + containerSubTracks.length +
+                                 ' subtitle track(s)');
+                emit('onsubsupdated');      // re-render the CC menu if it's open
+            });
+        }
+        read(uri);
     }
 
     /* Bitmap subs (PGS, VobSub) hold pictures, not text: nothing in this
@@ -1591,7 +1597,7 @@ var Player = (function () {
             /* Independent of extraction, and not limited to local files: the
              * header read works over the SMB proxy too, and it is the only
              * thing that sees every track in a big multi-language mux. */
-            listContainerSubTracks(subsSourceUri, opts.file);
+            listContainerSubTracks(subsSourceUri, opts.file, opts.sourceUri || url);
 
             // For local files routed to AVPlay (currently: .mkv), supply a
             // fallback so we degrade gracefully to HTML5 if AVPlay can't

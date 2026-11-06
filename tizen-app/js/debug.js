@@ -78,7 +78,7 @@ var Debug = (function () {
         if (!logging) return;
         try {
             var x = new XMLHttpRequest();
-            x.open('POST', 'http://127.0.0.1:8127/debug/log', true);
+            x.open('POST', 'http://127.0.0.1:8129/debug/log', true);
             /* text/plain keeps this a simple request: no CORS preflight, and
              * the service parses the body as JSON either way. */
             x.setRequestHeader('Content-Type', 'text/plain');
